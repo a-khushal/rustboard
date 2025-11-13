@@ -24,6 +24,12 @@ impl Document {
     pub fn get_rectangles(&self) -> &[Rectangle] {
         &self.rectangles
     }
+
+    pub fn move_rectangle(&mut self, id: u64, new_position: Point) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            rect.position = new_position;
+        }
+    }
 }
 
 impl Default for Document {

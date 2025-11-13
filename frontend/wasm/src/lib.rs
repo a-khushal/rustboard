@@ -26,7 +26,12 @@ impl EditorApi {
     pub fn get_rectangles(&self) -> JsValue {
         let rectangles = self.document.borrow().get_rectangles().to_vec();
         to_value(&rectangles).unwrap()
-    } 
+    }
+
+    #[wasm_bindgen]
+    pub fn move_rectangle(&self, id: u64, x: f64, y: f64) {
+        self.document.borrow_mut().move_rectangle(id, Point::new(x, y));
+    }
 }
 
 impl Default for EditorApi {
