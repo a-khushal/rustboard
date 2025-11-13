@@ -20,23 +20,13 @@
 
 	$: if (canvas && wasmLoaded && !ctx) {
 		ctx = canvas.getContext('2d');
-		resizeCanvas();
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
 		render();
-		
-		window.addEventListener('resize', resizeCanvas);
 	}
 
 	$: if (rectangles.length > 0 && ctx && canvas) {
 		render();
-	}
-
-	function resizeCanvas() {
-		if (!canvas) return;
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
-		if (ctx) {
-			render();
-		}
 	}
 
 	async function updateRectangles() {
@@ -99,8 +89,8 @@
 			class="w-full h-full bg-white"
 		></canvas>
 	{:else}
-		<div class="flex items-center justify-center h-full">
-			<p class="text-gray-600">Loading...</p>
+		<div class="flex items-center justify-center h-full bg-white">
+			<p class="text-black">Loading...</p>
 		</div>
 	{/if}
 </div>

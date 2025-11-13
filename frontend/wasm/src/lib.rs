@@ -23,11 +23,6 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
-    pub fn get_rectangles_count(&self) -> usize {
-        self.document.borrow().get_rectangles().len()
-    }
-
-    #[wasm_bindgen]
     pub fn get_rectangles(&self) -> JsValue {
         let rectangles = self.document.borrow().get_rectangles().to_vec();
         to_value(&rectangles).unwrap()
