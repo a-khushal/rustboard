@@ -1,0 +1,18 @@
+{
+	"name": "rustboard",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build:wasm": "wasm-pack build frontend/wasm --target web --out-dir ../../pkg",
+		"build:wasm:dev": "wasm-pack build frontend/wasm --target web --out-dir ../../pkg --dev",
+		"build:frontend": "cd frontend && npm run build",
+		"build": "npm run build:wasm && npm run build:frontend",
+		"start": "npm run dev",
+		"dev": "cd frontend && npm run dev",
+		"check:wasm": "cargo check --target wasm32-unknown-unknown -p rustboard-wasm",
+		"watch:wasm": "cargo watch -s 'wasm-pack build frontend/wasm --target web --out-dir ../../pkg --dev'",
+		"test:wasm": "wasm-pack test --headless --firefox"
+	}
+}
+

@@ -1,0 +1,41 @@
+# Rustboard
+
+A drawing application built with Svelte and Rust (compiled to WebAssembly).
+
+## Prerequisites
+
+- Rust (with `wasm32-unknown-unknown` target)
+- Node.js and npm
+- wasm-pack: `cargo install wasm-pack`
+
+## Project Structure
+
+```
+rustboard/
+├── editor/              # Core Rust logic
+│   └── src/lib.rs
+├── frontend/
+│   ├── wasm/           # Rust translation layer (wasm-bindgen)
+│   │   └── src/lib.rs
+│   └── src/           # Svelte frontend
+│       └── routes/
+└── pkg/                # Generated Wasm package
+```
+
+## Setup
+
+1. Install dependencies:
+   ```bash
+   cargo install wasm-pack
+   cd frontend && npm install
+   ```
+
+2. Build the Wasm module:
+   ```bash
+   npm run build:wasm:dev
+   ```
+
+3. Start the dev server:
+   ```bash
+   npm start
+   ```

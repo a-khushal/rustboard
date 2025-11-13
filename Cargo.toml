@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "editor",
+    "frontend/wasm",
+]
+resolver = "2"
