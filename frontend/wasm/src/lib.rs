@@ -32,6 +32,11 @@ impl EditorApi {
     pub fn move_rectangle(&self, id: u64, x: f64, y: f64) {
         self.document.borrow_mut().move_rectangle(id, Point::new(x, y));
     }
+
+    #[wasm_bindgen]
+    pub fn delete_rectangle(&self, id: u64) {
+        self.document.borrow_mut().delete_rectangle(id);
+    }
 }
 
 impl Default for EditorApi {

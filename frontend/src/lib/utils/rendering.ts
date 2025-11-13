@@ -11,10 +11,15 @@ export function renderRectangles(
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 	rectangles.forEach((rect) => {
-		const isSelected = selectedRectangles.some(r => r.id === rect.id);
+		const isSelected = selectedRectangles.some(selected => selected.id === rect.id);
 		
-		ctx.fillStyle = isSelected ? '#ef4444' : '#3b82f6';
-		ctx.strokeStyle = isSelected ? '#dc2626' : '#1e40af';
+		if (isSelected) {
+			ctx.fillStyle = '#ef4444';
+			ctx.strokeStyle = '#dc2626';
+		} else {
+			ctx.fillStyle = '#3b82f6';
+			ctx.strokeStyle = '#1e40af';
+		}
 		ctx.lineWidth = 2;
 		
 		ctx.fillRect(

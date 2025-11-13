@@ -30,6 +30,10 @@ impl Document {
             rect.position = new_position;
         }
     }
+
+    pub fn delete_rectangle(&mut self, id: u64) {
+        self.rectangles.retain(|r| r.id != id);
+    }
 }
 
 impl Default for Document {
