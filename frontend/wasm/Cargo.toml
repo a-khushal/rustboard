@@ -9,4 +9,5 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 wasm-bindgen = "0.2"
 rustboard-editor = { path = "../../editor" }
-
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"

@@ -1,3 +1,4 @@
+use serde_wasm_bindgen::to_value;
 use wasm_bindgen::prelude::*;
 use rustboard_editor::{Document, Point};
 use std::cell::RefCell;
@@ -25,6 +26,12 @@ impl EditorApi {
     pub fn get_rectangles_count(&self) -> usize {
         self.document.borrow().get_rectangles().len()
     }
+
+    #[wasm_bindgen]
+    pub fn get_rectangles(&self) -> JsValue {
+        let rectangles = self.document.borrow().get_rectangles().to_vec();
+        to_value(&rectangles).unwrap()
+    } 
 }
 
 impl Default for EditorApi {

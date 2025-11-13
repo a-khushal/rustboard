@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use crate::geometry::Point;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rectangle {
     pub id: u64,
     pub position: Point,

@@ -24,4 +24,3 @@ export async function initWasm(): Promise<EditorApi> {
 export function getEditorApi(): EditorApi | null {
 	return editorApi;
 }
-

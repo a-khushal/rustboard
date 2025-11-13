@@ -1,7 +1,6 @@
 use crate::elements::Rectangle;
 use crate::geometry::Point;
 
-
 pub struct Document {
     rectangles: Vec<Rectangle>,
     next_id: u64,

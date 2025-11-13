@@ -4,47 +4,103 @@
 
 	let wasmLoaded = false;
 	let editorApi: any = null;
-	let rectangleCount = 0;
+	let rectangles: any[] = [];
+	let canvas: HTMLCanvasElement | undefined;
+	let ctx: CanvasRenderingContext2D | null = null;
 
 	onMount(async () => {
 		try {
 			editorApi = await initWasm();
 			wasmLoaded = true;
-			rectangleCount = editorApi.get_rectangles_count();
+			await updateRectangles();
 		} catch (error) {
 			console.error('Failed to initialize Wasm:', error);
 		}
 	});
 
-	function addRectangle() {
-		if (!editorApi) return;
+	$: if (canvas && wasmLoaded && !ctx) {
+		ctx = canvas.getContext('2d');
+		resizeCanvas();
+		render();
+		
+		window.addEventListener('resize', resizeCanvas);
+	}
 
-		const x = Math.random() * 500;
-		const y = Math.random() * 500;
+	$: if (rectangles.length > 0 && ctx && canvas) {
+		render();
+	}
+
+	function resizeCanvas() {
+		if (!canvas) return;
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		if (ctx) {
+			render();
+		}
+	}
+
+	async function updateRectangles() {
+		if (!editorApi) return;
+		rectangles = editorApi.get_rectangles();
+	}
+
+	function addRectangle() {
+		if (!editorApi || !canvas) return;
+
+		const x = Math.random() * (canvas.width - 100);
+		const y = Math.random() * (canvas.height - 50);
 		const width = 100;
 		const height = 50;
 		
-		const id = editorApi.add_rectangle(x, y, width, height);
-		rectangleCount = editorApi.get_rectangles_count();
-		console.log(`Added rectangle with id: ${id}`);
+		editorApi.add_rectangle(x, y, width, height);
+		updateRectangles();
+	}
+
+	function render() {
+		if (!ctx || !canvas) return;
+
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+		rectangles.forEach((rect) => {
+			ctx!.fillStyle = '#3b82f6';
+			ctx!.strokeStyle = '#1e40af';
+			ctx!.lineWidth = 2;
+			
+			ctx!.fillRect(
+				rect.position.x,
+				rect.position.y,
+				rect.width,
+				rect.height
+			);
+			
+			ctx!.strokeRect(
+				rect.position.x,
+				rect.position.y,
+				rect.width,
+				rect.height
+			);
+		});
 	}
 </script>
 
-<div class="p-8 max-w-3xl mx-auto">
-	<h1 class="text-3xl font-bold mb-6">Rustboard</h1>
-	
+<div class="fixed inset-0">
 	{#if wasmLoaded}
-		<div class="mt-8 p-6 bg-sky-50 rounded-lg border border-sky-200">
-			<p class="text-green-600 mb-4">Wasm module loaded successfully!</p>
-			<p class="text-gray-700 mb-4">Rectangles: {rectangleCount}</p>
-			<button 
-				on:click={addRectangle}
-				class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-			>
-				Add Rectangle
-			</button>
-		</div>
+		<button 
+			on:click={addRectangle}
+			style="position: absolute; top: 10px; left: 10px; padding: 8px 16px; border: 1px solid black; z-index: 10; color: black;"
+		>
+			Add Rectangle
+		</button>
+		
+		<canvas
+			bind:this={canvas}
+			class="w-full h-full bg-white"
+		></canvas>
 	{:else}
-		<p class="text-gray-600">Loading Wasm module...</p>
+		<div class="flex items-center justify-center h-full">
+			<p class="text-gray-600">Loading...</p>
+		</div>
 	{/if}
 </div>
