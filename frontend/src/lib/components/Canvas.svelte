@@ -101,7 +101,6 @@
 		canvas?.focus();
 	}
 
-
 	function render() {
 		if (!ctx || !canvas) return;
 		renderRectangles(ctx, canvas, $rectangles, $selectedRectangles, $viewportOffset);
