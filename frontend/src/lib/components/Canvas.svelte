@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { rectangles, selectedRectangles, editorApi, type Rectangle, viewportOffset } from '$lib/stores/editor';
+	import { rectangles, selectedRectangles, editorApi, viewportOffset } from '$lib/stores/editor';
 	import { isPointInRectangle } from '$lib/utils/geometry';
 	import { renderRectangles } from '$lib/utils/rendering';
 	import { screenToWorld } from '$lib/utils/viewport';
-	import { addRectangle, updateRectangles, deleteRectangles, moveRectangle } from '$lib/utils/canvas-operations/index';
+	import { addRectangle, deleteRectangles, moveRectangle } from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 
 	let canvas: HTMLCanvasElement | undefined;

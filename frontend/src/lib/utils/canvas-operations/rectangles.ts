@@ -15,14 +15,6 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
     }
 }
 
-export function deleteRectangle(id: number): void {
-    const api = get(editorApi);
-    if (!api) return;
-
-    api.delete_rectangle(BigInt(id));
-    updateRectangles();
-}
-
 export function deleteRectangles(ids: number[]): void {
     const api = get(editorApi);
     if (!api) return;
