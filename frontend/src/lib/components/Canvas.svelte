@@ -3,6 +3,9 @@
 	import { rectangles, selectedRectangles, editorApi, type Rectangle, viewportOffset } from '$lib/stores/editor';
 	import { isPointInRectangle } from '$lib/utils/geometry';
 	import { renderRectangles } from '$lib/utils/rendering';
+	import { screenToWorld } from '$lib/utils/viewport';
+	import { addRectangle, updateRectangles, deleteRectangles, moveRectangle } from '$lib/utils/canvas-operations/index';
+	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 
 	let canvas: HTMLCanvasElement | undefined;
 	let ctx: CanvasRenderingContext2D | null = null;
@@ -12,40 +15,13 @@
 	let draggedRectangle: any = null;
 	let justCreatedRectangle = false;
 
-	function screenToWorld(screenX: number, screenY: number): { x: number, y: number } {
-		const offset = $viewportOffset;
-		return {
-			x: screenX - offset.x,
-			y: screenY - offset.y,
-		}
-	}
-
-	function handleWheel(event: WheelEvent) {
-		event.preventDefault();
-
-		if (event.shiftKey) {
-			const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-			viewportOffset.update(offset => ({
-				x: offset.x - horizontalDelta,
-				y: offset.y,
-			}));
-		} else {
-			viewportOffset.update(offset => ({
-				x: offset.x,
-				y: offset.y - event.deltaY,
-			}));
-		}
-	}
-
 	function handleKeyDown(event: KeyboardEvent) {
 		if (!$editorApi || $selectedRectangles.length === 0 || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
 
 		event.preventDefault();
-		$selectedRectangles.forEach(rect => {
-			$editorApi.delete_rectangle(BigInt(rect.id));
-		});
+		const idsToDelete = $selectedRectangles.map(rect => rect.id);
+		deleteRectangles(idsToDelete);
 		selectedRectangles.set([]);
-		updateRectangles();
 		render();
 	}
 
@@ -58,7 +34,7 @@
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
 		const screenY = event.clientY - rect.top;
-		const { x, y } = screenToWorld(screenX, screenY);
+		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
 
 		justCreatedRectangle = false;
 		const isShiftPressed = event.shiftKey;
@@ -98,7 +74,7 @@
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
 		const screenY = event.clientY - rect.top;
-		const { x, y } = screenToWorld(screenX, screenY);
+		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
 		
 		const dx = Math.abs(x - dragStartPos.x);
 		const dy = Math.abs(y - dragStartPos.y);
@@ -110,12 +86,11 @@
 		if (isDragging) {
 			const deltaX = x - dragStartPos.x;
 			const deltaY = y - dragStartPos.y;
-			$editorApi.move_rectangle(
-				BigInt(draggedRectangle.id),
+			moveRectangle(
+				draggedRectangle.id,
 				dragRectStartPos.x + deltaX,
 				dragRectStartPos.y + deltaY
 			);
-			updateRectangles();
 		}
 	}
 	
@@ -126,33 +101,6 @@
 		canvas?.focus();
 	}
 
-	function addRectangle(x: number, y: number) {
-		if (!$editorApi) return;
-
-		const width = 100;
-		const height = 50;
-		
-		const newId = $editorApi.add_rectangle(x, y, width, height);
-		const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-		rectangles.set(updatedRectangles);
-		
-		const newRect = updatedRectangles.find((r: Rectangle) => r.id === Number(newId));
-		if (newRect) {
-			selectedRectangles.set([newRect]);
-		}
-	}
-
-	function updateRectangles() {
-		if (!$editorApi) return;
-		const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-		rectangles.set(updatedRectangles);
-		
-		if ($selectedRectangles.length > 0) {
-			const selectedIds = new Set($selectedRectangles.map(r => r.id));
-			const updatedSelection = updatedRectangles.filter((r: Rectangle) => selectedIds.has(r.id));
-			selectedRectangles.set(updatedSelection.length > 0 ? updatedSelection : []);
-		}
-	}
 
 	function render() {
 		if (!ctx || !canvas) return;
@@ -185,7 +133,7 @@
 	on:mousedown={handleMouseDown}
 	on:mousemove={handleMouseMove}
 	on:mouseup={handleMouseUp}
-	on:wheel={handleWheel}
+	on:wheel={handleViewportScroll}
 	on:keydown={handleKeyDown}
 	bind:this={canvas}
 	class="w-full h-full bg-white"
