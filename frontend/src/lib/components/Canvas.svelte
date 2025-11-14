@@ -7,32 +7,34 @@
 	let canvas: HTMLCanvasElement | undefined;
 	let ctx: CanvasRenderingContext2D | null = null;
 	let isDragging = false;
-	let dragOffset = { x: 0, y: 0 };
+	let dragStartPos = { x: 0, y: 0 };
+	let dragRectStartPos = { x: 0, y: 0 };
 	let draggedRectangle: any = null;
+	let justCreatedRectangle = false;
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (!$editorApi || $selectedRectangles.length === 0) return;
+		if (!$editorApi || $selectedRectangles.length === 0 || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
 
-		if (event.key === 'Delete' || event.key === 'Backspace') {
-			event.preventDefault();
-			$selectedRectangles.forEach(rect => {
-				$editorApi.delete_rectangle(BigInt(rect.id));
-			});
-			selectedRectangles.set([]);
-			updateRectangles();
-			render();
-		}
+		event.preventDefault();
+		$selectedRectangles.forEach(rect => {
+			$editorApi.delete_rectangle(BigInt(rect.id));
+		});
+		selectedRectangles.set([]);
+		updateRectangles();
+		render();
 	}
 
 	function handleMouseDown(event: MouseEvent) {
 		if (!canvas) return;
 
+		event.preventDefault();
 		canvas.focus();
 
 		const rect = canvas.getBoundingClientRect();
 		const x = event.clientX - rect.left;
 		const y = event.clientY - rect.top;
 
+		justCreatedRectangle = false;
 		const isShiftPressed = event.shiftKey;
 
 		for (let i = $rectangles.length - 1; i >= 0; i--) {
@@ -41,69 +43,60 @@
 				const index = $selectedRectangles.findIndex(r => r.id === clickedRect.id);
 				
 				if (isShiftPressed) {
-					if (index >= 0) {
-						selectedRectangles.set($selectedRectangles.filter(r => r.id !== clickedRect.id));
-					} else {
-						selectedRectangles.set([...$selectedRectangles, clickedRect]);
-					}
+					selectedRectangles.set(
+						index >= 0
+							? $selectedRectangles.filter(r => r.id !== clickedRect.id)
+							: [...$selectedRectangles, clickedRect]
+					);
 				} else {
-					if (index >= 0) {
-						selectedRectangles.set($selectedRectangles.filter(r => r.id !== clickedRect.id));
-					} else {
-						selectedRectangles.set([clickedRect]);
-					}
+					selectedRectangles.set([clickedRect]);
 				}
 
-				isDragging = true;
 				draggedRectangle = clickedRect;
-				dragOffset.x = x - clickedRect.position.x;
-				dragOffset.y = y - clickedRect.position.y;
-
-				render();
+				dragStartPos = { x, y };
+				dragRectStartPos = { x: clickedRect.position.x, y: clickedRect.position.y };
 				return;
 			}
 		}
 
-		if (!isShiftPressed) {
-			selectedRectangles.set([]);
-		}
+		if (isShiftPressed) return;
+
+		selectedRectangles.set([]);
 		addRectangle(x, y);
-		render();
+		justCreatedRectangle = true;
 	}
 
 	function handleMouseMove(event: MouseEvent) {
-		if (!canvas) return;
+		if (!canvas || justCreatedRectangle || !draggedRectangle || !$editorApi) return;
 
 		const rect = canvas.getBoundingClientRect();
 		const x = event.clientX - rect.left;
 		const y = event.clientY - rect.top;
-		if (isDragging && draggedRectangle && $editorApi) {
-			const newX = x - dragOffset.x;
-			const newY = y - dragOffset.y;
-			$editorApi.move_rectangle(BigInt(draggedRectangle.id), newX, newY);
-			updateRectangles();
-			return;
+		
+		const dx = Math.abs(x - dragStartPos.x);
+		const dy = Math.abs(y - dragStartPos.y);
+		
+		if (!isDragging && (dx > 5 || dy > 5)) {
+			isDragging = true;
 		}
-
+		
 		if (isDragging) {
-			return;
+			const deltaX = x - dragStartPos.x;
+			const deltaY = y - dragStartPos.y;
+			$editorApi.move_rectangle(
+				BigInt(draggedRectangle.id),
+				dragRectStartPos.x + deltaX,
+				dragRectStartPos.y + deltaY
+			);
+			updateRectangles();
 		}
-
-		for (let i = $rectangles.length - 1; i >= 0; i--) {
-			if (isPointInRectangle(x, y, $rectangles[i])) {
-				selectedRectangles.set([$rectangles[i]]);
-				render();
-				return;
-			}
-		}
-
-		selectedRectangles.set([]);
-		render();
 	}
 	
-    function handleMouseUp() {
+	function handleMouseUp() {
 		isDragging = false;
 		draggedRectangle = null;
+		setTimeout(() => { justCreatedRectangle = false; }, 100);
+		canvas?.focus();
 	}
 
 	function addRectangle(x: number, y: number) {
@@ -113,7 +106,7 @@
 		const height = 50;
 		
 		const newId = $editorApi.add_rectangle(x, y, width, height);
-		const updatedRectangles = $editorApi.get_rectangles();
+		const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
 		rectangles.set(updatedRectangles);
 		
 		const newRect = updatedRectangles.find((r: Rectangle) => r.id === Number(newId));
@@ -122,16 +115,15 @@
 		}
 	}
 
-	async function updateRectangles() {
+	function updateRectangles() {
 		if (!$editorApi) return;
-		const updatedRectangles = $editorApi.get_rectangles();
+		const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
 		rectangles.set(updatedRectangles);
 		
 		if ($selectedRectangles.length > 0) {
-			const updatedSelection = $selectedRectangles
-				.map(selected => updatedRectangles.find((r: Rectangle) => r.id === selected.id))
-				.filter((r): r is Rectangle => r !== undefined);
-			selectedRectangles.set(updatedSelection);
+			const selectedIds = new Set($selectedRectangles.map(r => r.id));
+			const updatedSelection = updatedRectangles.filter((r: Rectangle) => selectedIds.has(r.id));
+			selectedRectangles.set(updatedSelection.length > 0 ? updatedSelection : []);
 		}
 	}
 
@@ -140,35 +132,21 @@
 		renderRectangles(ctx, canvas, $rectangles, $selectedRectangles);
 	}
 
-	onMount(() => {
-		if (canvas) {
-			ctx = canvas.getContext('2d');
-			canvas.width = window.innerWidth;
-			canvas.height = window.innerHeight;
-			render();
-		}
-
-		window.addEventListener('keydown', handleKeyDown);
-		
-		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
-		};
-	});
-
-	$: if (canvas && $editorApi && !ctx) {
+	function initCanvas() {
+		if (!canvas) return;
 		ctx = canvas.getContext('2d');
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
-		render();
 	}
 
-	$: if ($rectangles.length > 0 && ctx && canvas) {
-		render();
-	}
+	onMount(() => {
+		initCanvas();
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	});
 
-	$: if ($selectedRectangles.length > 0 && ctx && canvas) {
-		render();
-	}
+	$: if (canvas && $editorApi && !ctx) initCanvas();
+	$: if (ctx && canvas && ($rectangles.length > 0 || $selectedRectangles.length > 0)) render();
 </script>
 
 <canvas
