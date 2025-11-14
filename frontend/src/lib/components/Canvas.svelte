@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { rectangles, selectedRectangles, editorApi, type Rectangle } from '$lib/stores/editor';
+	import { rectangles, selectedRectangles, editorApi, type Rectangle, viewportOffset } from '$lib/stores/editor';
 	import { isPointInRectangle } from '$lib/utils/geometry';
 	import { renderRectangles } from '$lib/utils/rendering';
 
@@ -11,6 +11,31 @@
 	let dragRectStartPos = { x: 0, y: 0 };
 	let draggedRectangle: any = null;
 	let justCreatedRectangle = false;
+
+	function screenToWorld(screenX: number, screenY: number): { x: number, y: number } {
+		const offset = $viewportOffset;
+		return {
+			x: screenX - offset.x,
+			y: screenY - offset.y,
+		}
+	}
+
+	function handleWheel(event: WheelEvent) {
+		event.preventDefault();
+
+		if (event.shiftKey) {
+			const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+			viewportOffset.update(offset => ({
+				x: offset.x - horizontalDelta,
+				y: offset.y,
+			}));
+		} else {
+			viewportOffset.update(offset => ({
+				x: offset.x,
+				y: offset.y - event.deltaY,
+			}));
+		}
+	}
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (!$editorApi || $selectedRectangles.length === 0 || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
@@ -31,8 +56,9 @@
 		canvas.focus();
 
 		const rect = canvas.getBoundingClientRect();
-		const x = event.clientX - rect.left;
-		const y = event.clientY - rect.top;
+		const screenX = event.clientX - rect.left;
+		const screenY = event.clientY - rect.top;
+		const { x, y } = screenToWorld(screenX, screenY);
 
 		justCreatedRectangle = false;
 		const isShiftPressed = event.shiftKey;
@@ -70,8 +96,9 @@
 		if (!canvas || justCreatedRectangle || !draggedRectangle || !$editorApi) return;
 
 		const rect = canvas.getBoundingClientRect();
-		const x = event.clientX - rect.left;
-		const y = event.clientY - rect.top;
+		const screenX = event.clientX - rect.left;
+		const screenY = event.clientY - rect.top;
+		const { x, y } = screenToWorld(screenX, screenY);
 		
 		const dx = Math.abs(x - dragStartPos.x);
 		const dy = Math.abs(y - dragStartPos.y);
@@ -129,7 +156,7 @@
 
 	function render() {
 		if (!ctx || !canvas) return;
-		renderRectangles(ctx, canvas, $rectangles, $selectedRectangles);
+		renderRectangles(ctx, canvas, $rectangles, $selectedRectangles, $viewportOffset);
 	}
 
 	function initCanvas() {
@@ -146,13 +173,19 @@
 	});
 
 	$: if (canvas && $editorApi && !ctx) initCanvas();
-	$: if (ctx && canvas && ($rectangles.length > 0 || $selectedRectangles.length > 0)) render();
+	$: if (ctx && canvas) {
+		$viewportOffset;
+		$rectangles;
+		$selectedRectangles;
+		render();
+	}
 </script>
 
 <canvas
 	on:mousedown={handleMouseDown}
 	on:mousemove={handleMouseMove}
 	on:mouseup={handleMouseUp}
+	on:wheel={handleWheel}
 	on:keydown={handleKeyDown}
 	bind:this={canvas}
 	class="w-full h-full bg-white"

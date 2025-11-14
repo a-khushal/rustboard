@@ -4,11 +4,15 @@ export function renderRectangles(
 	ctx: CanvasRenderingContext2D,
 	canvas: HTMLCanvasElement,
 	rectangles: Rectangle[],
-	selectedRectangles: Rectangle[]
+	selectedRectangles: Rectangle[],
+	viewportOffset: { x: number, y: number }
 ): void {
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	ctx.fillStyle = '#ffffff';
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	ctx.save();
+	ctx.translate(viewportOffset.x, viewportOffset.y);
 
 	rectangles.forEach((rect) => {
 		const isSelected = selectedRectangles.some(selected => selected.id === rect.id);
@@ -36,5 +40,7 @@ export function renderRectangles(
 			rect.height
 		);
 	});
+
+	ctx.restore();
 }
 
