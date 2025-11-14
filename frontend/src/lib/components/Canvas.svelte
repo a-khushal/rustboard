@@ -14,8 +14,21 @@
 	let dragRectStartPos = { x: 0, y: 0 };
 	let draggedRectangle: any = null;
 	let justCreatedRectangle = false;
+	let isSpacePressed = false;
+	let isPanning = false;
+	let panStartPos = { x: 0, y: 0 };
+	let panStartOffset = { x: 0, y: 0 };
 
 	function handleKeyDown(event: KeyboardEvent) {
+		if (event.key === ' ') {
+			event.preventDefault();
+			isSpacePressed = true;
+			if (canvas && !isPanning) {
+				canvas.style.cursor = 'grab';
+			}
+			return;
+		}
+
 		if (!$editorApi || $selectedRectangles.length === 0 || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
 
 		event.preventDefault();
@@ -23,6 +36,15 @@
 		deleteRectangles(idsToDelete);
 		selectedRectangles.set([]);
 		render();
+	}
+
+	function handleKeyUp(event: KeyboardEvent) {
+		if (event.key === ' ') {
+			isSpacePressed = false;
+			if (canvas && !isPanning) {
+				canvas.style.cursor = 'default';
+			}
+		}
 	}
 
 	function handleMouseDown(event: MouseEvent) {
@@ -34,6 +56,17 @@
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
 		const screenY = event.clientY - rect.top;
+
+		if (isSpacePressed) {
+			isPanning = true;
+			panStartPos = { x: screenX, y: screenY };
+			panStartOffset = { ...$viewportOffset };
+			if (canvas) {
+				canvas.style.cursor = 'grabbing';
+			}
+			return;
+		}
+
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
 
 		justCreatedRectangle = false;
@@ -69,11 +102,25 @@
 	}
 
 	function handleMouseMove(event: MouseEvent) {
-		if (!canvas || justCreatedRectangle || !draggedRectangle || !$editorApi) return;
+		if (!canvas) return;
 
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
 		const screenY = event.clientY - rect.top;
+
+		if (isPanning) {
+			canvas.style.cursor = 'grabbing';
+			const deltaX = screenX - panStartPos.x;
+			const deltaY = screenY - panStartPos.y;
+			viewportOffset.set({
+				x: panStartOffset.x + deltaX,
+				y: panStartOffset.y + deltaY,
+			});
+			return;
+		}
+
+		if (justCreatedRectangle || !draggedRectangle || !$editorApi) return;
+
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
 		
 		const dx = Math.abs(x - dragStartPos.x);
@@ -95,6 +142,13 @@
 	}
 	
 	function handleMouseUp() {
+		if (isPanning) {
+			isPanning = false;
+			if (canvas) {
+				canvas.style.cursor = isSpacePressed ? 'grab' : 'default';
+			}
+		}
+		
 		isDragging = false;
 		draggedRectangle = null;
 		setTimeout(() => { justCreatedRectangle = false; }, 100);
@@ -116,7 +170,11 @@
 	onMount(() => {
 		initCanvas();
 		window.addEventListener('keydown', handleKeyDown);
-		return () => window.removeEventListener('keydown', handleKeyDown);
+		window.addEventListener('keyup', handleKeyUp);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+			window.removeEventListener('keyup', handleKeyUp);
+		};
 	});
 
 	$: if (canvas && $editorApi && !ctx) initCanvas();
