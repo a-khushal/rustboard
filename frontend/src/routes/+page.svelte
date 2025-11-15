@@ -16,12 +16,12 @@
 	});
 </script>
 
-<div class="fixed inset-0">
+<div class="fixed inset-0 bg-stone-50">
 	{#if $wasmLoaded}	
 		<Canvas />
 	{:else}
-		<div class="flex items-center justify-center h-full bg-white">
-			<p class="text-black">Loading...</p>
+		<div class="flex items-center justify-center h-full bg-stone-50">
+			<p class="text-stone-600 text-sm font-sans">Loading...</p>
 		</div>
 	{/if}
 </div>

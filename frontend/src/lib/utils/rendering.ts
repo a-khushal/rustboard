@@ -8,7 +8,7 @@ export function renderRectangles(
 	viewportOffset: { x: number, y: number }
 ): void {
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
-	ctx.fillStyle = '#ffffff';
+	ctx.fillStyle = '#fafaf9';
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 	ctx.save();
@@ -17,28 +17,29 @@ export function renderRectangles(
 	rectangles.forEach((rect) => {
 		const isSelected = selectedRectangles.some(selected => selected.id === rect.id);
 		
+		const x = rect.position.x;
+		const y = rect.position.y;
+		const w = rect.width;
+		const h = rect.height;
+		
 		if (isSelected) {
 			ctx.fillStyle = '#ef4444';
 			ctx.strokeStyle = '#dc2626';
+			ctx.lineWidth = 2.5;
 		} else {
 			ctx.fillStyle = '#3b82f6';
-			ctx.strokeStyle = '#1e40af';
+			ctx.strokeStyle = '#2563eb';
+			ctx.lineWidth = 2;
 		}
-		ctx.lineWidth = 2;
 		
-		ctx.fillRect(
-			rect.position.x,
-			rect.position.y,
-			rect.width,
-			rect.height
-		);
+		ctx.fillRect(x, y, w, h);
+		ctx.strokeRect(x, y, w, h);
 		
-		ctx.strokeRect(
-			rect.position.x,
-			rect.position.y,
-			rect.width,
-			rect.height
-		);
+		if (!isSelected) {
+			ctx.strokeStyle = '#60a5fa';
+			ctx.lineWidth = 1;
+			ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+		}
 	});
 
 	ctx.restore();

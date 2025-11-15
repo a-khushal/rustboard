@@ -6,6 +6,8 @@
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { addRectangle, deleteRectangles, moveRectangle } from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
+	import Toolbar from './Toolbar.svelte';
+	import { activeTool, type Tool } from '$lib/stores/tools';
 
 	let canvas: HTMLCanvasElement | undefined;
 	let ctx: CanvasRenderingContext2D | null = null;
@@ -41,9 +43,6 @@
 	function handleKeyUp(event: KeyboardEvent) {
 		if (event.key === ' ') {
 			isSpacePressed = false;
-			if (canvas && !isPanning) {
-				canvas.style.cursor = 'default';
-			}
 		}
 	}
 
@@ -97,8 +96,14 @@
 		if (isShiftPressed) return;
 
 		selectedRectangles.set([]);
-		addRectangle(x, y);
-		justCreatedRectangle = true;
+		
+		const currentTool = String($activeTool).trim();
+		
+		if (currentTool === 'rectangle') {
+			addRectangle(x, y);
+			justCreatedRectangle = true;
+			activeTool.set('select' as Tool);
+		}
 	}
 
 	function handleMouseMove(event: MouseEvent) {
@@ -119,9 +124,38 @@
 			return;
 		}
 
-		if (justCreatedRectangle || !draggedRectangle || !$editorApi) return;
+		if (isSpacePressed) {
+			canvas.style.cursor = 'grab';
+			return;
+		}
 
+		const currentTool = String($activeTool).trim();
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
+		
+		if (currentTool === 'rectangle') {
+			canvas.style.cursor = 'crosshair';
+		} else if (currentTool === 'select') {
+			if (isDragging && draggedRectangle) {
+				canvas.style.cursor = 'move';
+			} else {
+				let hoveringOverShape = false;
+				
+				if ($rectangles.length > 0) {
+					for (let i = $rectangles.length - 1; i >= 0; i--) {
+						if (isPointInRectangle(x, y, $rectangles[i])) {
+							hoveringOverShape = true;
+							break;
+						}
+					}
+				}
+				
+				canvas.style.cursor = hoveringOverShape ? 'move' : 'default';
+			}
+		} else {
+			canvas.style.cursor = 'default';
+		}
+
+		if (justCreatedRectangle || !draggedRectangle || !$editorApi) return;
 		
 		const dx = Math.abs(x - dragStartPos.x);
 		const dy = Math.abs(y - dragStartPos.y);
@@ -144,9 +178,6 @@
 	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
-			if (canvas) {
-				canvas.style.cursor = isSpacePressed ? 'grab' : 'default';
-			}
 		}
 		
 		isDragging = false;
@@ -186,13 +217,16 @@
 	}
 </script>
 
-<canvas
-	on:mousedown={handleMouseDown}
-	on:mousemove={handleMouseMove}
-	on:mouseup={handleMouseUp}
-	on:wheel={handleViewportScroll}
-	on:keydown={handleKeyDown}
-	bind:this={canvas}
-	class="w-full h-full bg-white"
-	tabindex="0"
-></canvas>
+<div class="relative w-full h-full bg-stone-50">
+	<Toolbar />
+	<canvas
+		on:mousedown={handleMouseDown}
+		on:mousemove={handleMouseMove}
+		on:mouseup={handleMouseUp}
+		on:wheel={handleViewportScroll}
+		on:keydown={handleKeyDown}
+		bind:this={canvas}
+		class="w-full h-full bg-stone-50"
+		tabindex="0"
+	></canvas>
+</div>
