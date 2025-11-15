@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { rectangles, selectedRectangles, editorApi, viewportOffset } from '$lib/stores/editor';
+	import { rectangles, selectedRectangles, editorApi, viewportOffset, zoom } from '$lib/stores/editor';
 	import { isPointInRectangle } from '$lib/utils/geometry';
 	import { renderRectangles } from '$lib/utils/rendering';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { addRectangle, deleteRectangles, moveRectangle } from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import Toolbar from './Toolbar.svelte';
+	import ZoomControls from './ZoomControls.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
 
 	let canvas: HTMLCanvasElement | undefined;
@@ -20,6 +21,10 @@
 	let isPanning = false;
 	let panStartPos = { x: 0, y: 0 };
 	let panStartOffset = { x: 0, y: 0 };
+	let isCreatingRectangle = false;
+	let createStartPos = { x: 0, y: 0 };
+	let createCurrentPos = { x: 0, y: 0 };
+	let renderRequestId: number | null = null;
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === ' ') {
@@ -31,13 +36,21 @@
 			return;
 		}
 
+		if (event.key === 'Escape' && isCreatingRectangle) {
+			event.preventDefault();
+			isCreatingRectangle = false;
+			createStartPos = { x: 0, y: 0 };
+			createCurrentPos = { x: 0, y: 0 };
+			scheduleRender();
+			return;
+		}
+
 		if (!$editorApi || $selectedRectangles.length === 0 || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
 
 		event.preventDefault();
 		const idsToDelete = $selectedRectangles.map(rect => rect.id);
 		deleteRectangles(idsToDelete);
 		selectedRectangles.set([]);
-		render();
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -60,13 +73,11 @@
 			isPanning = true;
 			panStartPos = { x: screenX, y: screenY };
 			panStartOffset = { ...$viewportOffset };
-			if (canvas) {
-				canvas.style.cursor = 'grabbing';
-			}
+			canvas.style.cursor = 'grabbing';
 			return;
 		}
 
-		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
+		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 
 		justCreatedRectangle = false;
 		const isShiftPressed = event.shiftKey;
@@ -100,9 +111,9 @@
 		const currentTool = String($activeTool).trim();
 		
 		if (currentTool === 'rectangle') {
-			addRectangle(x, y);
-			justCreatedRectangle = true;
-			activeTool.set('select' as Tool);
+			isCreatingRectangle = true;
+			createStartPos = { x, y };
+			createCurrentPos = { x, y };
 		}
 	}
 
@@ -130,25 +141,25 @@
 		}
 
 		const currentTool = String($activeTool).trim();
-		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset);
+		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 		
 		if (currentTool === 'rectangle') {
 			canvas.style.cursor = 'crosshair';
+			if (isCreatingRectangle) {
+				createCurrentPos = { x, y };
+				scheduleRender();
+			}
 		} else if (currentTool === 'select') {
 			if (isDragging && draggedRectangle) {
 				canvas.style.cursor = 'move';
 			} else {
 				let hoveringOverShape = false;
-				
-				if ($rectangles.length > 0) {
-					for (let i = $rectangles.length - 1; i >= 0; i--) {
-						if (isPointInRectangle(x, y, $rectangles[i])) {
-							hoveringOverShape = true;
-							break;
-						}
+				for (let i = $rectangles.length - 1; i >= 0; i--) {
+					if (isPointInRectangle(x, y, $rectangles[i])) {
+						hoveringOverShape = true;
+						break;
 					}
 				}
-				
 				canvas.style.cursor = hoveringOverShape ? 'move' : 'default';
 			}
 		} else {
@@ -180,6 +191,24 @@
 			isPanning = false;
 		}
 		
+		if (isCreatingRectangle) {
+			const width = Math.abs(createCurrentPos.x - createStartPos.x);
+			const height = Math.abs(createCurrentPos.y - createStartPos.y);
+			const threshold = 5;
+			
+			if (width > threshold && height > threshold) {
+				const x = Math.min(createStartPos.x, createCurrentPos.x);
+				const y = Math.min(createStartPos.y, createCurrentPos.y);
+				addRectangle(x, y, width, height);
+				justCreatedRectangle = true;
+				activeTool.set('select' as Tool);
+			}
+			isCreatingRectangle = false;
+			createStartPos = { x: 0, y: 0 };
+			createCurrentPos = { x: 0, y: 0 };
+			scheduleRender();
+		}
+		
 		isDragging = false;
 		draggedRectangle = null;
 		setTimeout(() => { justCreatedRectangle = false; }, 100);
@@ -188,7 +217,22 @@
 
 	function render() {
 		if (!ctx || !canvas) return;
-		renderRectangles(ctx, canvas, $rectangles, $selectedRectangles, $viewportOffset);
+		renderRectangles(ctx, canvas, $rectangles, $selectedRectangles, $viewportOffset, $zoom, isCreatingRectangle ? {
+			x: Math.min(createStartPos.x, createCurrentPos.x),
+			y: Math.min(createStartPos.y, createCurrentPos.y),
+			width: Math.abs(createCurrentPos.x - createStartPos.x),
+			height: Math.abs(createCurrentPos.y - createStartPos.y)
+		} : null);
+	}
+
+	function scheduleRender() {
+		if (renderRequestId !== null) {
+			cancelAnimationFrame(renderRequestId);
+		}
+		renderRequestId = requestAnimationFrame(() => {
+			render();
+			renderRequestId = null;
+		});
 	}
 
 	function initCanvas() {
@@ -211,19 +255,23 @@
 	$: if (canvas && $editorApi && !ctx) initCanvas();
 	$: if (ctx && canvas) {
 		$viewportOffset;
+		$zoom;
 		$rectangles;
 		$selectedRectangles;
-		render();
+		if (!isCreatingRectangle) {
+			scheduleRender();
+		}
 	}
 </script>
 
 <div class="relative w-full h-full bg-stone-50">
 	<Toolbar />
+	<ZoomControls />
 	<canvas
 		on:mousedown={handleMouseDown}
 		on:mousemove={handleMouseMove}
 		on:mouseup={handleMouseUp}
-		on:wheel={handleViewportScroll}
+		on:wheel={(e) => handleViewportScroll(e, canvas!)}
 		on:keydown={handleKeyDown}
 		bind:this={canvas}
 		class="w-full h-full bg-stone-50"

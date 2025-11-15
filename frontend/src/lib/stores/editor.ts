@@ -14,3 +14,4 @@ export const editorApi = writable<EditorApi | null>(null);
 export const rectangles = writable<Rectangle[]>([]);
 export const selectedRectangles = writable<Rectangle[]>([]);
 export const viewportOffset = writable({ x: 0, y: 0});
+export const zoom = writable<number>(1);
