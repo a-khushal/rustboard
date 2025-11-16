@@ -1,12 +1,11 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse 
 	} from '$lib/stores/editor';
 	import { isPointInRectangle, isPointInEllipse } from '$lib/utils/geometry';
-	import { renderRectangles, renderEllipses } from '$lib/utils/rendering';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, deleteRectangles, moveRectangle, resizeRectangle,
@@ -40,6 +39,7 @@
 	let resizeStartShapeType: 'rectangle' | 'ellipse' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
+	let isShiftPressedDuringResize = false;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
 
@@ -216,6 +216,7 @@
 						height: $selectedRectangles[i].height
 					};
 					resizeStartMousePos = { x, y };
+					isShiftPressedDuringResize = isShiftPressed;
 					return;
 				}
 			}
@@ -235,6 +236,7 @@
 						height: ellipse.radius_y * 2
 					};
 					resizeStartMousePos = { x, y };
+					isShiftPressedDuringResize = isShiftPressed;
 					return;
 				}
 			}
@@ -295,33 +297,65 @@
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 		
 		if (isResizing && resizeStartShape && resizeHandleIndex !== null && $editorApi) {
+			isShiftPressedDuringResize = event.shiftKey;
 			const deltaX = x - resizeStartMousePos.x;
 			const deltaY = y - resizeStartMousePos.y;
 			
 			if (resizeStartShapeType === 'rectangle') {
 				const rect = resizeStartShape as Rectangle;
-				let newX = resizeStartPos.x;
-				let newY = resizeStartPos.y;
-				let newWidth = resizeStartPos.width;
-				let newHeight = resizeStartPos.height;
+				let minX: number, maxX: number, minY: number, maxY: number;
 				
 				if (resizeHandleIndex === 0) {
-					newX = resizeStartPos.x + deltaX;
-					newY = resizeStartPos.y + deltaY;
-					newWidth = resizeStartPos.width - deltaX;
-					newHeight = resizeStartPos.height - deltaY;
+					minX = resizeStartPos.x + deltaX;
+					minY = resizeStartPos.y + deltaY;
+					maxX = resizeStartPos.x + resizeStartPos.width;
+					maxY = resizeStartPos.y + resizeStartPos.height;
 				} else if (resizeHandleIndex === 1) {
-					newY = resizeStartPos.y + deltaY;
-					newWidth = resizeStartPos.width + deltaX;
-					newHeight = resizeStartPos.height - deltaY;
+					minX = resizeStartPos.x;
+					minY = resizeStartPos.y + deltaY;
+					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
+					maxY = resizeStartPos.y + resizeStartPos.height;
 				} else if (resizeHandleIndex === 2) {
-					newWidth = resizeStartPos.width + deltaX;
-					newHeight = resizeStartPos.height + deltaY;
-				} else if (resizeHandleIndex === 3) {
-					newX = resizeStartPos.x + deltaX;
-					newWidth = resizeStartPos.width - deltaX;
-					newHeight = resizeStartPos.height + deltaY;
+					minX = resizeStartPos.x;
+					minY = resizeStartPos.y;
+					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
+					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
+				} else {
+					minX = resizeStartPos.x + deltaX;
+					minY = resizeStartPos.y;
+					maxX = resizeStartPos.x + resizeStartPos.width;
+					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
 				}
+				
+				if (isShiftPressedDuringResize) {
+					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
+					const currentWidth = maxX - minX;
+					const currentHeight = maxY - minY;
+					const widthChange = Math.abs(currentWidth - resizeStartPos.width);
+					const heightChange = Math.abs(currentHeight - resizeStartPos.height);
+					
+					if (widthChange > heightChange) {
+						const newHeight = currentWidth / aspectRatio;
+						const centerY = (minY + maxY) / 2;
+						minY = centerY - newHeight / 2;
+						maxY = centerY + newHeight / 2;
+					} else {
+						const newWidth = currentHeight * aspectRatio;
+						const centerX = (minX + maxX) / 2;
+						minX = centerX - newWidth / 2;
+						maxX = centerX + newWidth / 2;
+					}
+				}
+				
+				const finalMinX = Math.min(minX, maxX);
+				const finalMaxX = Math.max(minX, maxX);
+				const finalMinY = Math.min(minY, maxY);
+				const finalMaxY = Math.max(minY, maxY);
+				
+				const newX = finalMinX;
+				const newY = finalMinY;
+				const newWidth = finalMaxX - finalMinX;
+				const newHeight = finalMaxY - finalMinY;
 				
 				if (newWidth > 0 && newHeight > 0) {
 					moveRectangle(rect.id, newX, newY);
@@ -329,32 +363,53 @@
 				}
 			} else if (resizeStartShapeType === 'ellipse') {
 				const ellipse = resizeStartShape as Ellipse;
-				let newX = resizeStartPos.x;
-				let newY = resizeStartPos.y;
-				let newWidth = resizeStartPos.width;
-				let newHeight = resizeStartPos.height;
+				let minX: number, maxX: number, minY: number, maxY: number;
 				
 				if (resizeHandleIndex === 0) {
-					newX = resizeStartPos.x + deltaX;
-					newY = resizeStartPos.y + deltaY;
-					newWidth = resizeStartPos.width - deltaX;
-					newHeight = resizeStartPos.height - deltaY;
+					minX = resizeStartPos.x + deltaX;
+					minY = resizeStartPos.y + deltaY;
+					maxX = resizeStartPos.x + resizeStartPos.width;
+					maxY = resizeStartPos.y + resizeStartPos.height;
 				} else if (resizeHandleIndex === 1) {
-					newY = resizeStartPos.y + deltaY;
-					newWidth = resizeStartPos.width + deltaX;
-					newHeight = resizeStartPos.height - deltaY;
+					minX = resizeStartPos.x;
+					minY = resizeStartPos.y + deltaY;
+					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
+					maxY = resizeStartPos.y + resizeStartPos.height;
 				} else if (resizeHandleIndex === 2) {
-					newWidth = resizeStartPos.width + deltaX;
-					newHeight = resizeStartPos.height + deltaY;
-				} else if (resizeHandleIndex === 3) {
-					newX = resizeStartPos.x + deltaX;
-					newWidth = resizeStartPos.width - deltaX;
-					newHeight = resizeStartPos.height + deltaY;
+					minX = resizeStartPos.x;
+					minY = resizeStartPos.y;
+					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
+					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
+				} else {
+					minX = resizeStartPos.x + deltaX;
+					minY = resizeStartPos.y;
+					maxX = resizeStartPos.x + resizeStartPos.width;
+					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
 				}
 				
+				if (isShiftPressedDuringResize) {
+					const currentWidth = maxX - minX;
+					const currentHeight = maxY - minY;
+					const maxSize = Math.max(Math.abs(currentWidth), Math.abs(currentHeight));
+					const centerX = (minX + maxX) / 2;
+					const centerY = (minY + maxY) / 2;
+					minX = centerX - maxSize / 2;
+					maxX = centerX + maxSize / 2;
+					minY = centerY - maxSize / 2;
+					maxY = centerY + maxSize / 2;
+				}
+				
+				const finalMinX = Math.min(minX, maxX);
+				const finalMaxX = Math.max(minX, maxX);
+				const finalMinY = Math.min(minY, maxY);
+				const finalMaxY = Math.max(minY, maxY);
+				
+				const newWidth = finalMaxX - finalMinX;
+				const newHeight = finalMaxY - finalMinY;
+				
 				if (newWidth > 0 && newHeight > 0) {
-					const centerX = newX + newWidth / 2;
-					const centerY = newY + newHeight / 2;
+					const centerX = finalMinX + newWidth / 2;
+					const centerY = finalMinY + newHeight / 2;
 					const radiusX = newWidth / 2;
 					const radiusY = newHeight / 2;
 					
@@ -378,43 +433,34 @@
 			} else if (isDragging && draggedShape) {
 				canvas.style.cursor = 'move';
 			} else {
-				let hoveringOverHandle = false;
 				for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
 					const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
 					if (handleIndex !== null) {
 						canvas.style.cursor = resizeCursors[handleIndex];
-						hoveringOverHandle = true;
-						break;
+						return;
 					}
 				}
-				if (!hoveringOverHandle) {
-					for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
-						if (handleIndex !== null) {
-							canvas.style.cursor = resizeCursors[handleIndex];
-							hoveringOverHandle = true;
-							break;
-						}
+				for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
+					const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
+					if (handleIndex !== null) {
+						canvas.style.cursor = resizeCursors[handleIndex];
+						return;
 					}
 				}
-				if (!hoveringOverHandle) {
-					let hoveringOverShape = false;
-					for (let i = $rectangles.length - 1; i >= 0; i--) {
-						if (isPointInRectangle(x, y, $rectangles[i])) {
-							hoveringOverShape = true;
-							break;
-						}
+				
+				for (let i = $rectangles.length - 1; i >= 0; i--) {
+					if (isPointInRectangle(x, y, $rectangles[i])) {
+						canvas.style.cursor = 'move';
+						return;
 					}
-					if (!hoveringOverShape) {
-						for (let i = $ellipses.length - 1; i >= 0; i--) {
-							if (isPointInEllipse(x, y, $ellipses[i])) {
-								hoveringOverShape = true;
-								break;
-							}
-						}
-					}
-					canvas.style.cursor = hoveringOverShape ? 'move' : 'default';
 				}
+				for (let i = $ellipses.length - 1; i >= 0; i--) {
+					if (isPointInEllipse(x, y, $ellipses[i])) {
+						canvas.style.cursor = 'move';
+						return;
+					}
+				}
+				canvas.style.cursor = 'default';
 			}
 		} else {
 			canvas.style.cursor = 'default';
@@ -443,7 +489,7 @@
 		}
 	}
 	
-	async function handleMouseUp() {
+	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
 		}
@@ -455,6 +501,7 @@
 			resizeStartShapeType = null;
 			resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 			resizeStartMousePos = { x: 0, y: 0 };
+			isShiftPressedDuringResize = false;
 		}
 		
 		if (isCreatingShape) {
@@ -470,13 +517,11 @@
 					const y = Math.min(createStartPos.y, createCurrentPos.y);
 					addRectangle(x, y, width, height);
 					selectedEllipses.set([]);
-					await tick();
 					const updatedRectangles = get(rectangles);
 					if (updatedRectangles.length > 0) {
 						const newestRect = updatedRectangles[updatedRectangles.length - 1];
 						selectedRectangles.set([newestRect]);
 					}
-					await tick();
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
@@ -504,13 +549,11 @@
 				if (radius_x > threshold && radius_y > threshold) {
 					addEllipse(centerX, centerY, radius_x, radius_y);
 					selectedRectangles.set([]);
-					await tick();
 					const updatedEllipses = get(ellipses);
 					if (updatedEllipses.length > 0) {
 						const newestEllipse = updatedEllipses[updatedEllipses.length - 1];
 						selectedEllipses.set([newestEllipse]);
 					}
-					await tick();
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
@@ -519,7 +562,6 @@
 			isCreatingShape = false;
 			createStartPos = { x: 0, y: 0 };
 			createCurrentPos = { x: 0, y: 0 };
-			await tick();
 			scheduleRender();
 		}
 		
@@ -686,9 +728,20 @@
 		initCanvas();
 		window.addEventListener('keydown', handleKeyDown);
 		window.addEventListener('keyup', handleKeyUp);
+		
+		const handleResize = () => {
+			if (canvas) {
+				canvas.width = window.innerWidth;
+				canvas.height = window.innerHeight;
+				scheduleRender();
+			}
+		};
+		window.addEventListener('resize', handleResize);
+		
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
+			window.removeEventListener('resize', handleResize);
 		};
 	});
 
