@@ -5,7 +5,7 @@
 	function zoomIn() {
 		const currentZoom = get(zoom);
 		const currentOffset = get(viewportOffset);
-		const zoomFactor = 1.2;
+		const zoomFactor = 1.1;
 		const newZoom = Math.min(32, currentZoom * zoomFactor);
 		
 		const centerX = window.innerWidth / 2;
@@ -24,7 +24,7 @@
 	function zoomOut() {
 		const currentZoom = get(zoom);
 		const currentOffset = get(viewportOffset);
-		const zoomFactor = 1.2;
+		const zoomFactor = 1.1;
 		const newZoom = Math.max(0.1, currentZoom / zoomFactor);
 		
 		const centerX = window.innerWidth / 2;
