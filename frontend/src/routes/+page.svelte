@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles, ellipses } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses, lines } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage } from '$lib/utils/storage';
 	import Canvas from '$lib/components/Canvas.svelte';
 
@@ -18,6 +18,7 @@
 			if (!loaded) {
 				rectangles.set(api.get_rectangles());
 				ellipses.set(api.get_ellipses());
+				lines.set((api as any).get_lines());
 			}
 
 			unsubscribeRectangles = rectangles.subscribe(() => {

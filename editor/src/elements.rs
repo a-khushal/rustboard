@@ -33,3 +33,16 @@ impl Ellipse {
         Self { id, position, radius_x, radius_y }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Line {
+    pub id: u64,
+    pub start: Point,
+    pub end: Point,
+}
+
+impl Line {
+    pub fn new(id: u64, start: Point, end: Point) -> Self {
+        Self { id, start, end }
+    }
+}

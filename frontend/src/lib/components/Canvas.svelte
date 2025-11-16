@@ -2,13 +2,15 @@
 	import { onMount } from 'svelte';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse 
+		lines, selectedLines,
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line 
 	} from '$lib/stores/editor';
-	import { isPointInRectangle, isPointInEllipse } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, deleteRectangles, moveRectangle, resizeRectangle,
-		addEllipse, deleteEllipses, moveEllipse, resizeEllipse
+		addEllipse, deleteEllipses, moveEllipse, resizeEllipse,
+		addLine, deleteLines, moveLine
 	} from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
@@ -23,8 +25,8 @@
 	let isDragging = false;
 	let dragStartPos = { x: 0, y: 0 };
 	let dragShapeStartPos = { x: 0, y: 0 };
-	let draggedShape: Rectangle | Ellipse | null = null;
-	let draggedShapeType: 'rectangle' | 'ellipse' | null = null;
+	let draggedShape: Rectangle | Ellipse | Line | null = null;
+	let draggedShapeType: 'rectangle' | 'ellipse' | 'line' | null = null;
 	let justCreatedShape = false;
 	let isSpacePressed = false;
 	let isPanning = false;
@@ -34,16 +36,18 @@
 	let createStartPos = { x: 0, y: 0 };
 	let createCurrentPos = { x: 0, y: 0 };
 	let isShiftPressedDuringCreation = false;
+	let lineStart: { x: number; y: number } | null = null;
+	let lineEnd: { x: number; y: number } | null = null;
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line'; id: number } | null = null;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
@@ -109,12 +113,9 @@
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			if (isCreatingShape) {
-				isCreatingShape = false;
-				createStartPos = { x: 0, y: 0 };
-				createCurrentPos = { x: 0, y: 0 };
-				scheduleRender();
+				return;
 			}
-			if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'line') {
 				activeTool.set('select');
 			}
 			return;
@@ -192,8 +193,9 @@
 
 		const hasSelectedRectangles = $selectedRectangles.length > 0;
 		const hasSelectedEllipses = $selectedEllipses.length > 0;
+		const hasSelectedLines = $selectedLines.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedLines) return;
 
 		event.preventDefault();
 		
@@ -207,6 +209,12 @@
 			const idsToDelete = $selectedEllipses.map(ellipse => ellipse.id);
 			deleteEllipses(idsToDelete);
 			selectedEllipses.set([]);
+		}
+		
+		if (hasSelectedLines) {
+			const idsToDelete = $selectedLines.map(line => line.id);
+			deleteLines(idsToDelete);
+			selectedLines.set([]);
 		}
 	}
 
@@ -250,6 +258,22 @@
 				y >= corner.y - halfHandle && y <= corner.y + halfHandle) {
 				return i;
 			}
+		}
+		
+		return null;
+	}
+
+	function getLineResizeHandleAt(x: number, y: number, line: Line, zoom: number): number | null {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		
+		const distToStart = Math.sqrt((x - line.start.x) ** 2 + (y - line.start.y) ** 2);
+		const distToEnd = Math.sqrt((x - line.end.x) ** 2 + (y - line.end.y) ** 2);
+		
+		if (distToStart <= halfHandle) {
+			return 0;
+		} else if (distToEnd <= halfHandle) {
+			return 1;
 		}
 		
 		return null;
@@ -370,6 +394,26 @@
 				}
 			}
 
+			for (let i = $selectedLines.length - 1; i >= 0; i--) {
+				const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
+				if (handleIndex !== null) {
+					isResizing = true;
+					resizeHandleIndex = handleIndex;
+					resizeStartShape = $selectedLines[i];
+					resizeStartShapeType = 'line';
+					const line = $selectedLines[i];
+					resizeStartPos = {
+						x: line.start.x,
+						y: line.start.y,
+						width: line.end.x - line.start.x,
+						height: line.end.y - line.start.y
+					};
+					resizeStartMousePos = { x, y };
+					isShiftPressedDuringResize = isShiftPressed;
+					return;
+				}
+			}
+
 			for (let i = $rectangles.length - 1; i >= 0; i--) {
 				if (isPointInRectangle(x, y, $rectangles[i])) {
 					handleShapeClick($rectangles[i], 'rectangle', isShiftPressed, x, y);
@@ -384,10 +428,38 @@
 				}
 			}
 
+			for (let i = $lines.length - 1; i >= 0; i--) {
+				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
+					const clickedLine = $lines[i];
+					const index = $selectedLines.findIndex(l => l.id === clickedLine.id);
+					
+					if (isShiftPressed) {
+						selectedLines.set(
+							index >= 0
+								? $selectedLines.filter(l => l.id !== clickedLine.id)
+								: [...$selectedLines, clickedLine]
+						);
+					} else {
+						selectedLines.set([clickedLine]);
+						selectedRectangles.set([]);
+						selectedEllipses.set([]);
+					}
+					
+					draggedShape = clickedLine as any;
+					draggedShapeType = 'line' as any;
+					dragStartPos = { x, y };
+					dragShapeStartPos = { x: clickedLine.start.x, y: clickedLine.start.y };
+					dragOffset = { x: 0, y: 0 };
+					isDragging = true;
+					return;
+				}
+			}
+
 			if (isShiftPressed) return;
 
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
+			selectedLines.set([]);
 		} else if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
@@ -395,6 +467,15 @@
 			isShiftPressedDuringCreation = isShiftPressed;
 			createStartPos = { x, y };
 			createCurrentPos = { x, y };
+			scheduleRender();
+		} else if ($activeTool === 'line') {
+			selectedRectangles.set([]);
+			selectedEllipses.set([]);
+			selectedLines.set([]);
+			isCreatingShape = true;
+			isShiftPressedDuringCreation = isShiftPressed;
+			lineStart = { x, y };
+			lineEnd = { x, y };
 			scheduleRender();
 		}
 	}
@@ -546,6 +627,46 @@
 					resizePreview = { x: centerX, y: centerY, width: radiusX * 2, height: radiusY * 2, type: 'ellipse', id: ellipse.id };
 					scheduleRender();
 				}
+			} else if (resizeStartShapeType === 'line') {
+				const line = resizeStartShape as Line;
+				let newStartX = resizeStartPos.x;
+				let newStartY = resizeStartPos.y;
+				let newEndX = resizeStartPos.x + resizeStartPos.width;
+				let newEndY = resizeStartPos.y + resizeStartPos.height;
+				
+				if (resizeHandleIndex === 0) {
+					newStartX = resizeStartPos.x + deltaX;
+					newStartY = resizeStartPos.y + deltaY;
+				} else if (resizeHandleIndex === 1) {
+					newEndX = resizeStartPos.x + resizeStartPos.width + deltaX;
+					newEndY = resizeStartPos.y + resizeStartPos.height + deltaY;
+				}
+				
+				if (isShiftPressedDuringResize) {
+					const dx = newEndX - newStartX;
+					const dy = newEndY - newStartY;
+					const angle = Math.atan2(dy, dx);
+					const length = Math.sqrt(dx * dx + dy * dy);
+					const snapAngle = Math.round(angle / (Math.PI / 8)) * (Math.PI / 8);
+					
+					if (resizeHandleIndex === 0) {
+						newStartX = newEndX - length * Math.cos(snapAngle);
+						newStartY = newEndY - length * Math.sin(snapAngle);
+					} else {
+						newEndX = newStartX + length * Math.cos(snapAngle);
+						newEndY = newStartY + length * Math.sin(snapAngle);
+					}
+				}
+				
+				resizePreview = { 
+					x: newStartX, 
+					y: newStartY, 
+					width: newEndX - newStartX, 
+					height: newEndY - newStartY, 
+					type: 'line' as any, 
+					id: line.id 
+				};
+				scheduleRender();
 			}
 			return;
 		}
@@ -555,6 +676,12 @@
 			if (isCreatingShape) {
 				isShiftPressedDuringCreation = event.shiftKey;
 				createCurrentPos = { x, y };
+				scheduleRender();
+			}
+		} else if ($activeTool === 'line') {
+			canvas.style.cursor = 'crosshair';
+			if (isCreatingShape && lineStart) {
+				lineEnd = { x, y };
 				scheduleRender();
 			}
 		} else if ($activeTool === 'select') {
@@ -578,18 +705,32 @@
 					}
 				}
 				
+				for (let i = $selectedLines.length - 1; i >= 0; i--) {
+					const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
+					if (handleIndex !== null) {
+						canvas.style.cursor = 'pointer';
+						return;
+					}
+				}
+				
 				for (let i = $rectangles.length - 1; i >= 0; i--) {
 					if (isPointInRectangle(x, y, $rectangles[i])) {
 						canvas.style.cursor = 'move';
 						return;
 					}
 				}
-				for (let i = $ellipses.length - 1; i >= 0; i--) {
-					if (isPointInEllipse(x, y, $ellipses[i])) {
-						canvas.style.cursor = 'move';
-						return;
-					}
+			for (let i = $ellipses.length - 1; i >= 0; i--) {
+				if (isPointInEllipse(x, y, $ellipses[i])) {
+					canvas.style.cursor = 'move';
+					return;
 				}
+			}
+			for (let i = $lines.length - 1; i >= 0; i--) {
+				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
+					canvas.style.cursor = 'move';
+					return;
+				}
+			}
 				canvas.style.cursor = 'default';
 			}
 		} else {
@@ -614,13 +755,19 @@
 			if (resizePreview.type === 'rectangle') {
 				moveRectangle(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeRectangle(resizePreview.id, resizePreview.width, resizePreview.height, false);
-			} else {
+			} else if (resizePreview.type === 'ellipse') {
 				const centerX = resizePreview.x;
 				const centerY = resizePreview.y;
 				const radiusX = resizePreview.width / 2;
 				const radiusY = resizePreview.height / 2;
 				moveEllipse(resizePreview.id, centerX, centerY, true);
 				resizeEllipse(resizePreview.id, radiusX, radiusY, false);
+			} else if (resizePreview.type === 'line') {
+				const newStartX = resizePreview.x;
+				const newStartY = resizePreview.y;
+				const newEndX = resizePreview.x + resizePreview.width;
+				const newEndY = resizePreview.y + resizePreview.height;
+				moveLine(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
 			}
 			resizePreview = null;
 		}
@@ -644,6 +791,13 @@
 				moveRectangle((draggedShape as Rectangle).id, newX, newY, true);
 			} else if (draggedShapeType === 'ellipse') {
 				moveEllipse((draggedShape as Ellipse).id, newX, newY, true);
+			} else if (draggedShapeType === 'line') {
+				const line = draggedShape as Line;
+				const newStartX = line.start.x + dragOffset.x;
+				const newStartY = line.start.y + dragOffset.y;
+				const newEndX = line.end.x + dragOffset.x;
+				const newEndY = line.end.y + dragOffset.y;
+				moveLine(line.id, newStartX, newStartY, newEndX, newEndY, true);
 			}
 		}
 		
@@ -697,11 +851,31 @@
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
+			} else if ($activeTool === 'line') {
+				if (lineStart && lineEnd) {
+					const dx = lineEnd.x - lineStart.x;
+					const dy = lineEnd.y - lineStart.y;
+					const length = Math.sqrt(dx * dx + dy * dy);
+					
+					if (length > 5) {
+						addLine(lineStart.x, lineStart.y, lineEnd.x, lineEnd.y);
+						selectedRectangles.set([]);
+						selectedEllipses.set([]);
+						if ($lines.length > 0) {
+							const newestLine = $lines[$lines.length - 1];
+							selectedLines.set([newestLine]);
+						}
+						justCreatedShape = true;
+						activeTool.set('select' as Tool);
+					}
+				}
 			}
 			
 			isCreatingShape = false;
 			createStartPos = { x: 0, y: 0 };
 			createCurrentPos = { x: 0, y: 0 };
+			lineStart = null;
+			lineEnd = null;
 			scheduleRender();
 		}
 		
@@ -860,6 +1034,68 @@
 			}
 		}
 		
+		$lines.forEach((line: Line) => {
+			const isSelected = $selectedLines.some(selected => selected.id === line.id);
+			const isDragged = isDragging && draggedShape && draggedShapeType === 'line' && draggedShape.id === line.id;
+			const isResized = isResizing && resizePreview && resizePreview.type === 'line' && resizePreview.id === line.id;
+			
+			let renderStartX: number, renderStartY: number, renderEndX: number, renderEndY: number;
+			
+			if (isResized && resizePreview) {
+				renderStartX = resizePreview.x;
+				renderStartY = resizePreview.y;
+				renderEndX = resizePreview.x + resizePreview.width;
+				renderEndY = resizePreview.y + resizePreview.height;
+			} else if (isDragged) {
+				renderStartX = line.start.x + dragOffset.x;
+				renderStartY = line.start.y + dragOffset.y;
+				renderEndX = line.end.x + dragOffset.x;
+				renderEndY = line.end.y + dragOffset.y;
+			} else {
+				renderStartX = line.start.x;
+				renderStartY = line.start.y;
+				renderEndX = line.end.x;
+				renderEndY = line.end.y;
+			}
+			
+			renderCtx.strokeStyle = '#000000';
+			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.beginPath();
+			renderCtx.moveTo(renderStartX, renderStartY);
+			renderCtx.lineTo(renderEndX, renderEndY);
+			renderCtx.stroke();
+			
+			if (isSelected) {
+				const handleSize = 8 / $zoom;
+				const halfHandle = handleSize / 2;
+				
+				renderCtx.fillStyle = '#ffffff';
+				renderCtx.strokeStyle = '#1e88e5';
+				renderCtx.lineWidth = 2 / $zoom;
+				
+				renderCtx.beginPath();
+				renderCtx.arc(renderStartX, renderStartY, halfHandle, 0, 2 * Math.PI);
+				renderCtx.fill();
+				renderCtx.stroke();
+				
+				renderCtx.beginPath();
+				renderCtx.arc(renderEndX, renderEndY, halfHandle, 0, 2 * Math.PI);
+				renderCtx.fill();
+				renderCtx.stroke();
+			}
+		});
+		
+		if (isCreatingShape && $activeTool === 'line' && lineStart && lineEnd) {
+			renderCtx.strokeStyle = '#000000';
+			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.globalAlpha = 0.5;
+			renderCtx.beginPath();
+			renderCtx.moveTo(lineStart.x, lineStart.y);
+			renderCtx.lineTo(lineEnd.x, lineEnd.y);
+			renderCtx.stroke();
+			renderCtx.globalAlpha = 1.0;
+		}
+		
 		renderCtx.restore();
 	}
 
@@ -909,6 +1145,8 @@
 		$selectedRectangles;
 		$ellipses;
 		$selectedEllipses;
+		$lines;
+		$selectedLines;
 		if (!isCreatingShape) {
 			scheduleRender();
 		}

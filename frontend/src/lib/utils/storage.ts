@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, type Rectangle, type Ellipse } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, type Rectangle, type Ellipse, type Line } from '$lib/stores/editor';
 
 const STORAGE_KEY = 'rustboard-state';
 
@@ -31,8 +31,10 @@ export function loadStateFromLocalStorage(): boolean {
         if (success) {
             const updatedRectangles = api.get_rectangles() as Rectangle[];
             const updatedEllipses = api.get_ellipses() as Ellipse[];
+            const updatedLines = api.get_lines() as Line[];
             rectangles.set(updatedRectangles);
             ellipses.set(updatedEllipses);
+            lines.set(updatedLines);
             return true;
         }
         return false;

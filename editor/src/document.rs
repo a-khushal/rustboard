@@ -1,4 +1,4 @@
-use crate::elements::{Ellipse, Rectangle};
+use crate::elements::{Ellipse, Rectangle, Line};
 use crate::geometry::Point;
 use serde::{Deserialize, Serialize};
 
@@ -6,12 +6,14 @@ use serde::{Deserialize, Serialize};
 struct DocumentSnapshot {
     rectangles: Vec<Rectangle>,
     ellipses: Vec<Ellipse>,
+    lines: Vec<Line>,
     next_id: u64,
 }
 
 pub struct Document {
     rectangles: Vec<Rectangle>,
     ellipses: Vec<Ellipse>,
+    lines: Vec<Line>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
     history_index: usize,
@@ -23,6 +25,7 @@ impl Document {
         let mut doc = Self {
             rectangles: Vec::new(),
             ellipses: Vec::new(),
+            lines: Vec::new(),
             next_id: 0,
             history: Vec::new(),
             history_index: 0,
@@ -36,6 +39,7 @@ impl Document {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
             ellipses: self.ellipses.clone(),
+            lines: self.lines.clone(),
             next_id: self.next_id,
         };
         
@@ -52,6 +56,7 @@ impl Document {
     fn restore_snapshot(&mut self, snapshot: &DocumentSnapshot) {
         self.rectangles = snapshot.rectangles.clone();
         self.ellipses = snapshot.ellipses.clone();
+        self.lines = snapshot.lines.clone();
         self.next_id = snapshot.next_id;
     }
 
@@ -177,10 +182,45 @@ impl Document {
         }
     }
 
+    pub fn add_line(&mut self, start: Point, end: Point) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.lines.push(Line::new(id, start, end));
+        self.save_snapshot();
+        id
+    }
+
+    pub fn get_lines(&self) -> &[Line] {
+        &self.lines
+    }
+
+    pub fn move_line(&mut self, id: u64, new_start: Point, new_end: Point, save_history: bool) {
+        if let Some(line) = self.lines.iter().find(|l| l.id == id) {
+            if line.start != new_start || line.end != new_end {
+                if save_history {
+                    self.save_snapshot();
+                }
+                if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+                    line.start = new_start;
+                    line.end = new_end;
+                }
+            }
+        }
+    }
+
+    pub fn delete_line(&mut self, id: u64) {
+        let existed = self.lines.iter().any(|l| l.id == id);
+        self.lines.retain(|l| l.id != id);
+        if existed {
+            self.save_snapshot();
+        }
+    }
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
             ellipses: self.ellipses.clone(),
+            lines: self.lines.clone(),
             next_id: self.next_id,
         };
         serde_json::to_string(&snapshot).unwrap_or_default()

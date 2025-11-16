@@ -16,6 +16,12 @@ export interface Ellipse {
 	radius_y: number;
 }
 
+export interface Line {
+	id: number;
+	start: { x: number; y: number };
+	end: { x: number; y: number };
+}
+
 export const wasmLoaded = writable<boolean>(false);
 export const editorApi = writable<EditorApi | null>(null);
 export const viewportOffset = writable({ x: 0, y: 0});
@@ -26,3 +32,5 @@ export const rectangles = writable<Rectangle[]>([]);
 export const selectedRectangles = writable<Rectangle[]>([]);
 export const ellipses = writable<Ellipse[]>([]);
 export const selectedEllipses = writable<Ellipse[]>([]);
+export const lines = writable<Line[]>([]);
+export const selectedLines = writable<Line[]>([]);

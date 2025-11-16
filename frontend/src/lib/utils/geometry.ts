@@ -1,4 +1,4 @@
-import type { Ellipse, Rectangle } from '$lib/stores/editor';
+import type { Ellipse, Rectangle, Line } from '$lib/stores/editor';
 
 export function isPointInRectangle(x: number, y: number, rect: Rectangle): boolean {
 	return (
@@ -14,4 +14,20 @@ export function isPointInEllipse(x: number, y: number, ellipse: Ellipse): boolea
 		(x - ellipse.position.x) ** 2 / ellipse.radius_x ** 2 +
 		(y - ellipse.position.y) ** 2 / ellipse.radius_y ** 2 <= 1
 	);
+}
+
+export function isPointOnLine(x: number, y: number, line: Line, threshold: number = 5): boolean {
+	const { start, end } = line;
+	const dx = end.x - start.x;
+	const dy = end.y - start.y;
+	const length = Math.sqrt(dx * dx + dy * dy);
+	
+	if (length === 0) return false;
+	
+	const t = Math.max(0, Math.min(1, ((x - start.x) * dx + (y - start.y) * dy) / (length * length)));
+	const projX = start.x + t * dx;
+	const projY = start.y + t * dy;
+	const dist = Math.sqrt((x - projX) ** 2 + (y - projY) ** 2);
+	
+	return dist <= threshold;
 }

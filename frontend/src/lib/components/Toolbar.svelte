@@ -8,7 +8,8 @@
 	const tools: Array<{ id: Tool; label: string; icon: string }> = [
 		{ id: 'select' as Tool, label: 'Select', icon: 'cursor' },
 		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect' },
-		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' }
+		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
+		{ id: 'line' as Tool, label: 'Line', icon: 'line' }
 	];
 </script>
 
@@ -34,6 +35,10 @@
 			{:else if tool.icon === 'circle'}
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
 					<circle cx="8" cy="8" r="5"/>
+				</svg>
+			{:else if tool.icon === 'line'}
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+					<line x1="3" y1="3" x2="13" y2="13"/>
 				</svg>
 			{/if}
 		</button>

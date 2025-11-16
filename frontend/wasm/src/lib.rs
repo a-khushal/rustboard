@@ -90,6 +90,27 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn add_line(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
+        self.document.borrow_mut().add_line(Point::new(start_x, start_y), Point::new(end_x, end_y))
+    }
+
+    #[wasm_bindgen]
+    pub fn get_lines(&self) -> JsValue {
+        let lines = self.document.borrow().get_lines().to_vec();
+        to_value(&lines).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_line(&self, id: u64, start_x: f64, start_y: f64, end_x: f64, end_y: f64, save_history: bool) {
+        self.document.borrow_mut().move_line(id, Point::new(start_x, start_y), Point::new(end_x, end_y), save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_line(&self, id: u64) {
+        self.document.borrow_mut().delete_line(id);
+    }
+
+    #[wasm_bindgen]
     pub fn serialize(&self) -> String {
         self.document.borrow().serialize()
     }
