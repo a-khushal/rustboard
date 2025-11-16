@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { get } from 'svelte/store';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse 
@@ -44,7 +43,6 @@
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
 	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
-	let resizeFinalState: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
 
@@ -55,16 +53,16 @@
 				if (event.shiftKey) {
 					const success = $editorApi.redo();
 					if (success) {
-						const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-						const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+						const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+						const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
 						rectangles.set(updatedRectangles);
 						ellipses.set(updatedEllipses);
 					}
 				} else {
 					const success = $editorApi.undo();
 					if (success) {
-						const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-						const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+						const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+						const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
 						rectangles.set(updatedRectangles);
 						ellipses.set(updatedEllipses);
 					}
@@ -78,8 +76,8 @@
 			if ($editorApi) {
 				const success = $editorApi.redo();
 				if (success) {
-					const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-					const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+					const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+					const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
 					rectangles.set(updatedRectangles);
 					ellipses.set(updatedEllipses);
 				}
@@ -106,12 +104,17 @@
 			return;
 		}
 
-		if (event.key === 'Escape' && isCreatingShape) {
+		if (event.key === 'Escape') {
 			event.preventDefault();
-			isCreatingShape = false;
-			createStartPos = { x: 0, y: 0 };
-			createCurrentPos = { x: 0, y: 0 };
-			scheduleRender();
+			if (isCreatingShape) {
+				isCreatingShape = false;
+				createStartPos = { x: 0, y: 0 };
+				createCurrentPos = { x: 0, y: 0 };
+				scheduleRender();
+			}
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
+				activeTool.set('select');
+			}
 			return;
 		}
 
@@ -256,9 +259,8 @@
 
 		justCreatedShape = false;
 		const isShiftPressed = event.shiftKey;
-		const currentTool = String($activeTool).trim();
 		
-		if (currentTool === 'select') {
+		if ($activeTool === 'select') {
 			for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
 				const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
 				if (handleIndex !== null) {
@@ -316,7 +318,7 @@
 
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
-		} else if (currentTool === 'rectangle' || currentTool === 'ellipse') {
+		} else if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
 			isCreatingShape = true;
@@ -350,7 +352,6 @@
 			return;
 		}
 
-		const currentTool = String($activeTool).trim();
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 		
 		if (isResizing && resizeStartShape && resizeHandleIndex !== null && $editorApi) {
@@ -477,14 +478,14 @@
 			return;
 		}
 		
-		if (currentTool === 'rectangle' || currentTool === 'ellipse') {
+		if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
 			canvas.style.cursor = 'crosshair';
 			if (isCreatingShape) {
 				isShiftPressedDuringCreation = event.shiftKey;
 				createCurrentPos = { x, y };
 				scheduleRender();
 			}
-		} else if (currentTool === 'select') {
+		} else if ($activeTool === 'select') {
 			if (isResizing) {
 				canvas.style.cursor = resizeHandleIndex !== null ? resizeCursors[resizeHandleIndex] : 'default';
 			} else if (isDragging && draggedShape) {
@@ -575,10 +576,9 @@
 		}
 		
 		if (isCreatingShape) {
-			const currentTool = String($activeTool).trim();
-			const threshold = currentTool === 'ellipse' ? 10 : 5;
+			const threshold = $activeTool === 'ellipse' ? 10 : 5;
 			
-			if (currentTool === 'rectangle') {
+			if ($activeTool === 'rectangle') {
 				const width = Math.abs(createCurrentPos.x - createStartPos.x);
 				const height = Math.abs(createCurrentPos.y - createStartPos.y);
 				
@@ -587,15 +587,14 @@
 					const y = Math.min(createStartPos.y, createCurrentPos.y);
 					addRectangle(x, y, width, height);
 					selectedEllipses.set([]);
-					const updatedRectangles = get(rectangles);
-					if (updatedRectangles.length > 0) {
-						const newestRect = updatedRectangles[updatedRectangles.length - 1];
+					if ($rectangles.length > 0) {
+						const newestRect = $rectangles[$rectangles.length - 1];
 						selectedRectangles.set([newestRect]);
 					}
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
-			} else if (currentTool === 'ellipse') {
+			} else if ($activeTool === 'ellipse') {
 				const minX = Math.min(createStartPos.x, createCurrentPos.x);
 				const maxX = Math.max(createStartPos.x, createCurrentPos.x);
 				const minY = Math.min(createStartPos.y, createCurrentPos.y);
@@ -619,9 +618,8 @@
 				if (radius_x > threshold && radius_y > threshold) {
 					addEllipse(centerX, centerY, radius_x, radius_y);
 					selectedRectangles.set([]);
-					const updatedEllipses = get(ellipses);
-					if (updatedEllipses.length > 0) {
-						const newestEllipse = updatedEllipses[updatedEllipses.length - 1];
+					if ($ellipses.length > 0) {
+						const newestEllipse = $ellipses[$ellipses.length - 1];
 						selectedEllipses.set([newestEllipse]);
 					}
 					justCreatedShape = true;
@@ -693,9 +691,8 @@
 			height: Math.abs(createCurrentPos.y - createStartPos.y)
 		} : null;
 		
-		const currentTool = String($activeTool).trim();
-		const isCreatingRectangle = currentTool === 'rectangle' && isCreatingShape;
-		const isCreatingEllipse = currentTool === 'ellipse' && isCreatingShape;
+		const isCreatingRectangle = $activeTool === 'rectangle' && isCreatingShape;
+		const isCreatingEllipse = $activeTool === 'ellipse' && isCreatingShape;
 		
 		renderCtx.save();
 		renderCtx.translate($viewportOffset.x, $viewportOffset.y);

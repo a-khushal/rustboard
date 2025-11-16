@@ -6,8 +6,8 @@
 		
 		const success = $editorApi.undo();
 		if (success) {
-			const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-			const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+			const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+			const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
 			rectangles.set(updatedRectangles);
 			ellipses.set(updatedEllipses);
 		}
@@ -18,8 +18,8 @@
 		
 		const success = $editorApi.redo();
 		if (success) {
-			const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
-			const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+			const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+			const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
 			rectangles.set(updatedRectangles);
 			ellipses.set(updatedEllipses);
 		}

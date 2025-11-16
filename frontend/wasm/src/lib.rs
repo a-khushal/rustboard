@@ -99,9 +99,3 @@ impl EditorApi {
         self.document.borrow_mut().deserialize(data)
     }
 }
-
-impl Default for EditorApi {
-    fn default() -> Self {
-        Self::new()
-    }
-}

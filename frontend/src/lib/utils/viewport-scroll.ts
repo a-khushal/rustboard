@@ -1,11 +1,14 @@
 import { viewportOffset, zoom } from '$lib/stores/editor';
 import { get } from 'svelte/store';
 
+const ZOOM_FACTOR = 1.1;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 32;
+
 export function handleViewportScroll(event: WheelEvent, canvas: HTMLCanvasElement): void {
 	event.preventDefault();
 
 	if (event.ctrlKey || event.metaKey) {
-		const zoomFactor = 1.1;
 		const currentZoom = get(zoom);
 		const currentOffset = get(viewportOffset);
 		
@@ -13,8 +16,8 @@ export function handleViewportScroll(event: WheelEvent, canvas: HTMLCanvasElemen
 		const mouseX = event.clientX - rect.left;
 		const mouseY = event.clientY - rect.top;
 		
-		const delta = event.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-		const newZoom = Math.max(0.1, Math.min(32, currentZoom * delta));
+		const delta = event.deltaY > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
+		const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom * delta));
 		
 		const zoomRatio = newZoom / currentZoom;
 		const newOffsetX = currentOffset.x + (mouseX - currentOffset.x) * (1 - zoomRatio);
