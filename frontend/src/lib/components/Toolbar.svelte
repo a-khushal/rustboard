@@ -9,7 +9,8 @@
 		{ id: 'select' as Tool, label: 'Select', icon: 'cursor' },
 		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect' },
 		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
-		{ id: 'line' as Tool, label: 'Line', icon: 'line' }
+		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
+		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' }
 	];
 </script>
 
@@ -39,6 +40,11 @@
 			{:else if tool.icon === 'line'}
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
 					<line x1="3" y1="3" x2="13" y2="13"/>
+				</svg>
+			{:else if tool.icon === 'arrow'}
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="2" y1="8" x2="12" y2="8"/>
+					<polyline points="9,5 12,8 9,11"/>
 				</svg>
 			{/if}
 		</button>

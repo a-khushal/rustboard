@@ -111,6 +111,27 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn add_arrow(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
+        self.document.borrow_mut().add_arrow(Point::new(start_x, start_y), Point::new(end_x, end_y))
+    }
+
+    #[wasm_bindgen]
+    pub fn get_arrows(&self) -> JsValue {
+        let arrows = self.document.borrow().get_arrows().to_vec();
+        to_value(&arrows).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_arrow(&self, id: u64, start_x: f64, start_y: f64, end_x: f64, end_y: f64, save_history: bool) {
+        self.document.borrow_mut().move_arrow(id, Point::new(start_x, start_y), Point::new(end_x, end_y), save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_arrow(&self, id: u64) {
+        self.document.borrow_mut().delete_arrow(id);
+    }
+
+    #[wasm_bindgen]
     pub fn serialize(&self) -> String {
         self.document.borrow().serialize()
     }

@@ -2,15 +2,16 @@
 	import { onMount } from 'svelte';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
-		lines, selectedLines,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line 
+		lines, selectedLines, arrows, selectedArrows,
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow 
 	} from '$lib/stores/editor';
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, deleteRectangles, moveRectangle, resizeRectangle,
 		addEllipse, deleteEllipses, moveEllipse, resizeEllipse,
-		addLine, deleteLines, moveLine
+		addLine, deleteLines, moveLine,
+		addArrow, deleteArrows, moveArrow
 	} from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
@@ -25,8 +26,8 @@
 	let isDragging = false;
 	let dragStartPos = { x: 0, y: 0 };
 	let dragShapeStartPos = { x: 0, y: 0 };
-	let draggedShape: Rectangle | Ellipse | Line | null = null;
-	let draggedShapeType: 'rectangle' | 'ellipse' | 'line' | null = null;
+	let draggedShape: Rectangle | Ellipse | Line | Arrow | null = null;
+	let draggedShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | null = null;
 	let justCreatedShape = false;
 	let isSpacePressed = false;
 	let isPanning = false;
@@ -38,16 +39,18 @@
 	let isShiftPressedDuringCreation = false;
 	let lineStart: { x: number; y: number } | null = null;
 	let lineEnd: { x: number; y: number } | null = null;
+	let arrowStart: { x: number; y: number } | null = null;
+	let arrowEnd: { x: number; y: number } | null = null;
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | Line | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line'; id: number } | null = null;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow'; id: number } | null = null;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
@@ -115,7 +118,7 @@
 			if (isCreatingShape) {
 				return;
 			}
-			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'line') {
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'line' || $activeTool === 'arrow') {
 				activeTool.set('select');
 			}
 			return;
@@ -194,8 +197,9 @@
 		const hasSelectedRectangles = $selectedRectangles.length > 0;
 		const hasSelectedEllipses = $selectedEllipses.length > 0;
 		const hasSelectedLines = $selectedLines.length > 0;
+		const hasSelectedArrows = $selectedArrows.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedLines) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedLines && !hasSelectedArrows) return;
 
 		event.preventDefault();
 		
@@ -215,6 +219,12 @@
 			const idsToDelete = $selectedLines.map(line => line.id);
 			deleteLines(idsToDelete);
 			selectedLines.set([]);
+		}
+		
+		if (hasSelectedArrows) {
+			const idsToDelete = $selectedArrows.map(arrow => arrow.id);
+			deleteArrows(idsToDelete);
+			selectedArrows.set([]);
 		}
 	}
 
@@ -269,6 +279,22 @@
 		
 		const distToStart = Math.sqrt((x - line.start.x) ** 2 + (y - line.start.y) ** 2);
 		const distToEnd = Math.sqrt((x - line.end.x) ** 2 + (y - line.end.y) ** 2);
+		
+		if (distToStart <= halfHandle) {
+			return 0;
+		} else if (distToEnd <= halfHandle) {
+			return 1;
+		}
+		
+		return null;
+	}
+
+	function getArrowResizeHandleAt(x: number, y: number, arrow: Arrow, zoom: number): number | null {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		
+		const distToStart = Math.sqrt((x - arrow.start.x) ** 2 + (y - arrow.start.y) ** 2);
+		const distToEnd = Math.sqrt((x - arrow.end.x) ** 2 + (y - arrow.end.y) ** 2);
 		
 		if (distToStart <= halfHandle) {
 			return 0;
@@ -414,6 +440,26 @@
 				}
 			}
 
+			for (let i = $selectedArrows.length - 1; i >= 0; i--) {
+				const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
+				if (handleIndex !== null) {
+					isResizing = true;
+					resizeHandleIndex = handleIndex;
+					resizeStartShape = $selectedArrows[i];
+					resizeStartShapeType = 'arrow';
+					const arrow = $selectedArrows[i];
+					resizeStartPos = {
+						x: arrow.start.x,
+						y: arrow.start.y,
+						width: arrow.end.x - arrow.start.x,
+						height: arrow.end.y - arrow.start.y
+					};
+					resizeStartMousePos = { x, y };
+					isShiftPressedDuringResize = isShiftPressed;
+					return;
+				}
+			}
+
 			for (let i = $rectangles.length - 1; i >= 0; i--) {
 				if (isPointInRectangle(x, y, $rectangles[i])) {
 					handleShapeClick($rectangles[i], 'rectangle', isShiftPressed, x, y);
@@ -443,6 +489,7 @@
 						selectedLines.set([clickedLine]);
 						selectedRectangles.set([]);
 						selectedEllipses.set([]);
+						selectedArrows.set([]);
 					}
 					
 					draggedShape = clickedLine as any;
@@ -455,11 +502,40 @@
 				}
 			}
 
+			for (let i = $arrows.length - 1; i >= 0; i--) {
+				if (isPointOnLine(x, y, $arrows[i] as any, 5 / $zoom)) {
+					const clickedArrow = $arrows[i];
+					const index = $selectedArrows.findIndex(a => a.id === clickedArrow.id);
+					
+					if (isShiftPressed) {
+						selectedArrows.set(
+							index >= 0
+								? $selectedArrows.filter(a => a.id !== clickedArrow.id)
+								: [...$selectedArrows, clickedArrow]
+						);
+					} else {
+						selectedArrows.set([clickedArrow]);
+						selectedRectangles.set([]);
+						selectedEllipses.set([]);
+						selectedLines.set([]);
+					}
+					
+					draggedShape = clickedArrow as any;
+					draggedShapeType = 'arrow' as any;
+					dragStartPos = { x, y };
+					dragShapeStartPos = { x: clickedArrow.start.x, y: clickedArrow.start.y };
+					dragOffset = { x: 0, y: 0 };
+					isDragging = true;
+					return;
+				}
+			}
+
 			if (isShiftPressed) return;
 
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
 			selectedLines.set([]);
+			selectedArrows.set([]);
 		} else if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
@@ -476,6 +552,16 @@
 			isShiftPressedDuringCreation = isShiftPressed;
 			lineStart = { x, y };
 			lineEnd = { x, y };
+			scheduleRender();
+		} else if ($activeTool === 'arrow') {
+			selectedRectangles.set([]);
+			selectedEllipses.set([]);
+			selectedLines.set([]);
+			selectedArrows.set([]);
+			isCreatingShape = true;
+			isShiftPressedDuringCreation = isShiftPressed;
+			arrowStart = { x, y };
+			arrowEnd = { x, y };
 			scheduleRender();
 		}
 	}
@@ -667,6 +753,46 @@
 					id: line.id 
 				};
 				scheduleRender();
+			} else if (resizeStartShapeType === 'arrow') {
+				const arrow = resizeStartShape as Arrow;
+				let newStartX = resizeStartPos.x;
+				let newStartY = resizeStartPos.y;
+				let newEndX = resizeStartPos.x + resizeStartPos.width;
+				let newEndY = resizeStartPos.y + resizeStartPos.height;
+				
+				if (resizeHandleIndex === 0) {
+					newStartX = resizeStartPos.x + deltaX;
+					newStartY = resizeStartPos.y + deltaY;
+				} else if (resizeHandleIndex === 1) {
+					newEndX = resizeStartPos.x + resizeStartPos.width + deltaX;
+					newEndY = resizeStartPos.y + resizeStartPos.height + deltaY;
+				}
+				
+				if (isShiftPressedDuringResize) {
+					const dx = newEndX - newStartX;
+					const dy = newEndY - newStartY;
+					const angle = Math.atan2(dy, dx);
+					const length = Math.sqrt(dx * dx + dy * dy);
+					const snapAngle = Math.round(angle / (Math.PI / 8)) * (Math.PI / 8);
+					
+					if (resizeHandleIndex === 0) {
+						newStartX = newEndX - length * Math.cos(snapAngle);
+						newStartY = newEndY - length * Math.sin(snapAngle);
+					} else {
+						newEndX = newStartX + length * Math.cos(snapAngle);
+						newEndY = newStartY + length * Math.sin(snapAngle);
+					}
+				}
+				
+				resizePreview = { 
+					x: newStartX, 
+					y: newStartY, 
+					width: newEndX - newStartX, 
+					height: newEndY - newStartY, 
+					type: 'arrow' as any, 
+					id: arrow.id 
+				};
+				scheduleRender();
 			}
 			return;
 		}
@@ -682,6 +808,12 @@
 			canvas.style.cursor = 'crosshair';
 			if (isCreatingShape && lineStart) {
 				lineEnd = { x, y };
+				scheduleRender();
+			}
+		} else if ($activeTool === 'arrow') {
+			canvas.style.cursor = 'crosshair';
+			if (isCreatingShape && arrowStart) {
+				arrowEnd = { x, y };
 				scheduleRender();
 			}
 		} else if ($activeTool === 'select') {
@@ -713,6 +845,14 @@
 					}
 				}
 				
+				for (let i = $selectedArrows.length - 1; i >= 0; i--) {
+					const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
+					if (handleIndex !== null) {
+						canvas.style.cursor = 'pointer';
+						return;
+					}
+				}
+				
 				for (let i = $rectangles.length - 1; i >= 0; i--) {
 					if (isPointInRectangle(x, y, $rectangles[i])) {
 						canvas.style.cursor = 'move';
@@ -727,6 +867,12 @@
 			}
 			for (let i = $lines.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
+					canvas.style.cursor = 'move';
+					return;
+				}
+			}
+			for (let i = $arrows.length - 1; i >= 0; i--) {
+				if (isPointOnLine(x, y, $arrows[i] as any, 5 / $zoom)) {
 					canvas.style.cursor = 'move';
 					return;
 				}
@@ -768,6 +914,12 @@
 				const newEndX = resizePreview.x + resizePreview.width;
 				const newEndY = resizePreview.y + resizePreview.height;
 				moveLine(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
+			} else if (resizePreview.type === 'arrow') {
+				const newStartX = resizePreview.x;
+				const newStartY = resizePreview.y;
+				const newEndX = resizePreview.x + resizePreview.width;
+				const newEndY = resizePreview.y + resizePreview.height;
+				moveArrow(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
 			}
 			resizePreview = null;
 		}
@@ -798,6 +950,13 @@
 				const newEndX = line.end.x + dragOffset.x;
 				const newEndY = line.end.y + dragOffset.y;
 				moveLine(line.id, newStartX, newStartY, newEndX, newEndY, true);
+			} else if (draggedShapeType === 'arrow') {
+				const arrow = draggedShape as Arrow;
+				const newStartX = arrow.start.x + dragOffset.x;
+				const newStartY = arrow.start.y + dragOffset.y;
+				const newEndX = arrow.end.x + dragOffset.x;
+				const newEndY = arrow.end.y + dragOffset.y;
+				moveArrow(arrow.id, newStartX, newStartY, newEndX, newEndY, true);
 			}
 		}
 		
@@ -869,13 +1028,34 @@
 						activeTool.set('select' as Tool);
 					}
 				}
+			} else if ($activeTool === 'arrow') {
+				if (arrowStart && arrowEnd) {
+					const dx = arrowEnd.x - arrowStart.x;
+					const dy = arrowEnd.y - arrowStart.y;
+					const length = Math.sqrt(dx * dx + dy * dy);
+					
+					if (length > 5) {
+						addArrow(arrowStart.x, arrowStart.y, arrowEnd.x, arrowEnd.y);
+						selectedRectangles.set([]);
+						selectedEllipses.set([]);
+						selectedLines.set([]);
+						if ($arrows.length > 0) {
+							const newestArrow = $arrows[$arrows.length - 1];
+							selectedArrows.set([newestArrow]);
+						}
+						justCreatedShape = true;
+						activeTool.set('select' as Tool);
+					}
+				}
 			}
-			
+
 			isCreatingShape = false;
 			createStartPos = { x: 0, y: 0 };
 			createCurrentPos = { x: 0, y: 0 };
 			lineStart = null;
 			lineEnd = null;
+			arrowStart = null;
+			arrowEnd = null;
 			scheduleRender();
 		}
 		
@@ -1096,6 +1276,108 @@
 			renderCtx.globalAlpha = 1.0;
 		}
 		
+		$arrows.forEach((arrow: Arrow) => {
+			const isSelected = $selectedArrows.some(selected => selected.id === arrow.id);
+			const isDragged = isDragging && draggedShape && draggedShapeType === 'arrow' && draggedShape.id === arrow.id;
+			const isResized = isResizing && resizePreview && resizePreview.type === 'arrow' && resizePreview.id === arrow.id;
+			
+			let renderStartX: number, renderStartY: number, renderEndX: number, renderEndY: number;
+			
+			if (isResized && resizePreview) {
+				renderStartX = resizePreview.x;
+				renderStartY = resizePreview.y;
+				renderEndX = resizePreview.x + resizePreview.width;
+				renderEndY = resizePreview.y + resizePreview.height;
+			} else if (isDragged) {
+				renderStartX = arrow.start.x + dragOffset.x;
+				renderStartY = arrow.start.y + dragOffset.y;
+				renderEndX = arrow.end.x + dragOffset.x;
+				renderEndY = arrow.end.y + dragOffset.y;
+			} else {
+				renderStartX = arrow.start.x;
+				renderStartY = arrow.start.y;
+				renderEndX = arrow.end.x;
+				renderEndY = arrow.end.y;
+			}
+			
+			renderCtx.strokeStyle = '#000000';
+			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.beginPath();
+			renderCtx.moveTo(renderStartX, renderStartY);
+			renderCtx.lineTo(renderEndX, renderEndY);
+			renderCtx.stroke();
+			
+			const dx = renderEndX - renderStartX;
+			const dy = renderEndY - renderStartY;
+			const angle = Math.atan2(dy, dx);
+			const arrowLength = 10 / $zoom;
+			const arrowWidth = 6 / $zoom;
+			
+			renderCtx.beginPath();
+			renderCtx.moveTo(renderEndX, renderEndY);
+			renderCtx.lineTo(
+				renderEndX - arrowLength * Math.cos(angle - Math.PI / 6),
+				renderEndY - arrowLength * Math.sin(angle - Math.PI / 6)
+			);
+			renderCtx.lineTo(
+				renderEndX - arrowLength * Math.cos(angle + Math.PI / 6),
+				renderEndY - arrowLength * Math.sin(angle + Math.PI / 6)
+			);
+			renderCtx.closePath();
+			renderCtx.fillStyle = '#000000';
+			renderCtx.fill();
+			
+			if (isSelected) {
+				const handleSize = 8 / $zoom;
+				const halfHandle = handleSize / 2;
+				
+				renderCtx.fillStyle = '#ffffff';
+				renderCtx.strokeStyle = '#1e88e5';
+				renderCtx.lineWidth = 2 / $zoom;
+				
+				renderCtx.beginPath();
+				renderCtx.arc(renderStartX, renderStartY, halfHandle, 0, 2 * Math.PI);
+				renderCtx.fill();
+				renderCtx.stroke();
+				
+				renderCtx.beginPath();
+				renderCtx.arc(renderEndX, renderEndY, halfHandle, 0, 2 * Math.PI);
+				renderCtx.fill();
+				renderCtx.stroke();
+			}
+		});
+		
+		if (isCreatingShape && $activeTool === 'arrow' && arrowStart && arrowEnd) {
+			renderCtx.strokeStyle = '#000000';
+			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.globalAlpha = 0.5;
+			renderCtx.beginPath();
+			renderCtx.moveTo(arrowStart.x, arrowStart.y);
+			renderCtx.lineTo(arrowEnd.x, arrowEnd.y);
+			renderCtx.stroke();
+			
+			const dx = arrowEnd.x - arrowStart.x;
+			const dy = arrowEnd.y - arrowStart.y;
+			const angle = Math.atan2(dy, dx);
+			const arrowLength = 10 / $zoom;
+			
+			renderCtx.beginPath();
+			renderCtx.moveTo(arrowEnd.x, arrowEnd.y);
+			renderCtx.lineTo(
+				arrowEnd.x - arrowLength * Math.cos(angle - Math.PI / 6),
+				arrowEnd.y - arrowLength * Math.sin(angle - Math.PI / 6)
+			);
+			renderCtx.lineTo(
+				arrowEnd.x - arrowLength * Math.cos(angle + Math.PI / 6),
+				arrowEnd.y - arrowLength * Math.sin(angle + Math.PI / 6)
+			);
+			renderCtx.closePath();
+			renderCtx.fillStyle = '#000000';
+			renderCtx.globalAlpha = 0.5;
+			renderCtx.fill();
+			renderCtx.globalAlpha = 1.0;
+		}
+		
 		renderCtx.restore();
 	}
 
@@ -1147,6 +1429,8 @@
 		$selectedEllipses;
 		$lines;
 		$selectedLines;
+		$arrows;
+		$selectedArrows;
 		if (!isCreatingShape) {
 			scheduleRender();
 		}

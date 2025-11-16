@@ -46,3 +46,16 @@ impl Line {
         Self { id, start, end }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Arrow {
+    pub id: u64,
+    pub start: Point,
+    pub end: Point,
+}
+
+impl Arrow {
+    pub fn new(id: u64, start: Point, end: Point) -> Self {
+        Self { id, start, end }
+    }
+}

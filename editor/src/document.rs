@@ -1,4 +1,4 @@
-use crate::elements::{Ellipse, Rectangle, Line};
+use crate::elements::{Ellipse, Rectangle, Line, Arrow};
 use crate::geometry::Point;
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,7 @@ struct DocumentSnapshot {
     rectangles: Vec<Rectangle>,
     ellipses: Vec<Ellipse>,
     lines: Vec<Line>,
+    arrows: Vec<Arrow>,
     next_id: u64,
 }
 
@@ -14,6 +15,7 @@ pub struct Document {
     rectangles: Vec<Rectangle>,
     ellipses: Vec<Ellipse>,
     lines: Vec<Line>,
+    arrows: Vec<Arrow>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
     history_index: usize,
@@ -26,6 +28,7 @@ impl Document {
             rectangles: Vec::new(),
             ellipses: Vec::new(),
             lines: Vec::new(),
+            arrows: Vec::new(),
             next_id: 0,
             history: Vec::new(),
             history_index: 0,
@@ -40,6 +43,7 @@ impl Document {
             rectangles: self.rectangles.clone(),
             ellipses: self.ellipses.clone(),
             lines: self.lines.clone(),
+            arrows: self.arrows.clone(),
             next_id: self.next_id,
         };
         
@@ -57,6 +61,7 @@ impl Document {
         self.rectangles = snapshot.rectangles.clone();
         self.ellipses = snapshot.ellipses.clone();
         self.lines = snapshot.lines.clone();
+        self.arrows = snapshot.arrows.clone();
         self.next_id = snapshot.next_id;
     }
 
@@ -216,11 +221,46 @@ impl Document {
         }
     }
 
+    pub fn add_arrow(&mut self, start: Point, end: Point) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.arrows.push(Arrow::new(id, start, end));
+        self.save_snapshot();
+        id
+    }
+
+    pub fn get_arrows(&self) -> &[Arrow] {
+        &self.arrows
+    }
+
+    pub fn move_arrow(&mut self, id: u64, new_start: Point, new_end: Point, save_history: bool) {
+        if let Some(arrow) = self.arrows.iter().find(|a| a.id == id) {
+            if arrow.start != new_start || arrow.end != new_end {
+                if save_history {
+                    self.save_snapshot();
+                }
+                if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+                    arrow.start = new_start;
+                    arrow.end = new_end;
+                }
+            }
+        }
+    }
+
+    pub fn delete_arrow(&mut self, id: u64) {
+        let existed = self.arrows.iter().any(|a| a.id == id);
+        self.arrows.retain(|a| a.id != id);
+        if existed {
+            self.save_snapshot();
+        }
+    }
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
             ellipses: self.ellipses.clone(),
             lines: self.lines.clone(),
+            arrows: self.arrows.clone(),
             next_id: self.next_id,
         };
         serde_json::to_string(&snapshot).unwrap_or_default()
