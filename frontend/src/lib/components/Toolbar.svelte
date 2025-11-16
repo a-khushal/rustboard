@@ -8,7 +8,7 @@
 	const tools: Array<{ id: Tool; label: string; icon: string }> = [
 		{ id: 'select' as Tool, label: 'Select', icon: 'cursor' },
 		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect' },
-		{ id: 'elipse' as Tool, label: 'Ellipse', icon: 'circle' }
+		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' }
 	];
 </script>
 

@@ -172,7 +172,7 @@
 
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
-		} else if (currentTool === 'rectangle' || currentTool === 'elipse') {
+		} else if (currentTool === 'rectangle' || currentTool === 'ellipse') {
 			selectedRectangles.set([]);
 			selectedEllipses.set([]);
 			isCreatingShape = true;
@@ -209,7 +209,7 @@
 		const currentTool = String($activeTool).trim();
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 		
-		if (currentTool === 'rectangle' || currentTool === 'elipse') {
+		if (currentTool === 'rectangle' || currentTool === 'ellipse') {
 			canvas.style.cursor = 'crosshair';
 			if (isCreatingShape) {
 				isShiftPressedDuringCreation = event.shiftKey;
@@ -271,7 +271,7 @@
 		
 		if (isCreatingShape) {
 			const currentTool = String($activeTool).trim();
-			const threshold = currentTool === 'elipse' ? 10 : 5;
+			const threshold = currentTool === 'ellipse' ? 10 : 5;
 			
 			if (currentTool === 'rectangle') {
 				const width = Math.abs(createCurrentPos.x - createStartPos.x);
@@ -284,20 +284,29 @@
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
-			} else if (currentTool === 'elipse') {
-				const deltaX = createCurrentPos.x - createStartPos.x;
-				const deltaY = createCurrentPos.y - createStartPos.y;
-				let radius_x = Math.abs(deltaX);
-				let radius_y = Math.abs(deltaY);
+			} else if (currentTool === 'ellipse') {
+				const minX = Math.min(createStartPos.x, createCurrentPos.x);
+				const maxX = Math.max(createStartPos.x, createCurrentPos.x);
+				const minY = Math.min(createStartPos.y, createCurrentPos.y);
+				const maxY = Math.max(createStartPos.y, createCurrentPos.y);
+
+				const width = maxX - minX;
+				const height = maxY - minY;
+
+				const centerX = minX + width / 2;
+				const centerY = minY + height / 2;
 				
+				let radius_x = width / 2;
+				let radius_y = height / 2;
+
 				if (isShiftPressedDuringCreation) {
 					const maxRadius = Math.max(radius_x, radius_y);
 					radius_x = maxRadius;
 					radius_y = maxRadius;
 				}
-				
+
 				if (radius_x > threshold && radius_y > threshold) {
-					addEllipse(createStartPos.x, createStartPos.y, radius_x, radius_y);
+					addEllipse(centerX, centerY, radius_x, radius_y);
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
@@ -333,7 +342,7 @@
 		
 		const currentTool = String($activeTool).trim();
 		const isCreatingRectangle = currentTool === 'rectangle' && isCreatingShape;
-		const isCreatingEllipse = currentTool === 'elipse' && isCreatingShape;
+		const isCreatingEllipse = currentTool === 'ellipse' && isCreatingShape;
 		
 		renderCtx.save();
 		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
@@ -370,10 +379,19 @@
 		});
 		
 		if (isCreatingEllipse) {
-			const deltaX = createCurrentPos.x - createStartPos.x;
-			const deltaY = createCurrentPos.y - createStartPos.y;
-			let radius_x = Math.abs(deltaX);
-			let radius_y = Math.abs(deltaY);
+			const minX = Math.min(createStartPos.x, createCurrentPos.x);
+			const maxX = Math.max(createStartPos.x, createCurrentPos.x);
+			const minY = Math.min(createStartPos.y, createCurrentPos.y);
+			const maxY = Math.max(createStartPos.y, createCurrentPos.y);
+
+			const width = maxX - minX;
+			const height = maxY - minY;
+
+			const centerX = minX + width / 2;
+			const centerY = minY + height / 2;
+			
+			let radius_x = width / 2;
+			let radius_y = height / 2;
 			
 			if (isShiftPressedDuringCreation) {
 				const maxRadius = Math.max(radius_x, radius_y);
@@ -386,7 +404,7 @@
 				renderCtx.lineWidth = 2 / $zoom;
 				renderCtx.globalAlpha = 0.5;
 				renderCtx.beginPath();
-				renderCtx.ellipse(createStartPos.x, createStartPos.y, radius_x, radius_y, 0, 0, 2 * Math.PI);
+				renderCtx.ellipse(centerX, centerY, radius_x, radius_y, 0, 0, 2 * Math.PI);
 				renderCtx.stroke();
 				renderCtx.globalAlpha = 1.0;
 			}
