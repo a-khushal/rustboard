@@ -43,6 +43,7 @@
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
 	let resizeFinalState: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
@@ -414,9 +415,8 @@
 				const newHeight = finalMaxY - finalMinY;
 				
 				if (newWidth > 0 && newHeight > 0) {
-					moveRectangle(rect.id, newX, newY, false);
-					resizeRectangle(rect.id, newWidth, newHeight, false);
-					resizeFinalState = { x: newX, y: newY, width: newWidth, height: newHeight, type: 'rectangle', id: rect.id };
+					resizePreview = { x: newX, y: newY, width: newWidth, height: newHeight, type: 'rectangle', id: rect.id };
+					scheduleRender();
 				}
 			} else if (resizeStartShapeType === 'ellipse') {
 				const ellipse = resizeStartShape as Ellipse;
@@ -470,9 +470,8 @@
 					const radiusX = newWidth / 2;
 					const radiusY = newHeight / 2;
 					
-					moveEllipse(ellipse.id, centerX, centerY, false);
-					resizeEllipse(ellipse.id, radiusX, radiusY, false);
-					resizeFinalState = { x: centerX, y: centerY, width: radiusX * 2, height: radiusY * 2, type: 'ellipse', id: ellipse.id };
+					resizePreview = { x: centerX, y: centerY, width: radiusX * 2, height: radiusY * 2, type: 'ellipse', id: ellipse.id };
+					scheduleRender();
 				}
 			}
 			return;
@@ -538,19 +537,19 @@
 			isPanning = false;
 		}
 		
-		if (isResizing && resizeFinalState && $editorApi) {
-			if (resizeFinalState.type === 'rectangle') {
-				moveRectangle(resizeFinalState.id, resizeFinalState.x, resizeFinalState.y, true);
-				resizeRectangle(resizeFinalState.id, resizeFinalState.width, resizeFinalState.height, false);
+		if (isResizing && resizePreview && $editorApi) {
+			if (resizePreview.type === 'rectangle') {
+				moveRectangle(resizePreview.id, resizePreview.x, resizePreview.y, true);
+				resizeRectangle(resizePreview.id, resizePreview.width, resizePreview.height, false);
 			} else {
-				const centerX = resizeFinalState.x;
-				const centerY = resizeFinalState.y;
-				const radiusX = resizeFinalState.width / 2;
-				const radiusY = resizeFinalState.height / 2;
-				moveEllipse(resizeFinalState.id, centerX, centerY, true);
-				resizeEllipse(resizeFinalState.id, radiusX, radiusY, false);
+				const centerX = resizePreview.x;
+				const centerY = resizePreview.y;
+				const radiusX = resizePreview.width / 2;
+				const radiusY = resizePreview.height / 2;
+				moveEllipse(resizePreview.id, centerX, centerY, true);
+				resizeEllipse(resizePreview.id, radiusX, radiusY, false);
 			}
-			resizeFinalState = null;
+			resizePreview = null;
 		}
 		
 		if (isResizing) {
@@ -561,7 +560,7 @@
 			resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 			resizeStartMousePos = { x: 0, y: 0 };
 			isShiftPressedDuringResize = false;
-			resizeFinalState = null;
+			resizePreview = null;
 		}
 		
 		if (isDragging && draggedShape && $editorApi) {
@@ -705,16 +704,19 @@
 		$rectangles.forEach((rect) => {
 			const isSelected = $selectedRectangles.some(selected => selected.id === rect.id);
 			const isDragged = isDragging && draggedShape && draggedShapeType === 'rectangle' && draggedShape.id === rect.id;
+			const isResized = isResizing && resizePreview && resizePreview.type === 'rectangle' && resizePreview.id === rect.id;
 			
-			const renderX = isDragged ? rect.position.x + dragOffset.x : rect.position.x;
-			const renderY = isDragged ? rect.position.y + dragOffset.y : rect.position.y;
+			const renderX = isDragged ? rect.position.x + dragOffset.x : (isResized && resizePreview ? resizePreview.x : rect.position.x);
+			const renderY = isDragged ? rect.position.y + dragOffset.y : (isResized && resizePreview ? resizePreview.y : rect.position.y);
+			const renderWidth = isResized && resizePreview ? resizePreview.width : rect.width;
+			const renderHeight = isResized && resizePreview ? resizePreview.height : rect.height;
 			
 			renderCtx.strokeStyle = '#000000';
 			renderCtx.lineWidth = 2 / $zoom;
-			renderCtx.strokeRect(renderX, renderY, rect.width, rect.height);
+			renderCtx.strokeRect(renderX, renderY, renderWidth, renderHeight);
 			
 			if (isSelected) {
-				renderResizeHandles(renderCtx, renderX, renderY, rect.width, rect.height, $zoom);
+				renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
 			}
 		});
 		
@@ -735,21 +737,24 @@
 		$ellipses.forEach((ellipse) => {
 			const isSelected = $selectedEllipses.some(selected => selected.id === ellipse.id);
 			const isDragged = isDragging && draggedShape && draggedShapeType === 'ellipse' && draggedShape.id === ellipse.id;
+			const isResized = isResizing && resizePreview && resizePreview.type === 'ellipse' && resizePreview.id === ellipse.id;
 			
-			const renderX = isDragged ? ellipse.position.x + dragOffset.x : ellipse.position.x;
-			const renderY = isDragged ? ellipse.position.y + dragOffset.y : ellipse.position.y;
+			const renderX = isDragged ? ellipse.position.x + dragOffset.x : (isResized && resizePreview ? resizePreview.x : ellipse.position.x);
+			const renderY = isDragged ? ellipse.position.y + dragOffset.y : (isResized && resizePreview ? resizePreview.y : ellipse.position.y);
+			const renderRadiusX = isResized && resizePreview ? resizePreview.width / 2 : ellipse.radius_x;
+			const renderRadiusY = isResized && resizePreview ? resizePreview.height / 2 : ellipse.radius_y;
 			
 			renderCtx.strokeStyle = '#000000';
 			renderCtx.lineWidth = 2 / $zoom;
 			renderCtx.beginPath();
-			renderCtx.ellipse(renderX, renderY, ellipse.radius_x, ellipse.radius_y, 0, 0, 2 * Math.PI);
+			renderCtx.ellipse(renderX, renderY, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
 			renderCtx.stroke();
 			
 			if (isSelected) {
-				const x = renderX - ellipse.radius_x;
-				const y = renderY - ellipse.radius_y;
-				const width = ellipse.radius_x * 2;
-				const height = ellipse.radius_y * 2;
+				const x = renderX - renderRadiusX;
+				const y = renderY - renderRadiusY;
+				const width = renderRadiusX * 2;
+				const height = renderRadiusY * 2;
 				renderResizeHandles(renderCtx, x, y, width, height, $zoom);
 			}
 		});
