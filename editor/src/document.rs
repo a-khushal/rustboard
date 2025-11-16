@@ -1,8 +1,9 @@
-use crate::elements::Rectangle;
+use crate::elements::{Ellipse, Rectangle};
 use crate::geometry::Point;
 
 pub struct Document {
     rectangles: Vec<Rectangle>,
+    ellipses: Vec<Ellipse>,
     next_id: u64,
 }
 
@@ -10,6 +11,7 @@ impl Document {
     pub fn new() -> Self {
         Self {
             rectangles: Vec::new(),
+            ellipses: Vec::new(),
             next_id: 0,
         }
     }
@@ -33,6 +35,27 @@ impl Document {
 
     pub fn delete_rectangle(&mut self, id: u64) {
         self.rectangles.retain(|r| r.id != id);
+    }
+
+    pub fn add_ellipse(&mut self, position: Point, radius_x: f64, radius_y: f64) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.ellipses.push(Ellipse::new(id, position, radius_x, radius_y));
+        id
+    }
+
+    pub fn get_ellipses(&self) -> &[Ellipse] {
+        &self.ellipses
+    }
+
+    pub fn move_ellipse(&mut self, id: u64, new_position: Point) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            ellipse.position = new_position;
+        }
+    }
+
+    pub fn delete_ellipse(&mut self, id: u64) {
+        self.ellipses.retain(|e| e.id != id);
     }
 }
 

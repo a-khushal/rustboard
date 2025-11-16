@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses } from '$lib/stores/editor';
 	import Canvas from '$lib/components/Canvas.svelte';
 
 	onMount(async () => {
@@ -10,6 +10,7 @@
 			editorApi.set(api);
 			wasmLoaded.set(true);
 			rectangles.set(api.get_rectangles());
+			ellipses.set(api.get_ellipses());
 		} catch (error) {
 			console.error('Failed to initialize Wasm:', error);
 		}

@@ -24,9 +24,8 @@
 			title={tool.label}
 		>
 			{#if tool.icon === 'cursor'}
-				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M3 3l2 8 3-2 3.5 1.5L13 3"/>
-					<path d="M3 3l1.5 1.5"/>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+					<path fill="none" d="M3.67 2.14V13.87c0 .3.36.45.57.23l3.24-3.24a.33.33 0 0 1 .23-.1h4.58a.33.33 0 0 0 .23-.57L4.23 1.9a.33.33 0 0 0-.57.23Z"/>
 				</svg>
 			{:else if tool.icon === 'rect'}
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -37,7 +36,6 @@
 					<circle cx="8" cy="8" r="5"/>
 				</svg>
 			{/if}
-			<span>{tool.label}</span>
 		</button>
 	{/each}
 </div>

@@ -1,4 +1,4 @@
-import type { Rectangle } from '$lib/stores/editor';
+import type { Ellipse, Rectangle } from '$lib/stores/editor';
 
 export function renderRectangles(
 	ctx: CanvasRenderingContext2D,
@@ -40,3 +40,46 @@ export function renderRectangles(
 	ctx.restore();
 }
 
+export function renderEllipses(
+	ctx: CanvasRenderingContext2D,
+	canvas: HTMLCanvasElement,
+	ellipses: Ellipse[],
+	selectedEllipses: Ellipse[],
+	viewportOffset: { x: number, y: number },
+	zoomLevel: number = 1,
+	previewRect: { x: number; y: number; width: number; height: number } | null = null
+): void {
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	ctx.fillStyle = '#fafaf9';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	ctx.save();
+	ctx.translate(viewportOffset.x, viewportOffset.y);
+	ctx.scale(zoomLevel, zoomLevel);
+
+	ellipses.forEach((ellipse) => {
+		const isSelected = selectedEllipses.some(selected => selected.id === ellipse.id);
+		const x = ellipse.position.x;
+		const y = ellipse.position.y;
+		const rx = ellipse.radius_x;
+		const ry = ellipse.radius_y;
+		
+		ctx.strokeStyle = isSelected ? '#ef4444' : '#000000';
+		ctx.lineWidth = 2 / zoomLevel;
+		ctx.beginPath();
+		ctx.ellipse(x, y, rx, ry, 0, 0, 2 * Math.PI);
+		ctx.stroke();
+	});
+
+	if (previewRect && previewRect.width > 0 && previewRect.height > 0) {
+		ctx.strokeStyle = '#000000';
+		ctx.lineWidth = 2 / zoomLevel;
+		ctx.globalAlpha = 0.5;
+		ctx.beginPath();
+		ctx.ellipse(previewRect.x, previewRect.y, previewRect.width / 2, previewRect.height / 2, 0, 0, 2 * Math.PI);
+		ctx.stroke();
+		ctx.globalAlpha = 1.0;
+	}
+
+	ctx.restore();
+}

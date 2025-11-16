@@ -1,4 +1,4 @@
-import type { Rectangle } from '$lib/stores/editor';
+import type { Ellipse, Rectangle } from '$lib/stores/editor';
 
 export function isPointInRectangle(x: number, y: number, rect: Rectangle): boolean {
 	return (
@@ -9,3 +9,9 @@ export function isPointInRectangle(x: number, y: number, rect: Rectangle): boole
 	);
 }
 
+export function isPointInEllipse(x: number, y: number, ellipse: Ellipse): boolean {
+	return (
+		(x - ellipse.position.x) ** 2 / ellipse.radius_x ** 2 +
+		(y - ellipse.position.y) ** 2 / ellipse.radius_y ** 2 <= 1
+	);
+}

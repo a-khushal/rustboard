@@ -37,6 +37,27 @@ impl EditorApi {
     pub fn delete_rectangle(&self, id: u64) {
         self.document.borrow_mut().delete_rectangle(id);
     }
+
+    #[wasm_bindgen]
+    pub fn add_ellipse(&self, x: f64, y: f64, radius_x: f64, radius_y: f64) -> u64 {
+        self.document.borrow_mut().add_ellipse(Point::new(x, y), radius_x, radius_y)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_ellipses(&self) -> JsValue {
+        let ellipses = self.document.borrow().get_ellipses().to_vec();
+        to_value(&ellipses).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_ellipse(&self, id: u64, x: f64, y: f64) {
+        self.document.borrow_mut().move_ellipse(id, Point::new(x, y));
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_ellipse(&self, id: u64) {
+        self.document.borrow_mut().delete_ellipse(id);
+    }
 }
 
 impl Default for EditorApi {
