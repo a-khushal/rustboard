@@ -12,6 +12,7 @@
 		addEllipse, deleteEllipses, moveEllipse, resizeEllipse
 	} from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
+	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
@@ -44,51 +45,13 @@
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
 
-	function handleZoomIn() {
-		const currentZoom = get(zoom);
-		const currentOffset = get(viewportOffset);
-		const zoomFactor = 1.1;
-		const newZoom = Math.min(32, currentZoom * zoomFactor);
-		
-		const centerX = window.innerWidth / 2;
-		const centerY = window.innerHeight / 2;
-		
-		const worldX = (centerX - currentOffset.x) / currentZoom;
-		const worldY = (centerY - currentOffset.y) / currentZoom;
-		
-		const newOffsetX = centerX - worldX * newZoom;
-		const newOffsetY = centerY - worldY * newZoom;
-		
-		zoom.set(newZoom);
-		viewportOffset.set({ x: newOffsetX, y: newOffsetY });
-	}
-
-	function handleZoomOut() {
-		const currentZoom = get(zoom);
-		const currentOffset = get(viewportOffset);
-		const zoomFactor = 1.1;
-		const newZoom = Math.max(0.1, currentZoom / zoomFactor);
-		
-		const centerX = window.innerWidth / 2;
-		const centerY = window.innerHeight / 2;
-		
-		const worldX = (centerX - currentOffset.x) / currentZoom;
-		const worldY = (centerY - currentOffset.y) / currentZoom;
-		
-		const newOffsetX = centerX - worldX * newZoom;
-		const newOffsetY = centerY - worldY * newZoom;
-		
-		zoom.set(newZoom);
-		viewportOffset.set({ x: newOffsetX, y: newOffsetY });
-	}
-
 	function handleKeyDown(event: KeyboardEvent) {
 		if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '=' || event.key === '-')) {
 			event.preventDefault();
 			if (event.key === '+' || event.key === '=') {
-				handleZoomIn();
+				zoomIn();
 			} else if (event.key === '-') {
-				handleZoomOut();
+				zoomOut();
 			}
 			return;
 		}

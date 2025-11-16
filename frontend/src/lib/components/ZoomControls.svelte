@@ -1,44 +1,5 @@
 <script lang="ts">
-	import { zoom, viewportOffset } from '$lib/stores/editor';
-	import { get } from 'svelte/store';
-
-	function zoomIn() {
-		const currentZoom = get(zoom);
-		const currentOffset = get(viewportOffset);
-		const zoomFactor = 1.1;
-		const newZoom = Math.min(32, currentZoom * zoomFactor);
-		
-		const centerX = window.innerWidth / 2;
-		const centerY = window.innerHeight / 2;
-		
-		const worldX = (centerX - currentOffset.x) / currentZoom;
-		const worldY = (centerY - currentOffset.y) / currentZoom;
-		
-		const newOffsetX = centerX - worldX * newZoom;
-		const newOffsetY = centerY - worldY * newZoom;
-		
-		zoom.set(newZoom);
-		viewportOffset.set({ x: newOffsetX, y: newOffsetY });
-	}
-
-	function zoomOut() {
-		const currentZoom = get(zoom);
-		const currentOffset = get(viewportOffset);
-		const zoomFactor = 1.1;
-		const newZoom = Math.max(0.1, currentZoom / zoomFactor);
-		
-		const centerX = window.innerWidth / 2;
-		const centerY = window.innerHeight / 2;
-		
-		const worldX = (centerX - currentOffset.x) / currentZoom;
-		const worldY = (centerY - currentOffset.y) / currentZoom;
-		
-		const newOffsetX = centerX - worldX * newZoom;
-		const newOffsetY = centerY - worldY * newZoom;
-		
-		zoom.set(newZoom);
-		viewportOffset.set({ x: newOffsetX, y: newOffsetY });
-	}
+	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 </script>
 
 <div class="absolute bottom-4 right-4 z-50 flex flex-row gap-1 bg-white border border-stone-200 shadow-sm rounded-sm p-1">
