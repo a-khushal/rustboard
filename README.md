@@ -13,13 +13,19 @@ A drawing application built with Svelte and Rust (compiled to WebAssembly).
 ```
 rustboard/
 ├── editor/              # Core Rust logic
-│   └── src/lib.rs
+│   └── src/
 ├── frontend/
-│   ├── wasm/           # Rust translation layer (wasm-bindgen)
-│   │   └── src/lib.rs
-│   └── src/           # Svelte frontend
-│       └── routes/
-└── pkg/                # Generated Wasm package
+│   ├── wasm/            # Rust translation layer (wasm-bindgen)
+│   │   └── src/
+│   └── src/
+│       ├── lib/
+│       │   ├── components/      # Svelte components
+│       │   ├── stores/          # State management
+│       │   ├── utils/           # Utility functions
+│       │   │   └── canvas-operations/
+│       │   └── wasm.ts          # WASM module loader
+│       └── routes/              # SvelteKit routes
+└── pkg/                 # Generated Wasm package
 ```
 
 ## Setup
