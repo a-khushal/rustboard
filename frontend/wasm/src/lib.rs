@@ -34,6 +34,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn resize_rectangle(&self, id: u64, width: f64, height: f64) {
+        self.document.borrow_mut().resize_rectangle(id, width, height);
+    }
+
+    #[wasm_bindgen]
     pub fn delete_rectangle(&self, id: u64) {
         self.document.borrow_mut().delete_rectangle(id);
     }
@@ -52,6 +57,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn move_ellipse(&self, id: u64, x: f64, y: f64) {
         self.document.borrow_mut().move_ellipse(id, Point::new(x, y));
+    }
+
+    #[wasm_bindgen]
+    pub fn resize_ellipse(&self, id: u64, radius_x: f64, radius_y: f64) {
+        self.document.borrow_mut().resize_ellipse(id, radius_x, radius_y);
     }
 
     #[wasm_bindgen]

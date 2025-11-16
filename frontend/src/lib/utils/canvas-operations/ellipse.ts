@@ -33,6 +33,14 @@ export function moveEllipse(id: number, x: number, y: number): void {
     updateEllipses();
 }
 
+export function resizeEllipse(id: number, radius_x: number, radius_y: number): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.resize_ellipse(BigInt(id), radius_x, radius_y);
+    updateEllipses();
+}
+
 export function updateEllipses(): void {
     const api = get(editorApi);
     if (!api) return;

@@ -33,6 +33,14 @@ export function moveRectangle(id: number, x: number, y: number): void {
     updateRectangles();
 }
 
+export function resizeRectangle(id: number, width: number, height: number): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.resize_rectangle(BigInt(id), width, height);
+    updateRectangles();
+}
+
 export function updateRectangles(): void {
     const api = get(editorApi);
     if (!api) return;

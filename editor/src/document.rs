@@ -33,6 +33,13 @@ impl Document {
         }
     }
 
+    pub fn resize_rectangle(&mut self, id: u64, width: f64, height: f64) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            rect.width = width;
+            rect.height = height;
+        }
+    }
+
     pub fn delete_rectangle(&mut self, id: u64) {
         self.rectangles.retain(|r| r.id != id);
     }
@@ -51,6 +58,13 @@ impl Document {
     pub fn move_ellipse(&mut self, id: u64, new_position: Point) {
         if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
             ellipse.position = new_position;
+        }
+    }
+
+    pub fn resize_ellipse(&mut self, id: u64, radius_x: f64, radius_y: f64) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            ellipse.radius_x = radius_x;
+            ellipse.radius_y = radius_y;
         }
     }
 
