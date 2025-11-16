@@ -25,19 +25,19 @@ export function deleteEllipses(ids: number[]): void {
     updateEllipses();
 }
 
-export function moveEllipse(id: number, x: number, y: number): void {
+export function moveEllipse(id: number, x: number, y: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;
 
-    api.move_ellipse(BigInt(id), x, y);
+    api.move_ellipse(BigInt(id), x, y, saveHistory);
     updateEllipses();
 }
 
-export function resizeEllipse(id: number, radius_x: number, radius_y: number): void {
+export function resizeEllipse(id: number, radius_x: number, radius_y: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;
 
-    api.resize_ellipse(BigInt(id), radius_x, radius_y);
+    api.resize_ellipse(BigInt(id), radius_x, radius_y, saveHistory);
     updateEllipses();
 }
 

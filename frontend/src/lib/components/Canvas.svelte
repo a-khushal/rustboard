@@ -15,6 +15,7 @@
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
+	import UndoRedoControls from './UndoRedoControls.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
 
 	let canvas: HTMLCanvasElement | undefined;
@@ -42,10 +43,49 @@
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
+	let resizeFinalState: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
 
 	function handleKeyDown(event: KeyboardEvent) {
+		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
+			event.preventDefault();
+			if ($editorApi) {
+				if (event.shiftKey) {
+					const success = $editorApi.redo();
+					if (success) {
+						const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
+						const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+						rectangles.set(updatedRectangles);
+						ellipses.set(updatedEllipses);
+					}
+				} else {
+					const success = $editorApi.undo();
+					if (success) {
+						const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
+						const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+						rectangles.set(updatedRectangles);
+						ellipses.set(updatedEllipses);
+					}
+				}
+			}
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || event.key === 'Y')) {
+			event.preventDefault();
+			if ($editorApi) {
+				const success = $editorApi.redo();
+				if (success) {
+					const updatedRectangles = $editorApi.get_rectangles() as Rectangle[];
+					const updatedEllipses = $editorApi.get_ellipses() as Ellipse[];
+					rectangles.set(updatedRectangles);
+					ellipses.set(updatedEllipses);
+				}
+			}
+			return;
+		}
+
 		if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '=' || event.key === '-')) {
 			event.preventDefault();
 			if (event.key === '+' || event.key === '=') {
@@ -374,8 +414,9 @@
 				const newHeight = finalMaxY - finalMinY;
 				
 				if (newWidth > 0 && newHeight > 0) {
-					moveRectangle(rect.id, newX, newY);
-					resizeRectangle(rect.id, newWidth, newHeight);
+					moveRectangle(rect.id, newX, newY, false);
+					resizeRectangle(rect.id, newWidth, newHeight, false);
+					resizeFinalState = { x: newX, y: newY, width: newWidth, height: newHeight, type: 'rectangle', id: rect.id };
 				}
 			} else if (resizeStartShapeType === 'ellipse') {
 				const ellipse = resizeStartShape as Ellipse;
@@ -429,8 +470,9 @@
 					const radiusX = newWidth / 2;
 					const radiusY = newHeight / 2;
 					
-					moveEllipse(ellipse.id, centerX, centerY);
-					resizeEllipse(ellipse.id, radiusX, radiusY);
+					moveEllipse(ellipse.id, centerX, centerY, false);
+					resizeEllipse(ellipse.id, radiusX, radiusY, false);
+					resizeFinalState = { x: centerX, y: centerY, width: radiusX * 2, height: radiusY * 2, type: 'ellipse', id: ellipse.id };
 				}
 			}
 			return;
@@ -496,6 +538,21 @@
 			isPanning = false;
 		}
 		
+		if (isResizing && resizeFinalState && $editorApi) {
+			if (resizeFinalState.type === 'rectangle') {
+				moveRectangle(resizeFinalState.id, resizeFinalState.x, resizeFinalState.y, true);
+				resizeRectangle(resizeFinalState.id, resizeFinalState.width, resizeFinalState.height, false);
+			} else {
+				const centerX = resizeFinalState.x;
+				const centerY = resizeFinalState.y;
+				const radiusX = resizeFinalState.width / 2;
+				const radiusY = resizeFinalState.height / 2;
+				moveEllipse(resizeFinalState.id, centerX, centerY, true);
+				resizeEllipse(resizeFinalState.id, radiusX, radiusY, false);
+			}
+			resizeFinalState = null;
+		}
+		
 		if (isResizing) {
 			isResizing = false;
 			resizeHandleIndex = null;
@@ -504,6 +561,7 @@
 			resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 			resizeStartMousePos = { x: 0, y: 0 };
 			isShiftPressedDuringResize = false;
+			resizeFinalState = null;
 		}
 		
 		if (isDragging && draggedShape && $editorApi) {
@@ -511,9 +569,9 @@
 			const newY = dragShapeStartPos.y + dragOffset.y;
 			
 			if (draggedShapeType === 'rectangle') {
-				moveRectangle((draggedShape as Rectangle).id, newX, newY);
+				moveRectangle((draggedShape as Rectangle).id, newX, newY, true);
 			} else if (draggedShapeType === 'ellipse') {
-				moveEllipse((draggedShape as Ellipse).id, newX, newY);
+				moveEllipse((draggedShape as Ellipse).id, newX, newY, true);
 			}
 		}
 		
@@ -786,6 +844,7 @@
 <div class="relative w-full h-full bg-stone-50">
 	<Toolbar />
 	<ZoomControls />
+	<UndoRedoControls />
 	<canvas
 		on:mousedown={handleMouseDown}
 		on:mousemove={handleMouseMove}

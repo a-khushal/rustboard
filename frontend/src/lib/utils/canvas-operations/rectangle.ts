@@ -25,19 +25,19 @@ export function deleteRectangles(ids: number[]): void {
     updateRectangles();
 }
 
-export function moveRectangle(id: number, x: number, y: number): void {
+export function moveRectangle(id: number, x: number, y: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;
 
-    api.move_rectangle(BigInt(id), x, y);
+    api.move_rectangle(BigInt(id), x, y, saveHistory);
     updateRectangles();
 }
 
-export function resizeRectangle(id: number, width: number, height: number): void {
+export function resizeRectangle(id: number, width: number, height: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;
 
-    api.resize_rectangle(BigInt(id), width, height);
+    api.resize_rectangle(BigInt(id), width, height, saveHistory);
     updateRectangles();
 }
 
