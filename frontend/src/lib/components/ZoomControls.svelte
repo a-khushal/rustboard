@@ -6,7 +6,7 @@
 		const currentZoom = get(zoom);
 		const currentOffset = get(viewportOffset);
 		const zoomFactor = 1.2;
-		const newZoom = Math.min(5, currentZoom * zoomFactor);
+		const newZoom = Math.min(32, currentZoom * zoomFactor);
 		
 		const centerX = window.innerWidth / 2;
 		const centerY = window.innerHeight / 2;

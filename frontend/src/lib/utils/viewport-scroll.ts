@@ -5,7 +5,7 @@ export function handleViewportScroll(event: WheelEvent, canvas: HTMLCanvasElemen
 	event.preventDefault();
 
 	if (event.ctrlKey || event.metaKey) {
-		const zoomFactor = 1.1;
+		const zoomFactor = 1.2;
 		const currentZoom = get(zoom);
 		const currentOffset = get(viewportOffset);
 		
@@ -14,7 +14,7 @@ export function handleViewportScroll(event: WheelEvent, canvas: HTMLCanvasElemen
 		const mouseY = event.clientY - rect.top;
 		
 		const delta = event.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-		const newZoom = Math.max(0.1, Math.min(5, currentZoom * delta));
+		const newZoom = Math.max(0.1, Math.min(32, currentZoom * delta));
 		
 		const zoomRatio = newZoom / currentZoom;
 		const newOffsetX = currentOffset.x + (mouseX - currentOffset.x) * (1 - zoomRatio);
