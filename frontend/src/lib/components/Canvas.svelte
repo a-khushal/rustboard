@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { get } from 'svelte/store';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse 
@@ -264,7 +265,7 @@
 		}
 	}
 	
-	function handleMouseUp() {
+	async function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
 		}
@@ -281,6 +282,14 @@
 					const x = Math.min(createStartPos.x, createCurrentPos.x);
 					const y = Math.min(createStartPos.y, createCurrentPos.y);
 					addRectangle(x, y, width, height);
+					selectedEllipses.set([]);
+					await tick();
+					const updatedRectangles = get(rectangles);
+					if (updatedRectangles.length > 0) {
+						const newestRect = updatedRectangles[updatedRectangles.length - 1];
+						selectedRectangles.set([newestRect]);
+					}
+					await tick();
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
@@ -307,6 +316,14 @@
 
 				if (radius_x > threshold && radius_y > threshold) {
 					addEllipse(centerX, centerY, radius_x, radius_y);
+					selectedRectangles.set([]);
+					await tick();
+					const updatedEllipses = get(ellipses);
+					if (updatedEllipses.length > 0) {
+						const newestEllipse = updatedEllipses[updatedEllipses.length - 1];
+						selectedEllipses.set([newestEllipse]);
+					}
+					await tick();
 					justCreatedShape = true;
 					activeTool.set('select' as Tool);
 				}
@@ -315,6 +332,7 @@
 			isCreatingShape = false;
 			createStartPos = { x: 0, y: 0 };
 			createCurrentPos = { x: 0, y: 0 };
+			await tick();
 			scheduleRender();
 		}
 		
@@ -323,6 +341,41 @@
 		draggedShapeType = null;
 		setTimeout(() => { justCreatedShape = false; }, 100);
 		canvas?.focus();
+	}
+
+	function renderResizeHandles(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		const gap = 4 / zoom;
+		
+		const boxX = x - gap;
+		const boxY = y - gap;
+		const boxWidth = width + gap * 2;
+		const boxHeight = height + gap * 2;
+		
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 1 / zoom;
+		ctx.beginPath();
+		ctx.rect(boxX, boxY, boxWidth, boxHeight);
+		ctx.stroke();
+		
+		ctx.fillStyle = '#ffffff';
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 2 / zoom;
+		
+		const corners = [
+			{ x: boxX, y: boxY },
+			{ x: boxX + boxWidth, y: boxY },
+			{ x: boxX + boxWidth, y: boxY + boxHeight },
+			{ x: boxX, y: boxY + boxHeight }
+		];
+		
+		corners.forEach((corner) => {
+			ctx.beginPath();
+			ctx.rect(corner.x - halfHandle, corner.y - halfHandle, handleSize, handleSize);
+			ctx.fill();
+			ctx.stroke();
+		});
 	}
 
 	function render() {
@@ -350,9 +403,13 @@
 		
 		$rectangles.forEach((rect) => {
 			const isSelected = $selectedRectangles.some(selected => selected.id === rect.id);
-			renderCtx.strokeStyle = isSelected ? '#ef4444' : '#000000';
+			renderCtx.strokeStyle = '#000000';
 			renderCtx.lineWidth = 2 / $zoom;
 			renderCtx.strokeRect(rect.position.x, rect.position.y, rect.width, rect.height);
+			
+			if (isSelected) {
+				renderResizeHandles(renderCtx, rect.position.x, rect.position.y, rect.width, rect.height, $zoom);
+			}
 		});
 		
 		if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
@@ -371,11 +428,19 @@
 		
 		$ellipses.forEach((ellipse) => {
 			const isSelected = $selectedEllipses.some(selected => selected.id === ellipse.id);
-			renderCtx.strokeStyle = isSelected ? '#ef4444' : '#000000';
+			renderCtx.strokeStyle = '#000000';
 			renderCtx.lineWidth = 2 / $zoom;
 			renderCtx.beginPath();
 			renderCtx.ellipse(ellipse.position.x, ellipse.position.y, ellipse.radius_x, ellipse.radius_y, 0, 0, 2 * Math.PI);
 			renderCtx.stroke();
+			
+			if (isSelected) {
+				const x = ellipse.position.x - ellipse.radius_x;
+				const y = ellipse.position.y - ellipse.radius_y;
+				const width = ellipse.radius_x * 2;
+				const height = ellipse.radius_y * 2;
+				renderResizeHandles(renderCtx, x, y, width, height, $zoom);
+			}
 		});
 		
 		if (isCreatingEllipse) {
