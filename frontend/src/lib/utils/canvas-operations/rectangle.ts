@@ -6,7 +6,7 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
     if (!api) return;
 
     const newId = api.add_rectangle(x, y, width, height);
-    const updatedRectangles = api.get_rectangles() as Rectangle[];
+    const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
     rectangles.set(updatedRectangles);
 
     const newRect = updatedRectangles.find((r: Rectangle) => r.id === newId);
@@ -44,7 +44,7 @@ export function resizeRectangle(id: number, width: number, height: number, saveH
 export function updateRectangles(): void {
     const api = get(editorApi);
     if (!api) return;
-    const updatedRectangles = api.get_rectangles() as Rectangle[];
+    const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
     rectangles.set(updatedRectangles);
 
     const currentSelection = get(selectedRectangles);

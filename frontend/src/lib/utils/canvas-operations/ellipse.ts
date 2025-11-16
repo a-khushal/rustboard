@@ -6,7 +6,7 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     if (!api) return;
 
     const newId = api.add_ellipse(x, y, radius_x, radius_y);
-    const updatedEllipses = api.get_ellipses() as Ellipse[];
+    const updatedEllipses = Array.from(api.get_ellipses() as Ellipse[]);
     ellipses.set(updatedEllipses);
 
     const newEllipse = updatedEllipses.find((e: Ellipse) => e.id === newId);
@@ -44,7 +44,7 @@ export function resizeEllipse(id: number, radius_x: number, radius_y: number, sa
 export function updateEllipses(): void {
     const api = get(editorApi);
     if (!api) return;
-    const updatedEllipses = api.get_ellipses() as Ellipse[];
+    const updatedEllipses = Array.from(api.get_ellipses() as Ellipse[]);
     ellipses.set(updatedEllipses);
 
     const currentSelection = get(selectedEllipses);

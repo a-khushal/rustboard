@@ -12,6 +12,7 @@
 	} from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
+	import { copyToClipboard, getClipboard, hasClipboardData } from '$lib/utils/clipboard';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
@@ -43,6 +44,7 @@
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
 	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse'; id: number } | null = null;
+	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
 
@@ -114,6 +116,74 @@
 			}
 			if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
 				activeTool.set('select');
+			}
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
+			event.preventDefault();
+			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0) {
+				copyToClipboard($selectedRectangles, $selectedEllipses);
+			}
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
+			event.preventDefault();
+			if (!$editorApi || !hasClipboardData()) return;
+			
+			const clipboard = getClipboard();
+			const pastedRects: Rectangle[] = [];
+			const pastedEllipses: Ellipse[] = [];
+
+			const pasteOffset = { x: 20, y: 20 };
+			let pasteX = pasteOffset.x;
+			let pasteY = pasteOffset.y;
+
+			if (lastMouseWorldPos) {
+				pasteX = lastMouseWorldPos.x;
+				pasteY = lastMouseWorldPos.y;
+			} else {
+				const viewportCenterX = window.innerWidth / 2;
+				const viewportCenterY = window.innerHeight / 2;
+				const centerWorld = screenToWorld(viewportCenterX, viewportCenterY, $viewportOffset, $zoom);
+				pasteX = centerWorld.x;
+				pasteY = centerWorld.y;
+			}
+
+			if (clipboard.rectangles.length > 0) {
+				const minX = Math.min(...clipboard.rectangles.map(r => r.position.x));
+				const minY = Math.min(...clipboard.rectangles.map(r => r.position.y));
+				
+				clipboard.rectangles.forEach(rect => {
+					const offsetX = rect.position.x - minX + pasteX;
+					const offsetY = rect.position.y - minY + pasteY;
+					const newId = $editorApi.add_rectangle(offsetX, offsetY, rect.width, rect.height);
+					const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+					const newRect = updatedRectangles.find(r => r.id === newId);
+					if (newRect) pastedRects.push(newRect);
+				});
+				rectangles.set(Array.from($editorApi.get_rectangles() as Rectangle[]));
+			}
+
+			if (clipboard.ellipses.length > 0) {
+				const minX = Math.min(...clipboard.ellipses.map(e => e.position.x));
+				const minY = Math.min(...clipboard.ellipses.map(e => e.position.y));
+				
+				clipboard.ellipses.forEach(ellipse => {
+					const offsetX = ellipse.position.x - minX + pasteX;
+					const offsetY = ellipse.position.y - minY + pasteY;
+					const newId = $editorApi.add_ellipse(offsetX, offsetY, ellipse.radius_x, ellipse.radius_y);
+					const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
+					const newEllipse = updatedEllipses.find(e => e.id === newId);
+					if (newEllipse) pastedEllipses.push(newEllipse);
+				});
+				ellipses.set(Array.from($editorApi.get_ellipses() as Ellipse[]));
+			}
+
+			if (pastedRects.length > 0 || pastedEllipses.length > 0) {
+				selectedRectangles.set(pastedRects);
+				selectedEllipses.set(pastedEllipses);
 			}
 			return;
 		}
@@ -335,6 +405,8 @@
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
 		const screenY = event.clientY - rect.top;
+		const worldPos = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+		lastMouseWorldPos = { x: worldPos.x, y: worldPos.y };
 
 		if (isPanning) {
 			canvas.style.cursor = 'grabbing';
@@ -352,7 +424,7 @@
 			return;
 		}
 
-		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+		const { x, y } = worldPos;
 		
 		if (isResizing && resizeStartShape && resizeHandleIndex !== null && $editorApi) {
 			isShiftPressedDuringResize = event.shiftKey;
@@ -852,7 +924,6 @@
 		on:mousemove={handleMouseMove}
 		on:mouseup={handleMouseUp}
 		on:wheel={(e) => handleViewportScroll(e, canvas!)}
-		on:keydown={handleKeyDown}
 		bind:this={canvas}
 		class="w-full h-full bg-stone-50"
 		tabindex="0"
