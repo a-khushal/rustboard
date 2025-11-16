@@ -88,6 +88,16 @@ impl EditorApi {
     pub fn delete_ellipse(&self, id: u64) {
         self.document.borrow_mut().delete_ellipse(id);
     }
+
+    #[wasm_bindgen]
+    pub fn serialize(&self) -> String {
+        self.document.borrow().serialize()
+    }
+
+    #[wasm_bindgen]
+    pub fn deserialize(&self, data: &str) -> bool {
+        self.document.borrow_mut().deserialize(data)
+    }
 }
 
 impl Default for EditorApi {

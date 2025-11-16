@@ -177,6 +177,28 @@ impl Document {
             self.save_snapshot();
         }
     }
+
+    pub fn serialize(&self) -> String {
+        let snapshot = DocumentSnapshot {
+            rectangles: self.rectangles.clone(),
+            ellipses: self.ellipses.clone(),
+            next_id: self.next_id,
+        };
+        serde_json::to_string(&snapshot).unwrap_or_default()
+    }
+
+    pub fn deserialize(&mut self, data: &str) -> bool {
+        match serde_json::from_str::<DocumentSnapshot>(data) {
+            Ok(snapshot) => {
+                self.restore_snapshot(&snapshot);
+                self.history.clear();
+                self.history_index = 0;
+                self.save_snapshot();
+                true
+            }
+            Err(_) => false,
+        }
+    }
 }
 
 impl Default for Document {
