@@ -54,6 +54,16 @@
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
+	
+	const shapeCreationZoom = new Map<number, number>();
+	
+	function getStrokeWidth(creationZoom: number | null, currentZoom: number): number {
+		const baseStrokeWidth = 2;
+		if (creationZoom === null || creationZoom === undefined) {
+			creationZoom = 1;
+		}
+		return (baseStrokeWidth * Math.sqrt(creationZoom)) / currentZoom;
+	}
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
@@ -205,24 +215,28 @@
 		
 		if (hasSelectedRectangles) {
 			const idsToDelete = $selectedRectangles.map(rect => rect.id);
+			idsToDelete.forEach(id => shapeCreationZoom.delete(id));
 			deleteRectangles(idsToDelete);
 			selectedRectangles.set([]);
 		}
 		
 		if (hasSelectedEllipses) {
 			const idsToDelete = $selectedEllipses.map(ellipse => ellipse.id);
+			idsToDelete.forEach(id => shapeCreationZoom.delete(id));
 			deleteEllipses(idsToDelete);
 			selectedEllipses.set([]);
 		}
 		
 		if (hasSelectedLines) {
 			const idsToDelete = $selectedLines.map(line => line.id);
+			idsToDelete.forEach(id => shapeCreationZoom.delete(id));
 			deleteLines(idsToDelete);
 			selectedLines.set([]);
 		}
 		
 		if (hasSelectedArrows) {
 			const idsToDelete = $selectedArrows.map(arrow => arrow.id);
+			idsToDelete.forEach(id => shapeCreationZoom.delete(id));
 			deleteArrows(idsToDelete);
 			selectedArrows.set([]);
 		}
@@ -859,12 +873,12 @@
 						return;
 					}
 				}
-			for (let i = $ellipses.length - 1; i >= 0; i--) {
-				if (isPointInEllipse(x, y, $ellipses[i])) {
-					canvas.style.cursor = 'move';
-					return;
+				for (let i = $ellipses.length - 1; i >= 0; i--) {
+					if (isPointInEllipse(x, y, $ellipses[i])) {
+						canvas.style.cursor = 'move';
+						return;
+					}
 				}
-			}
 			for (let i = $lines.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
 					canvas.style.cursor = 'move';
@@ -970,7 +984,10 @@
 				if (width > threshold && height > threshold) {
 					const x = Math.min(createStartPos.x, createCurrentPos.x);
 					const y = Math.min(createStartPos.y, createCurrentPos.y);
-					addRectangle(x, y, width, height);
+					const newId = addRectangle(x, y, width, height);
+					if (newId) {
+						shapeCreationZoom.set(newId, $zoom);
+					}
 					selectedEllipses.set([]);
 					if ($rectangles.length > 0) {
 						const newestRect = $rectangles[$rectangles.length - 1];
@@ -1001,7 +1018,10 @@
 				}
 
 				if (radius_x > threshold && radius_y > threshold) {
-					addEllipse(centerX, centerY, radius_x, radius_y);
+					const newId = addEllipse(centerX, centerY, radius_x, radius_y);
+					if (newId) {
+						shapeCreationZoom.set(newId, $zoom);
+					}
 					selectedRectangles.set([]);
 					if ($ellipses.length > 0) {
 						const newestEllipse = $ellipses[$ellipses.length - 1];
@@ -1017,7 +1037,10 @@
 					const length = Math.sqrt(dx * dx + dy * dy);
 					
 					if (length > 5) {
-						addLine(lineStart.x, lineStart.y, lineEnd.x, lineEnd.y);
+						const newId = addLine(lineStart.x, lineStart.y, lineEnd.x, lineEnd.y);
+						if (newId) {
+							shapeCreationZoom.set(newId, $zoom);
+						}
 						selectedRectangles.set([]);
 						selectedEllipses.set([]);
 						if ($lines.length > 0) {
@@ -1035,7 +1058,10 @@
 					const length = Math.sqrt(dx * dx + dy * dy);
 					
 					if (length > 5) {
-						addArrow(arrowStart.x, arrowStart.y, arrowEnd.x, arrowEnd.y);
+						const newId = addArrow(arrowStart.x, arrowStart.y, arrowEnd.x, arrowEnd.y);
+						if (newId) {
+							shapeCreationZoom.set(newId, $zoom);
+						}
 						selectedRectangles.set([]);
 						selectedEllipses.set([]);
 						selectedLines.set([]);
@@ -1048,7 +1074,7 @@
 					}
 				}
 			}
-
+			
 			isCreatingShape = false;
 			createStartPos = { x: 0, y: 0 };
 			createCurrentPos = { x: 0, y: 0 };
@@ -1134,8 +1160,11 @@
 			const renderWidth = isResized && resizePreview ? resizePreview.width : rect.width;
 			const renderHeight = isResized && resizePreview ? resizePreview.height : rect.height;
 			
+			const creationZoom = shapeCreationZoom.get(rect.id) ?? null;
+			const strokeWidth = getStrokeWidth(creationZoom, $zoom);
+			
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.strokeRect(renderX, renderY, renderWidth, renderHeight);
 			
 			if (isSelected) {
@@ -1144,8 +1173,9 @@
 		});
 		
 		if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
+			const strokeWidth = getStrokeWidth($zoom, $zoom);
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.strokeRect(previewRect.x, previewRect.y, previewRect.width, previewRect.height);
 			renderCtx.globalAlpha = 1.0;
@@ -1167,8 +1197,11 @@
 			const renderRadiusX = isResized && resizePreview ? resizePreview.width / 2 : ellipse.radius_x;
 			const renderRadiusY = isResized && resizePreview ? resizePreview.height / 2 : ellipse.radius_y;
 			
+			const creationZoom = shapeCreationZoom.get(ellipse.id) ?? null;
+			const strokeWidth = getStrokeWidth(creationZoom, $zoom);
+			
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.beginPath();
 			renderCtx.ellipse(renderX, renderY, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
 			renderCtx.stroke();
@@ -1204,8 +1237,9 @@
 			}
 			
 			if (radius_x > 0 && radius_y > 0) {
+				const strokeWidth = getStrokeWidth($zoom, $zoom);
 				renderCtx.strokeStyle = '#000000';
-				renderCtx.lineWidth = 2 / $zoom;
+				renderCtx.lineWidth = strokeWidth;
 				renderCtx.globalAlpha = 0.5;
 				renderCtx.beginPath();
 				renderCtx.ellipse(centerX, centerY, radius_x, radius_y, 0, 0, 2 * Math.PI);
@@ -1238,8 +1272,11 @@
 				renderEndY = line.end.y;
 			}
 			
+			const creationZoom = shapeCreationZoom.get(line.id) ?? null;
+			const strokeWidth = getStrokeWidth(creationZoom, $zoom);
+			
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.beginPath();
 			renderCtx.moveTo(renderStartX, renderStartY);
 			renderCtx.lineTo(renderEndX, renderEndY);
@@ -1266,8 +1303,9 @@
 		});
 		
 		if (isCreatingShape && $activeTool === 'line' && lineStart && lineEnd) {
+			const strokeWidth = getStrokeWidth($zoom, $zoom);
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
 			renderCtx.moveTo(lineStart.x, lineStart.y);
@@ -1300,8 +1338,11 @@
 				renderEndY = arrow.end.y;
 			}
 			
+			const creationZoom = shapeCreationZoom.get(arrow.id) ?? null;
+			const strokeWidth = getStrokeWidth(creationZoom, $zoom);
+			
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.beginPath();
 			renderCtx.moveTo(renderStartX, renderStartY);
 			renderCtx.lineTo(renderEndX, renderEndY);
@@ -1310,8 +1351,8 @@
 			const dx = renderEndX - renderStartX;
 			const dy = renderEndY - renderStartY;
 			const angle = Math.atan2(dy, dx);
-			const arrowLength = 10 / $zoom;
-			const arrowWidth = 6 / $zoom;
+			const arrowLength = (10 * Math.sqrt(creationZoom ?? 1)) / $zoom;
+			const arrowWidth = (6 * Math.sqrt(creationZoom ?? 1)) / $zoom;
 			
 			renderCtx.beginPath();
 			renderCtx.moveTo(renderEndX, renderEndY);
@@ -1348,8 +1389,9 @@
 		});
 		
 		if (isCreatingShape && $activeTool === 'arrow' && arrowStart && arrowEnd) {
+			const strokeWidth = getStrokeWidth($zoom, $zoom);
 			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2 / $zoom;
+			renderCtx.lineWidth = strokeWidth;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
 			renderCtx.moveTo(arrowStart.x, arrowStart.y);
@@ -1359,7 +1401,7 @@
 			const dx = arrowEnd.x - arrowStart.x;
 			const dy = arrowEnd.y - arrowStart.y;
 			const angle = Math.atan2(dy, dx);
-			const arrowLength = 10 / $zoom;
+			const arrowLength = (10 * Math.sqrt($zoom)) / $zoom;
 			
 			renderCtx.beginPath();
 			renderCtx.moveTo(arrowEnd.x, arrowEnd.y);

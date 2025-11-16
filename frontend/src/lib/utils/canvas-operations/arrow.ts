@@ -1,9 +1,9 @@
 import { get } from 'svelte/store';
 import { editorApi, arrows, selectedArrows, type Arrow } from '$lib/stores/editor';
 
-export function addArrow(startX: number, startY: number, endX: number, endY: number): void {
+export function addArrow(startX: number, startY: number, endX: number, endY: number): number | null {
     const api = get(editorApi);
-    if (!api) return;
+    if (!api) return null;
 
     const newId = api.add_arrow(startX, startY, endX, endY);
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
@@ -13,6 +13,7 @@ export function addArrow(startX: number, startY: number, endX: number, endY: num
     if (newArrow) {
         selectedArrows.set([newArrow]);
     }
+    return Number(newId);
 }
 
 export function deleteArrows(ids: number[]): void {

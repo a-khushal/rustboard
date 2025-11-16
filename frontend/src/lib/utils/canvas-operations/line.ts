@@ -1,9 +1,9 @@
 import { get } from 'svelte/store';
 import { editorApi, lines, selectedLines, type Line } from '$lib/stores/editor';
 
-export function addLine(startX: number, startY: number, endX: number, endY: number): void {
+export function addLine(startX: number, startY: number, endX: number, endY: number): number | null {
     const api = get(editorApi);
-    if (!api) return;
+    if (!api) return null;
 
     const newId = api.add_line(startX, startY, endX, endY);
     const updatedLines = Array.from(api.get_lines() as Line[]);
@@ -13,6 +13,7 @@ export function addLine(startX: number, startY: number, endX: number, endY: numb
     if (newLine) {
         selectedLines.set([newLine]);
     }
+    return Number(newId);
 }
 
 export function deleteLines(ids: number[]): void {

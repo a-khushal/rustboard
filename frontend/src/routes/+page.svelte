@@ -19,8 +19,8 @@
 			
 			const loaded = loadStateFromLocalStorage();
 			if (!loaded) {
-				rectangles.set(api.get_rectangles());
-				ellipses.set(api.get_ellipses());
+			rectangles.set(api.get_rectangles());
+			ellipses.set(api.get_ellipses());
 				lines.set((api as any).get_lines());
 				arrows.set((api as any).get_arrows());
 			}

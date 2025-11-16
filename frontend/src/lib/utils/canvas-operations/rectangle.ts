@@ -1,9 +1,9 @@
 import { get } from 'svelte/store';
 import { editorApi, rectangles, selectedRectangles, type Rectangle } from '$lib/stores/editor';
 
-export function addRectangle(x: number, y: number, width: number = 100, height: number = 50): void {
+export function addRectangle(x: number, y: number, width: number = 100, height: number = 50): number | null {
     const api = get(editorApi);
-    if (!api) return;
+    if (!api) return null;
 
     const newId = api.add_rectangle(x, y, width, height);
     const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
@@ -13,6 +13,7 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
     if (newRect) {
         selectedRectangles.set([newRect]);
     }
+    return Number(newId);
 }
 
 export function deleteRectangles(ids: number[]): void {

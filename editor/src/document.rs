@@ -134,7 +134,7 @@ impl Document {
 
     pub fn delete_rectangle(&mut self, id: u64) {
         let existed = self.rectangles.iter().any(|r| r.id == id);
-        self.rectangles.retain(|r| r.id != id);
+            self.rectangles.retain(|r| r.id != id);
         if existed {
             self.save_snapshot();
         }
@@ -181,7 +181,7 @@ impl Document {
 
     pub fn delete_ellipse(&mut self, id: u64) {
         let existed = self.ellipses.iter().any(|e| e.id == id);
-        self.ellipses.retain(|e| e.id != id);
+            self.ellipses.retain(|e| e.id != id);
         if existed {
             self.save_snapshot();
         }

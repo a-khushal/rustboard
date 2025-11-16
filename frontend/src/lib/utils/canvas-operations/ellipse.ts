@@ -1,9 +1,9 @@
 import { get } from 'svelte/store';
 import { editorApi, ellipses, selectedEllipses, type Ellipse } from '$lib/stores/editor';
 
-export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y: number = 50): void {
+export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y: number = 50): number | null {
     const api = get(editorApi);
-    if (!api) return;
+    if (!api) return null;
 
     const newId = api.add_ellipse(x, y, radius_x, radius_y);
     const updatedEllipses = Array.from(api.get_ellipses() as Ellipse[]);
@@ -13,6 +13,7 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     if (newEllipse) {
         selectedEllipses.set([newEllipse]);
     }
+    return Number(newId);
 }
 
 export function deleteEllipses(ids: number[]): void {
