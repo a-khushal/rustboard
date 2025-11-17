@@ -1,4 +1,4 @@
-use crate::elements::{Ellipse, Rectangle, Line, Arrow};
+use crate::elements::{Ellipse, Rectangle, Line, Arrow, Diamond};
 use crate::geometry::Point;
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +8,7 @@ struct DocumentSnapshot {
     ellipses: Vec<Ellipse>,
     lines: Vec<Line>,
     arrows: Vec<Arrow>,
+    diamonds: Vec<Diamond>,
     next_id: u64,
 }
 
@@ -16,6 +17,7 @@ pub struct Document {
     ellipses: Vec<Ellipse>,
     lines: Vec<Line>,
     arrows: Vec<Arrow>,
+    diamonds: Vec<Diamond>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
     history_index: usize,
@@ -29,6 +31,7 @@ impl Document {
             ellipses: Vec::new(),
             lines: Vec::new(),
             arrows: Vec::new(),
+            diamonds: Vec::new(),
             next_id: 0,
             history: Vec::new(),
             history_index: 0,
@@ -44,6 +47,7 @@ impl Document {
             ellipses: self.ellipses.clone(),
             lines: self.lines.clone(),
             arrows: self.arrows.clone(),
+            diamonds: self.diamonds.clone(),
             next_id: self.next_id,
         };
         
@@ -53,6 +57,7 @@ impl Document {
                last_snapshot.ellipses == snapshot.ellipses &&
                last_snapshot.lines == snapshot.lines &&
                last_snapshot.arrows == snapshot.arrows &&
+               last_snapshot.diamonds == snapshot.diamonds &&
                last_snapshot.next_id == snapshot.next_id {
                 return;
             }
@@ -73,6 +78,7 @@ impl Document {
         self.ellipses = snapshot.ellipses.clone();
         self.lines = snapshot.lines.clone();
         self.arrows = snapshot.arrows.clone();
+        self.diamonds = snapshot.diamonds.clone();
         self.next_id = snapshot.next_id;
     }
 
@@ -158,6 +164,63 @@ impl Document {
     pub fn delete_rectangle_without_snapshot(&mut self, id: u64) -> bool {
         let existed = self.rectangles.iter().any(|r| r.id == id);
         self.rectangles.retain(|r| r.id != id);
+        existed
+    }
+
+    pub fn add_diamond(&mut self, position: Point, width: f64, height: f64) -> u64 {
+        let id = self.add_diamond_without_snapshot(position, width, height);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_diamond_without_snapshot(&mut self, position: Point, width: f64, height: f64) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.diamonds.push(Diamond::new(id, position, width, height));
+        id
+    }
+
+    pub fn get_diamonds(&self) -> &[Diamond] {
+        &self.diamonds
+    }
+
+    pub fn move_diamond(&mut self, id: u64, new_position: Point, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter().find(|d| d.id == id) {
+            if diamond.position != new_position {
+                if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+                    diamond.position = new_position;
+                }
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn resize_diamond(&mut self, id: u64, width: f64, height: f64, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter().find(|d| d.id == id) {
+            if diamond.width != width || diamond.height != height {
+                if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+                    diamond.width = width;
+                    diamond.height = height;
+                }
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn delete_diamond(&mut self, id: u64) {
+        let existed = self.delete_diamond_without_snapshot(id);
+        if existed {
+            self.save_snapshot();
+        }
+    }
+
+    pub fn delete_diamond_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.diamonds.iter().any(|d| d.id == id);
+        self.diamonds.retain(|d| d.id != id);
         existed
     }
 
@@ -312,6 +375,7 @@ impl Document {
             ellipses: self.ellipses.clone(),
             lines: self.lines.clone(),
             arrows: self.arrows.clone(),
+            diamonds: self.diamonds.clone(),
             next_id: self.next_id,
         };
         serde_json::to_string(&snapshot).unwrap_or_default()

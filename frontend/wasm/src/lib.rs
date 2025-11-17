@@ -74,6 +74,42 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn add_diamond(&self, x: f64, y: f64, width: f64, height: f64) -> u64 {
+        self.document.borrow_mut().add_diamond(Point::new(x, y), width, height)
+    }
+
+    #[wasm_bindgen]
+    pub fn add_diamond_without_snapshot(&self, x: f64, y: f64, width: f64, height: f64) -> u64 {
+        self.document.borrow_mut().add_diamond_without_snapshot(Point::new(x, y), width, height)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_diamonds(&self) -> JsValue {
+        let diamonds = self.document.borrow().get_diamonds().to_vec();
+        to_value(&diamonds).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_diamond(&self, id: u64, x: f64, y: f64, save_history: bool) {
+        self.document.borrow_mut().move_diamond(id, Point::new(x, y), save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn resize_diamond(&self, id: u64, width: f64, height: f64, save_history: bool) {
+        self.document.borrow_mut().resize_diamond(id, width, height, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_diamond(&self, id: u64) {
+        self.document.borrow_mut().delete_diamond(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_diamond_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_diamond_without_snapshot(id)
+    }
+
+    #[wasm_bindgen]
     pub fn add_ellipse(&self, x: f64, y: f64, radius_x: f64, radius_y: f64) -> u64 {
         self.document.borrow_mut().add_ellipse(Point::new(x, y), radius_x, radius_y)
     }

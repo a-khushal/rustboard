@@ -1,4 +1,4 @@
-import type { Ellipse, Rectangle, Line, Arrow } from '$lib/stores/editor';
+import type { Ellipse, Rectangle, Line, Arrow, Diamond } from '$lib/stores/editor';
 
 export function isPointInRectangle(x: number, y: number, rect: Rectangle): boolean {
 	return (
@@ -39,6 +39,35 @@ export function rectangleIntersectsBox(rect: Rectangle, box: { x: number; y: num
 		rectBounds.y >= box.y &&
 		rectBounds.x + rectBounds.width <= box.x + box.width &&
 		rectBounds.y + rectBounds.height <= box.y + box.height
+	);
+}
+
+export function isPointInDiamond(x: number, y: number, diamond: Diamond): boolean {
+	const centerX = diamond.position.x + diamond.width / 2;
+	const centerY = diamond.position.y + diamond.height / 2;
+	const halfWidth = diamond.width / 2;
+	const halfHeight = diamond.height / 2;
+	const dx = Math.abs(x - centerX);
+	const dy = Math.abs(y - centerY);
+	return (dx / halfWidth) + (dy / halfHeight) <= 1;
+}
+
+export function diamondIntersectsBox(diamond: Diamond, box: { x: number; y: number; width: number; height: number }): boolean {
+	const centerX = diamond.position.x + diamond.width / 2;
+	const centerY = diamond.position.y + diamond.height / 2;
+	const halfWidth = diamond.width / 2;
+	const halfHeight = diamond.height / 2;
+	
+	const corners = [
+		{ x: centerX, y: centerY - halfHeight },
+		{ x: centerX + halfWidth, y: centerY },
+		{ x: centerX, y: centerY + halfHeight },
+		{ x: centerX - halfWidth, y: centerY }
+	];
+	
+	return corners.every(corner => 
+		corner.x >= box.x && corner.x <= box.x + box.width &&
+		corner.y >= box.y && corner.y <= box.y + box.height
 	);
 }
 

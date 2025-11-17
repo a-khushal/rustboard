@@ -1,15 +1,16 @@
 import { get } from 'svelte/store';
-import { rectangles, ellipses, lines, arrows, viewportOffset, zoom } from '$lib/stores/editor';
-import type { Rectangle, Ellipse, Line, Arrow } from '$lib/stores/editor';
+import { rectangles, ellipses, lines, arrows, diamonds, viewportOffset, zoom } from '$lib/stores/editor';
+import type { Rectangle, Ellipse, Line, Arrow, Diamond } from '$lib/stores/editor';
 
 export function centerViewportOnShapes(): void {
 	const $rectangles = get(rectangles);
 	const $ellipses = get(ellipses);
 	const $lines = get(lines);
 	const $arrows = get(arrows);
+	const $diamonds = get(diamonds);
 	const $zoom = get(zoom);
 
-	if ($rectangles.length === 0 && $ellipses.length === 0 && $lines.length === 0 && $arrows.length === 0) {
+	if ($rectangles.length === 0 && $ellipses.length === 0 && $lines.length === 0 && $arrows.length === 0 && $diamonds.length === 0) {
 		return;
 	}
 
@@ -44,6 +45,13 @@ export function centerViewportOnShapes(): void {
 		minY = Math.min(minY, Math.min(arrow.start.y, arrow.end.y));
 		maxX = Math.max(maxX, Math.max(arrow.start.x, arrow.end.x));
 		maxY = Math.max(maxY, Math.max(arrow.start.y, arrow.end.y));
+	});
+
+	$diamonds.forEach(diamond => {
+		minX = Math.min(minX, diamond.position.x);
+		minY = Math.min(minY, diamond.position.y);
+		maxX = Math.max(maxX, diamond.position.x + diamond.width);
+		maxY = Math.max(maxY, diamond.position.y + diamond.height);
 	});
 
 	const centerX = (minX + maxX) / 2;

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, zoom, viewportOffset } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import Canvas from '$lib/components/Canvas.svelte';
@@ -10,6 +10,7 @@
 	let unsubscribeEllipses: (() => void) | null = null;
 	let unsubscribeLines: (() => void) | null = null;
 	let unsubscribeArrows: (() => void) | null = null;
+	let unsubscribeDiamonds: (() => void) | null = null;
 	let unsubscribeZoom: (() => void) | null = null;
 	let unsubscribeViewportOffset: (() => void) | null = null;
 
@@ -25,6 +26,7 @@
 		ellipses.set(api.get_ellipses());
 			lines.set((api as any).get_lines());
 			arrows.set((api as any).get_arrows());
+			diamonds.set((api as any).get_diamonds());
 		}
 
 		loadZoomFromLocalStorage();
@@ -41,6 +43,7 @@
 			unsubscribeEllipses = ellipses.subscribe(saveState);
 			unsubscribeLines = lines.subscribe(saveState);
 			unsubscribeArrows = arrows.subscribe(saveState);
+			unsubscribeDiamonds = diamonds.subscribe(saveState);
 
 		unsubscribeZoom = zoom.subscribe(() => {
 			saveZoomToLocalStorage();
@@ -59,6 +62,7 @@
 		if (unsubscribeEllipses) unsubscribeEllipses();
 		if (unsubscribeLines) unsubscribeLines();
 		if (unsubscribeArrows) unsubscribeArrows();
+		if (unsubscribeDiamonds) unsubscribeDiamonds();
 		if (unsubscribeZoom) unsubscribeZoom();
 		if (unsubscribeViewportOffset) unsubscribeViewportOffset();
 	});

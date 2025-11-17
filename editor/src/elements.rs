@@ -59,3 +59,22 @@ impl Arrow {
         Self { id, start, end }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Diamond {
+    pub id: u64,
+    pub position: Point,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Diamond {
+    pub fn new(id: u64, position: Point, width: f64, height: f64) -> Self {
+        Self {
+            id,
+            position,
+            width,
+            height,
+        }
+    }
+}

@@ -9,6 +9,7 @@
 		{ id: 'select' as Tool, label: 'Select', icon: 'cursor' },
 		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect' },
 		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
+		{ id: 'diamond' as Tool, label: 'Diamond', icon: 'diamond' },
 		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' }
 	];
@@ -36,6 +37,10 @@
 			{:else if tool.icon === 'circle'}
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
 					<circle cx="8" cy="8" r="5"/>
+				</svg>
+			{:else if tool.icon === 'diamond'}
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+					<polygon points="8,3 13,8 8,13 3,8"/>
 				</svg>
 			{:else if tool.icon === 'line'}
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
