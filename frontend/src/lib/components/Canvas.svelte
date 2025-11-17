@@ -8,10 +8,10 @@
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
-		addRectangle, deleteRectangles, moveRectangle, resizeRectangle,
-		addEllipse, deleteEllipses, moveEllipse, resizeEllipse,
-		addLine, deleteLines, moveLine,
-		addArrow, deleteArrows, moveArrow
+		addRectangle, moveRectangle, resizeRectangle,
+		addEllipse, moveEllipse, resizeEllipse,
+		addLine, moveLine,
+		addArrow, moveArrow
 	} from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
@@ -19,6 +19,7 @@
 	import { updateAllStoresAfterUndoRedo } from '$lib/utils/undo-redo';
 	import { pasteShapes } from '$lib/utils/paste-shapes';
 	import { clearAllSelections } from '$lib/utils/selection';
+	import { deleteShapes } from '$lib/utils/delete-shapes';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
@@ -191,29 +192,12 @@
 
 		event.preventDefault();
 		
-		if (hasSelectedRectangles) {
-			const idsToDelete = $selectedRectangles.map(rect => rect.id);
-			deleteRectangles(idsToDelete);
-			selectedRectangles.set([]);
-		}
+		const rectangleIds = hasSelectedRectangles ? $selectedRectangles.map(rect => rect.id) : [];
+		const ellipseIds = hasSelectedEllipses ? $selectedEllipses.map(ellipse => ellipse.id) : [];
+		const lineIds = hasSelectedLines ? $selectedLines.map(line => line.id) : [];
+		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
 		
-		if (hasSelectedEllipses) {
-			const idsToDelete = $selectedEllipses.map(ellipse => ellipse.id);
-			deleteEllipses(idsToDelete);
-			selectedEllipses.set([]);
-		}
-		
-		if (hasSelectedLines) {
-			const idsToDelete = $selectedLines.map(line => line.id);
-			deleteLines(idsToDelete);
-			selectedLines.set([]);
-		}
-		
-		if (hasSelectedArrows) {
-			const idsToDelete = $selectedArrows.map(arrow => arrow.id);
-			deleteArrows(idsToDelete);
-			selectedArrows.set([]);
-		}
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -1294,7 +1278,7 @@
 			const dx = renderEndX - renderStartX;
 			const dy = renderEndY - renderStartY;
 			const angle = Math.atan2(dy, dx);
-			const arrowLength = 20;
+			const arrowLength = 15;
 			const arrowAngle = Math.PI / 6;
 			
 			renderCtx.beginPath();
@@ -1341,7 +1325,7 @@
 			const dx = arrowEnd.x - arrowStart.x;
 			const dy = arrowEnd.y - arrowStart.y;
 			const angle = Math.atan2(dy, dx);
-			const arrowLength = 20;
+			const arrowLength = 15;
 			const arrowAngle = Math.PI / 6;
 			
 			renderCtx.beginPath();

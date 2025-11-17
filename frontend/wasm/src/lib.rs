@@ -69,6 +69,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn delete_rectangle_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_rectangle_without_snapshot(id)
+    }
+
+    #[wasm_bindgen]
     pub fn add_ellipse(&self, x: f64, y: f64, radius_x: f64, radius_y: f64) -> u64 {
         self.document.borrow_mut().add_ellipse(Point::new(x, y), radius_x, radius_y)
     }
@@ -100,6 +105,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn delete_ellipse_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_ellipse_without_snapshot(id)
+    }
+
+    #[wasm_bindgen]
     pub fn add_line(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
         self.document.borrow_mut().add_line(Point::new(start_x, start_y), Point::new(end_x, end_y))
     }
@@ -126,6 +136,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn delete_line_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_line_without_snapshot(id)
+    }
+
+    #[wasm_bindgen]
     pub fn add_arrow(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
         self.document.borrow_mut().add_arrow(Point::new(start_x, start_y), Point::new(end_x, end_y))
     }
@@ -149,6 +164,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn delete_arrow(&self, id: u64) {
         self.document.borrow_mut().delete_arrow(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_arrow_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_arrow_without_snapshot(id)
     }
 
     #[wasm_bindgen]

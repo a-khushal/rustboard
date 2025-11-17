@@ -149,11 +149,16 @@ impl Document {
     }
 
     pub fn delete_rectangle(&mut self, id: u64) {
-        let existed = self.rectangles.iter().any(|r| r.id == id);
-            self.rectangles.retain(|r| r.id != id);
+        let existed = self.delete_rectangle_without_snapshot(id);
         if existed {
             self.save_snapshot();
         }
+    }
+
+    pub fn delete_rectangle_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.rectangles.iter().any(|r| r.id == id);
+        self.rectangles.retain(|r| r.id != id);
+        existed
     }
 
     pub fn add_ellipse(&mut self, position: Point, radius_x: f64, radius_y: f64) -> u64 {
@@ -201,11 +206,16 @@ impl Document {
     }
 
     pub fn delete_ellipse(&mut self, id: u64) {
-        let existed = self.ellipses.iter().any(|e| e.id == id);
-            self.ellipses.retain(|e| e.id != id);
+        let existed = self.delete_ellipse_without_snapshot(id);
         if existed {
             self.save_snapshot();
         }
+    }
+
+    pub fn delete_ellipse_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.ellipses.iter().any(|e| e.id == id);
+        self.ellipses.retain(|e| e.id != id);
+        existed
     }
 
     pub fn add_line(&mut self, start: Point, end: Point) -> u64 {
@@ -240,11 +250,16 @@ impl Document {
     }
 
     pub fn delete_line(&mut self, id: u64) {
-        let existed = self.lines.iter().any(|l| l.id == id);
-        self.lines.retain(|l| l.id != id);
+        let existed = self.delete_line_without_snapshot(id);
         if existed {
             self.save_snapshot();
         }
+    }
+
+    pub fn delete_line_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.lines.iter().any(|l| l.id == id);
+        self.lines.retain(|l| l.id != id);
+        existed
     }
 
     pub fn add_arrow(&mut self, start: Point, end: Point) -> u64 {
@@ -279,11 +294,16 @@ impl Document {
     }
 
     pub fn delete_arrow(&mut self, id: u64) {
-        let existed = self.arrows.iter().any(|a| a.id == id);
-        self.arrows.retain(|a| a.id != id);
+        let existed = self.delete_arrow_without_snapshot(id);
         if existed {
             self.save_snapshot();
         }
+    }
+
+    pub fn delete_arrow_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.arrows.iter().any(|a| a.id == id);
+        self.arrows.retain(|a| a.id != id);
+        existed
     }
 
     pub fn serialize(&self) -> String {
