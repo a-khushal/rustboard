@@ -16,16 +16,6 @@ export function addArrow(startX: number, startY: number, endX: number, endY: num
     return Number(newId);
 }
 
-export function deleteArrows(ids: number[]): void {
-    const api = get(editorApi);
-    if (!api) return;
-
-    ids.forEach(id => {
-        api.delete_arrow(BigInt(id));
-    });
-    updateArrows();
-}
-
 export function moveArrow(id: number, startX: number, startY: number, endX: number, endY: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;

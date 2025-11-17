@@ -3,28 +3,33 @@ import { editorApi, rectangles, ellipses, lines, arrows, selectedRectangles, sel
 import type { ClipboardData } from './clipboard';
 
 function calculateBoundingBox(clipboard: ClipboardData, fallbackX: number, fallbackY: number): { minX: number; minY: number } {
-    const allShapes: Array<{ minX: number; minY: number }> = [];
+    const minXValues: number[] = [];
+    const minYValues: number[] = [];
 
     clipboard.rectangles.forEach(r => {
-        allShapes.push({ minX: r.position.x, minY: r.position.y });
+        minXValues.push(r.position.x);
+        minYValues.push(r.position.y);
     });
 
     clipboard.ellipses.forEach(e => {
-        allShapes.push({ minX: e.position.x - e.radius_x, minY: e.position.y - e.radius_y });
+        minXValues.push(e.position.x - e.radius_x);
+        minYValues.push(e.position.y - e.radius_y);
     });
 
     clipboard.lines.forEach(l => {
-        allShapes.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) });
+        minXValues.push(Math.min(l.start.x, l.end.x));
+        minYValues.push(Math.min(l.start.y, l.end.y));
     });
 
     clipboard.arrows.forEach(a => {
-        allShapes.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) });
+        minXValues.push(Math.min(a.start.x, a.end.x));
+        minYValues.push(Math.min(a.start.y, a.end.y));
     });
 
-    if (allShapes.length === 0) return { minX: fallbackX, minY: fallbackY };
+    if (minXValues.length === 0) return { minX: fallbackX, minY: fallbackY };
     return {
-        minX: Math.min(...allShapes.map(s => s.minX)),
-        minY: Math.min(...allShapes.map(s => s.minY))
+        minX: Math.min(...minXValues),
+        minY: Math.min(...minYValues)
     };
 }
 

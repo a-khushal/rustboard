@@ -2,42 +2,6 @@ import { get } from 'svelte/store';
 import { rectangles, ellipses, lines, arrows, viewportOffset, zoom } from '$lib/stores/editor';
 import type { Rectangle, Ellipse, Line, Arrow } from '$lib/stores/editor';
 
-function getRectangleBounds(rect: Rectangle): { minX: number; minY: number; maxX: number; maxY: number } {
-	return {
-		minX: rect.position.x,
-		minY: rect.position.y,
-		maxX: rect.position.x + rect.width,
-		maxY: rect.position.y + rect.height
-	};
-}
-
-function getEllipseBounds(ellipse: Ellipse): { minX: number; minY: number; maxX: number; maxY: number } {
-	return {
-		minX: ellipse.position.x - ellipse.radius_x,
-		minY: ellipse.position.y - ellipse.radius_y,
-		maxX: ellipse.position.x + ellipse.radius_x,
-		maxY: ellipse.position.y + ellipse.radius_y
-	};
-}
-
-function getLineBounds(line: Line): { minX: number; minY: number; maxX: number; maxY: number } {
-	return {
-		minX: Math.min(line.start.x, line.end.x),
-		minY: Math.min(line.start.y, line.end.y),
-		maxX: Math.max(line.start.x, line.end.x),
-		maxY: Math.max(line.start.y, line.end.y)
-	};
-}
-
-function getArrowBounds(arrow: Arrow): { minX: number; minY: number; maxX: number; maxY: number } {
-	return {
-		minX: Math.min(arrow.start.x, arrow.end.x),
-		minY: Math.min(arrow.start.y, arrow.end.y),
-		maxX: Math.max(arrow.start.x, arrow.end.x),
-		maxY: Math.max(arrow.start.y, arrow.end.y)
-	};
-}
-
 export function centerViewportOnShapes(): void {
 	const $rectangles = get(rectangles);
 	const $ellipses = get(ellipses);
@@ -55,35 +19,31 @@ export function centerViewportOnShapes(): void {
 	let maxY = -Infinity;
 
 	$rectangles.forEach(rect => {
-		const bounds = getRectangleBounds(rect);
-		minX = Math.min(minX, bounds.minX);
-		minY = Math.min(minY, bounds.minY);
-		maxX = Math.max(maxX, bounds.maxX);
-		maxY = Math.max(maxY, bounds.maxY);
+		minX = Math.min(minX, rect.position.x);
+		minY = Math.min(minY, rect.position.y);
+		maxX = Math.max(maxX, rect.position.x + rect.width);
+		maxY = Math.max(maxY, rect.position.y + rect.height);
 	});
 
 	$ellipses.forEach(ellipse => {
-		const bounds = getEllipseBounds(ellipse);
-		minX = Math.min(minX, bounds.minX);
-		minY = Math.min(minY, bounds.minY);
-		maxX = Math.max(maxX, bounds.maxX);
-		maxY = Math.max(maxY, bounds.maxY);
+		minX = Math.min(minX, ellipse.position.x - ellipse.radius_x);
+		minY = Math.min(minY, ellipse.position.y - ellipse.radius_y);
+		maxX = Math.max(maxX, ellipse.position.x + ellipse.radius_x);
+		maxY = Math.max(maxY, ellipse.position.y + ellipse.radius_y);
 	});
 
 	$lines.forEach(line => {
-		const bounds = getLineBounds(line);
-		minX = Math.min(minX, bounds.minX);
-		minY = Math.min(minY, bounds.minY);
-		maxX = Math.max(maxX, bounds.maxX);
-		maxY = Math.max(maxY, bounds.maxY);
+		minX = Math.min(minX, Math.min(line.start.x, line.end.x));
+		minY = Math.min(minY, Math.min(line.start.y, line.end.y));
+		maxX = Math.max(maxX, Math.max(line.start.x, line.end.x));
+		maxY = Math.max(maxY, Math.max(line.start.y, line.end.y));
 	});
 
 	$arrows.forEach(arrow => {
-		const bounds = getArrowBounds(arrow);
-		minX = Math.min(minX, bounds.minX);
-		minY = Math.min(minY, bounds.minY);
-		maxX = Math.max(maxX, bounds.maxX);
-		maxY = Math.max(maxY, bounds.maxY);
+		minX = Math.min(minX, Math.min(arrow.start.x, arrow.end.x));
+		minY = Math.min(minY, Math.min(arrow.start.y, arrow.end.y));
+		maxX = Math.max(maxX, Math.max(arrow.start.x, arrow.end.x));
+		maxY = Math.max(maxY, Math.max(arrow.start.y, arrow.end.y));
 	});
 
 	const centerX = (minX + maxX) / 2;

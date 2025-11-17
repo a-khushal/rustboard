@@ -16,16 +16,6 @@ export function addLine(startX: number, startY: number, endX: number, endY: numb
     return Number(newId);
 }
 
-export function deleteLines(ids: number[]): void {
-    const api = get(editorApi);
-    if (!api) return;
-
-    ids.forEach(id => {
-        api.delete_line(BigInt(id));
-    });
-    updateLines();
-}
-
 export function moveLine(id: number, startX: number, startY: number, endX: number, endY: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;

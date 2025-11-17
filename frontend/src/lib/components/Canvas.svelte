@@ -1423,11 +1423,11 @@
 
 	function scheduleRender() {
 		if (renderRequestId !== null) {
-			cancelAnimationFrame(renderRequestId);
+			return;
 		}
 		renderRequestId = requestAnimationFrame(() => {
-			render();
 			renderRequestId = null;
+			render();
 		});
 	}
 

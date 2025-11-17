@@ -16,16 +16,6 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     return Number(newId);
 }
 
-export function deleteEllipses(ids: number[]): void {
-    const api = get(editorApi);
-    if (!api) return;
-
-    ids.forEach(id => {
-        api.delete_ellipse(BigInt(id));
-    });
-    updateEllipses();
-}
-
 export function moveEllipse(id: number, x: number, y: number, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;
