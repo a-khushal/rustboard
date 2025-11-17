@@ -4,6 +4,7 @@
 	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
+	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
 	import Canvas from '$lib/components/Canvas.svelte';
 
 	let unsubscribeRectangles: (() => void) | null = null;
@@ -16,6 +17,7 @@
 
 	onMount(async () => {
 		try {
+			initSelectionHistory();
 			const api = await initWasm();
 			editorApi.set(api);
 			wasmLoaded.set(true);
@@ -24,10 +26,11 @@
 		if (!loaded) {
 		rectangles.set(api.get_rectangles());
 		ellipses.set(api.get_ellipses());
-			lines.set((api as any).get_lines());
-			arrows.set((api as any).get_arrows());
-			diamonds.set((api as any).get_diamonds());
+			lines.set(api.get_lines());
+			arrows.set(api.get_arrows());
+			diamonds.set(api.get_diamonds());
 		}
+		resetSelectionHistory();
 
 		loadZoomFromLocalStorage();
 		const hasSavedOffset = loadViewportOffsetFromLocalStorage();
@@ -58,6 +61,7 @@
 });
 
 	onDestroy(() => {
+		disposeSelectionHistory();
 		if (unsubscribeRectangles) unsubscribeRectangles();
 		if (unsubscribeEllipses) unsubscribeEllipses();
 		if (unsubscribeLines) unsubscribeLines();

@@ -16,7 +16,7 @@ export function isPointInEllipse(x: number, y: number, ellipse: Ellipse): boolea
 	);
 }
 
-export function isPointOnLine(x: number, y: number, line: Line, threshold: number = 5): boolean {
+export function isPointOnLine(x: number, y: number, line: Line | Arrow, threshold: number = 5): boolean {
 	const { start, end } = line;
 	const dx = end.x - start.x;
 	const dy = end.y - start.y;
@@ -103,7 +103,7 @@ export function ellipseIntersectsBox(ellipse: Ellipse, box: { x: number; y: numb
 	return true;
 }
 
-export function lineIntersectsBox(line: Line, box: { x: number; y: number; width: number; height: number }): boolean {
+export function lineIntersectsBox(line: Line | Arrow, box: { x: number; y: number; width: number; height: number }): boolean {
 	const lineStartInBox = (
 		line.start.x >= box.x && line.start.x <= box.x + box.width &&
 		line.start.y >= box.y && line.start.y <= box.y + box.height
@@ -117,5 +117,5 @@ export function lineIntersectsBox(line: Line, box: { x: number; y: number; width
 }
 
 export function arrowIntersectsBox(arrow: Arrow, box: { x: number; y: number; width: number; height: number }): boolean {
-	return lineIntersectsBox(arrow as any, box);
+	return lineIntersectsBox(arrow, box);
 }

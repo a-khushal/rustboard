@@ -74,6 +74,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn history_index(&self) -> usize {
+        self.document.borrow().history_index()
+    }
+
+    #[wasm_bindgen]
     pub fn add_diamond(&self, x: f64, y: f64, width: f64, height: f64) -> u64 {
         self.document.borrow_mut().add_diamond(Point::new(x, y), width, height)
     }

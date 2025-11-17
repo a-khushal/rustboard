@@ -1,6 +1,5 @@
 import { get } from 'svelte/store';
 import { rectangles, ellipses, lines, arrows, diamonds, viewportOffset, zoom } from '$lib/stores/editor';
-import type { Rectangle, Ellipse, Line, Arrow, Diamond } from '$lib/stores/editor';
 
 export function centerViewportOnShapes(): void {
 	const $rectangles = get(rectangles);

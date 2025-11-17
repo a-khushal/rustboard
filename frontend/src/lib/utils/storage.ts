@@ -34,8 +34,8 @@ export function loadStateFromLocalStorage(): boolean {
             const updatedRectangles = api.get_rectangles() as Rectangle[];
             const updatedEllipses = api.get_ellipses() as Ellipse[];
             const updatedLines = api.get_lines() as Line[];
-            const updatedArrows = (api as any).get_arrows() as Arrow[];
-            const updatedDiamonds = (api as any).get_diamonds() as Diamond[];
+            const updatedArrows = api.get_arrows() as Arrow[];
+            const updatedDiamonds = api.get_diamonds() as Diamond[];
             rectangles.set(updatedRectangles);
             ellipses.set(updatedEllipses);
             lines.set(updatedLines);

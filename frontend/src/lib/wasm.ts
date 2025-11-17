@@ -1,6 +1,8 @@
 import type { EditorApi } from '../../../pkg/rustboard_wasm';
 
-let wasmModule: any = null;
+type RustboardWasmModule = typeof import('../../../pkg/rustboard_wasm');
+
+let wasmModule: RustboardWasmModule | null = null;
 let editorApi: EditorApi | null = null;
 
 export async function initWasm(): Promise<EditorApi> {
@@ -9,8 +11,9 @@ export async function initWasm(): Promise<EditorApi> {
 	}
 
 	try {
-		// @ts-expect-error
-		wasmModule = await import('rustboard_wasm');
+		// @ts-expect-error -- resolved by bundler at runtime; no type declarations available
+		const dynamicModule = await import('rustboard_wasm');
+		wasmModule = dynamicModule as RustboardWasmModule;
 		await wasmModule.default();
 		editorApi = new wasmModule.EditorApi();
 		return editorApi!;

@@ -110,6 +110,10 @@ impl Document {
         self.history_index < self.history.len()
     }
 
+    pub fn history_index(&self) -> usize {
+        self.history_index
+    }
+
     pub fn add_rectangle(&mut self, position: Point, width: f64, height: f64) -> u64 {
         let id = self.add_rectangle_without_snapshot(position, width, height);
         self.save_snapshot();

@@ -16,7 +16,7 @@
 </script>
 
 <div class="absolute top-2 left-2 z-50 flex gap-1 bg-white border border-stone-200 shadow-sm rounded-sm p-1">
-	{#each tools as tool}
+	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
 			class="flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans text-stone-700

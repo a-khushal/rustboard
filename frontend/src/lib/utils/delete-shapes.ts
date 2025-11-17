@@ -17,23 +17,23 @@ export function deleteShapes(
     api.save_snapshot();
 
     rectangleIds.forEach(id => {
-        (api as any).delete_rectangle_without_snapshot(BigInt(id));
+        api.delete_rectangle_without_snapshot(BigInt(id));
     });
 
     ellipseIds.forEach(id => {
-        (api as any).delete_ellipse_without_snapshot(BigInt(id));
+        api.delete_ellipse_without_snapshot(BigInt(id));
     });
 
     lineIds.forEach(id => {
-        (api as any).delete_line_without_snapshot(BigInt(id));
+        api.delete_line_without_snapshot(BigInt(id));
     });
 
     arrowIds.forEach(id => {
-        (api as any).delete_arrow_without_snapshot(BigInt(id));
+        api.delete_arrow_without_snapshot(BigInt(id));
     });
 
     diamondIds.forEach(id => {
-        (api as any).delete_diamond_without_snapshot(BigInt(id));
+        api.delete_diamond_without_snapshot(BigInt(id));
     });
 
     api.save_snapshot();
@@ -56,4 +56,3 @@ export function deleteShapes(
     selectedArrows.set([]);
     selectedDiamonds.set([]);
 }
-

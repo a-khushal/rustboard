@@ -63,21 +63,21 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     clipboard.rectangles.forEach(rect => {
         const newX = rect.position.x - minX + offsetX;
         const newY = rect.position.y - minY + offsetY;
-        const newId = (api as any).add_rectangle_without_snapshot(newX, newY, rect.width, rect.height);
+        const newId = api.add_rectangle_without_snapshot(newX, newY, rect.width, rect.height);
         pastedIds.rectangles.push(Number(newId));
     });
 
     clipboard.ellipses.forEach(ellipse => {
         const newX = ellipse.position.x - minX + offsetX;
         const newY = ellipse.position.y - minY + offsetY;
-        const newId = (api as any).add_ellipse_without_snapshot(newX, newY, ellipse.radius_x, ellipse.radius_y);
+        const newId = api.add_ellipse_without_snapshot(newX, newY, ellipse.radius_x, ellipse.radius_y);
         pastedIds.ellipses.push(Number(newId));
     });
 
     clipboard.diamonds.forEach(diamond => {
         const newX = diamond.position.x - minX + offsetX;
         const newY = diamond.position.y - minY + offsetY;
-        const newId = (api as any).add_diamond_without_snapshot(newX, newY, diamond.width, diamond.height);
+        const newId = api.add_diamond_without_snapshot(newX, newY, diamond.width, diamond.height);
         pastedIds.diamonds.push(Number(newId));
     });
 
@@ -86,7 +86,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         const startY = line.start.y - minY + offsetY;
         const endX = line.end.x - minX + offsetX;
         const endY = line.end.y - minY + offsetY;
-        const newId = (api as any).add_line_without_snapshot(startX, startY, endX, endY);
+        const newId = api.add_line_without_snapshot(startX, startY, endX, endY);
         pastedIds.lines.push(Number(newId));
     });
 
@@ -95,7 +95,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         const startY = arrow.start.y - minY + offsetY;
         const endX = arrow.end.x - minX + offsetX;
         const endY = arrow.end.y - minY + offsetY;
-        const newId = (api as any).add_arrow_without_snapshot(startX, startY, endX, endY);
+        const newId = api.add_arrow_without_snapshot(startX, startY, endX, endY);
         pastedIds.arrows.push(Number(newId));
     });
 
