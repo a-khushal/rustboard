@@ -5,7 +5,7 @@
 		lines, selectedLines, arrows, selectedArrows,
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow 
 	} from '$lib/stores/editor';
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle,
@@ -56,6 +56,9 @@
 	let dragOffset = { x: 0, y: 0 };
 	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow'; id: number } | null = null;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
+	let isSelectingBox = false;
+	let selectionBoxStart: { x: number; y: number } | null = null;
+	let selectionBoxEnd: { x: number; y: number } | null = null;
 	
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
 
@@ -504,6 +507,9 @@
 
 			if (isShiftPressed) return;
 
+			isSelectingBox = true;
+			selectionBoxStart = { x, y };
+			selectionBoxEnd = { x, y };
 			clearAllSelections();
 		} else if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
 			clearAllSelections();
@@ -846,6 +852,11 @@
 			canvas.style.cursor = 'default';
 		}
 
+		if (isSelectingBox && selectionBoxStart) {
+			selectionBoxEnd = { x, y };
+			scheduleRender();
+		}
+
 		if (isDragging && draggedShape && $editorApi) {
 			const deltaX = x - dragStartPos.x;
 			const deltaY = y - dragStartPos.y;
@@ -887,6 +898,56 @@
 			resizePreview = null;
 		}
 		
+		if (isSelectingBox && selectionBoxStart && selectionBoxEnd) {
+			const boxX = Math.min(selectionBoxStart.x, selectionBoxEnd.x);
+			const boxY = Math.min(selectionBoxStart.y, selectionBoxEnd.y);
+			const boxWidth = Math.abs(selectionBoxEnd.x - selectionBoxStart.x);
+			const boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
+			
+			if (boxWidth > 2 && boxHeight > 2) {
+				const box = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
+				
+				const selectedRects: Rectangle[] = [];
+				const selectedElls: Ellipse[] = [];
+				const selectedLinesArray: Line[] = [];
+				const selectedArrs: Arrow[] = [];
+				
+				$rectangles.forEach(rect => {
+					if (rectangleIntersectsBox(rect, box)) {
+						selectedRects.push(rect);
+					}
+				});
+				
+				$ellipses.forEach(ellipse => {
+					if (ellipseIntersectsBox(ellipse, box)) {
+						selectedElls.push(ellipse);
+					}
+				});
+				
+				$lines.forEach(line => {
+					if (lineIntersectsBox(line, box)) {
+						selectedLinesArray.push(line);
+					}
+				});
+				
+				$arrows.forEach(arrow => {
+					if (arrowIntersectsBox(arrow, box)) {
+						selectedArrs.push(arrow);
+					}
+				});
+				
+				selectedRectangles.set(selectedRects);
+				selectedEllipses.set(selectedElls);
+				selectedLines.set(selectedLinesArray);
+				selectedArrows.set(selectedArrs);
+			}
+			
+			isSelectingBox = false;
+			selectionBoxStart = null;
+			selectionBoxEnd = null;
+			scheduleRender();
+		}
+
 		if (isResizing) {
 			isResizing = false;
 			resizeHandleIndex = null;
@@ -1339,6 +1400,22 @@
 				arrowEnd.y - arrowLength * Math.sin(angle + arrowAngle)
 			);
 			renderCtx.stroke();
+		}
+		
+		if (isSelectingBox && selectionBoxStart && selectionBoxEnd) {
+			const boxX = Math.min(selectionBoxStart.x, selectionBoxEnd.x);
+			const boxY = Math.min(selectionBoxStart.y, selectionBoxEnd.y);
+			const boxWidth = Math.abs(selectionBoxEnd.x - selectionBoxStart.x);
+			const boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
+			
+			renderCtx.strokeStyle = '#1e88e5';
+			renderCtx.lineWidth = 1 / $zoom;
+			renderCtx.setLineDash([5 / $zoom, 5 / $zoom]);
+			renderCtx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+			renderCtx.setLineDash([]);
+			
+			renderCtx.fillStyle = 'rgba(30, 136, 229, 0.1)';
+			renderCtx.fillRect(boxX, boxY, boxWidth, boxHeight);
 		}
 		
 		renderCtx.restore();
