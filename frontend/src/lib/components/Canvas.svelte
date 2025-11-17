@@ -27,7 +27,7 @@
 	import UndoRedoControls from './UndoRedoControls.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
 
-	type BoundingBox = { x: number; y: number; width: number; height: number };
+	type BoundingBox = { x: number; y: number; width: number; height: number; rawWidth?: number; rawHeight?: number; scaleX?: number; scaleY?: number };
 	let canvas: HTMLCanvasElement | undefined;
 	let ctx: CanvasRenderingContext2D | null = null;
 	let isDragging = false;
@@ -73,12 +73,12 @@
 			arrows: new Map()
 		};
 	let isGroupResizing = false;
-	let groupResizeHandleIndex: number | null = null;
-	let groupResizeStartBox: BoundingBox | null = null;
+let groupResizeHandleIndex: number | null = null;
+let groupResizeStartBox: BoundingBox | null = null;
 let groupResizeCurrentBox: BoundingBox | null = null;
-let renderDependencies: Record<string, unknown> | null = null;
-	
-	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
+let groupResizePadding = 0;
+	let renderDependencies: Record<string, unknown> | null = null;
+	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
@@ -231,9 +231,13 @@ let renderDependencies: Record<string, unknown> | null = null;
 		}
 	}
 
-	function getResizeHandleAt(x: number, y: number, shape: Rectangle | Ellipse | Diamond, shapeType: 'rectangle' | 'ellipse' | 'diamond', zoom: number): number | null {
-		const handleSize = 8 / zoom;
-		const halfHandle = handleSize / 2;
+	function getResizeHandleAt(
+		x: number,
+		y: number,
+		shape: Rectangle | Ellipse | Diamond,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond',
+		zoom: number
+	): number | null {
 		const gap = 4 / zoom;
 		
 		let boxX: number, boxY: number, boxWidth: number, boxHeight: number;
@@ -258,21 +262,103 @@ let renderDependencies: Record<string, unknown> | null = null;
 			boxHeight = (ellipse.radius_y * 2) + gap * 2;
 		}
 		
-		const corners = [
-			{ x: boxX, y: boxY },
-			{ x: boxX + boxWidth, y: boxY },
-			{ x: boxX + boxWidth, y: boxY + boxHeight },
-			{ x: boxX, y: boxY + boxHeight }
+		return hitTestHandles(
+			x,
+			y,
+			{ x: boxX, y: boxY, width: boxWidth, height: boxHeight },
+			zoom
+		);
+	}
+
+	function getHandlePositions(box: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> {
+		const { x, y, width, height } = box;
+		const midX = x + width / 2;
+		const midY = y + height / 2;
+		return [
+			{ x, y },
+			{ x: x + width, y },
+			{ x: x + width, y: y + height },
+			{ x, y: y + height },
+			{ x: midX, y },
+			{ x: x + width, y: midY },
+			{ x: midX, y: y + height },
+			{ x, y: midY }
 		];
-		
-		for (let i = 0; i < corners.length; i++) {
-			const corner = corners[i];
-			if (x >= corner.x - halfHandle && x <= corner.x + halfHandle &&
-				y >= corner.y - halfHandle && y <= corner.y + halfHandle) {
-				return i;
+	}
+
+	function getSelectionPaddingValue(currentZoom: number): number {
+		return 4 / currentZoom;
+	}
+
+	function expandBoundingBox(box: BoundingBox, padding: number): BoundingBox {
+		return {
+			x: box.x - padding,
+			y: box.y - padding,
+			width: box.width + padding * 2,
+			height: box.height + padding * 2
+		};
+	}
+
+	function hitTestHandles(
+		x: number,
+		y: number,
+		box: { x: number; y: number; width: number; height: number },
+		zoom: number
+	): number | null {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		const edgeTolerance = Math.max(6 / zoom, handleSize * 0.75);
+		const handles = getHandlePositions(box);
+
+		for (let i = 0; i < handles.length; i++) {
+			if (i < 4) {
+				const handle = handles[i];
+				if (
+					Math.abs(x - handle.x) <= halfHandle &&
+					Math.abs(y - handle.y) <= halfHandle
+				) {
+					return i;
+				}
 			}
 		}
-		
+
+		const left = box.x;
+		const right = box.x + box.width;
+		const top = box.y;
+		const bottom = box.y + box.height;
+
+		if (
+			Math.abs(y - top) <= edgeTolerance &&
+			x >= left - edgeTolerance &&
+			x <= right + edgeTolerance
+		) {
+			return 4;
+		}
+
+		if (
+			Math.abs(x - right) <= edgeTolerance &&
+			y >= top - edgeTolerance &&
+			y <= bottom + edgeTolerance
+		) {
+			return 5;
+		}
+
+		if (
+			Math.abs(y - bottom) <= edgeTolerance &&
+			x >= left - edgeTolerance &&
+			x <= right + edgeTolerance
+		) {
+			return 6;
+		}
+
+		if (
+			Math.abs(x - left) <= edgeTolerance &&
+			y >= top - edgeTolerance &&
+			y <= bottom + edgeTolerance
+		) {
+			return 7;
+		}
+
 		return null;
 	}
 
@@ -336,171 +422,181 @@ let renderDependencies: Record<string, unknown> | null = null;
 		});
 	}
 
-function getGroupResizeHandleAt(x: number, y: number, box: BoundingBox, zoom: number): number | null {
-	const handleSize = 8 / zoom;
-	const halfHandle = handleSize / 2;
-	const corners = [
-		{ x: box.x, y: box.y },
-		{ x: box.x + box.width, y: box.y },
-		{ x: box.x + box.width, y: box.y + box.height },
-		{ x: box.x, y: box.y + box.height }
-	];
-
-	for (let i = 0; i < corners.length; i++) {
-		const corner = corners[i];
-		if (Math.abs(x - corner.x) <= halfHandle && Math.abs(y - corner.y) <= halfHandle) {
-			return i;
-		}
+	function getGroupResizeHandleAt(x: number, y: number, box: BoundingBox, zoom: number): number | null {
+		return hitTestHandles(x, y, box, zoom);
 	}
 
-	return null;
-}
+	function renderGroupResizeHandles(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		const handles = getHandlePositions(box).slice(0, 4);
 
-function renderGroupResizeHandles(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
-	const handleSize = 8 / zoom;
-	const halfHandle = handleSize / 2;
-	const corners = [
-		{ x: box.x, y: box.y },
-		{ x: box.x + box.width, y: box.y },
-		{ x: box.x + box.width, y: box.y + box.height },
-		{ x: box.x, y: box.y + box.height }
-	];
+		ctx.fillStyle = '#ffffff';
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 2 / zoom;
 
-	ctx.fillStyle = '#ffffff';
-	ctx.strokeStyle = '#1e88e5';
-	ctx.lineWidth = 2 / zoom;
-
-	corners.forEach(corner => {
-		ctx.beginPath();
-		ctx.rect(corner.x - halfHandle, corner.y - halfHandle, handleSize, handleSize);
-		ctx.fill();
-		ctx.stroke();
-	});
-}
-
-function computeGroupResizeBox(targetX: number, targetY: number): BoundingBox | null {
-	if (!groupResizeStartBox || groupResizeHandleIndex === null) return null;
-	const minSize = 1 / $zoom;
-	const start = groupResizeStartBox;
-	const startMaxX = start.x + start.width;
-	const startMaxY = start.y + start.height;
-	let newX = start.x;
-	let newY = start.y;
-	let newWidth = start.width;
-	let newHeight = start.height;
-
-	switch (groupResizeHandleIndex) {
-		case 0: {
-			const clampedX = Math.min(targetX, startMaxX - minSize);
-			const clampedY = Math.min(targetY, startMaxY - minSize);
-			newX = clampedX;
-			newY = clampedY;
-			newWidth = startMaxX - clampedX;
-			newHeight = startMaxY - clampedY;
-			break;
-		}
-		case 1: {
-			const clampedX = Math.max(targetX, start.x + minSize);
-			const clampedY = Math.min(targetY, startMaxY - minSize);
-			newX = start.x;
-			newY = clampedY;
-			newWidth = clampedX - start.x;
-			newHeight = startMaxY - clampedY;
-			break;
-		}
-		case 2: {
-			const clampedX = Math.max(targetX, start.x + minSize);
-			const clampedY = Math.max(targetY, start.y + minSize);
-			newX = start.x;
-			newY = start.y;
-			newWidth = clampedX - start.x;
-			newHeight = clampedY - start.y;
-			break;
-		}
-		case 3: {
-			const clampedX = Math.min(targetX, startMaxX - minSize);
-			const clampedY = Math.max(targetY, start.y + minSize);
-			newX = clampedX;
-			newY = start.y;
-			newWidth = startMaxX - clampedX;
-			newHeight = clampedY - start.y;
-			break;
-		}
-		default:
-			break;
+		handles.forEach(handle => {
+			ctx.beginPath();
+			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
+			ctx.fill();
+			ctx.stroke();
+		});
 	}
 
-	return {
-		x: newX,
-		y: newY,
-		width: Math.max(minSize, newWidth),
-		height: Math.max(minSize, newHeight)
-	};
-}
+	function computeGroupResizeBox(targetX: number, targetY: number): BoundingBox | null {
+		if (!groupResizeStartBox || groupResizeHandleIndex === null) return null;
+		const start = groupResizeStartBox;
+		const startLeft = start.x;
+		const startRight = start.x + start.width;
+		const startTop = start.y;
+		const startBottom = start.y + start.height;
+		const padding = groupResizePadding;
 
-function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean) {
-	if (!groupResizeStartBox) return;
-	const startBox = groupResizeStartBox;
-	const scaleX = startBox.width === 0 ? 1 : targetBox.width / startBox.width;
-	const scaleY = startBox.height === 0 ? 1 : targetBox.height / startBox.height;
+		const adjustX = (value: number): number => {
+			if (groupResizeHandleIndex === 0 || groupResizeHandleIndex === 3 || groupResizeHandleIndex === 7) {
+				return value + padding;
+			}
+			if (groupResizeHandleIndex === 1 || groupResizeHandleIndex === 2 || groupResizeHandleIndex === 5) {
+				return value - padding;
+			}
+			return value;
+		};
 
-	selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
-		const relativeX = startPos.x - startBox.x;
-		const relativeY = startPos.y - startBox.y;
-		const newX = targetBox.x + relativeX * scaleX;
-		const newY = targetBox.y + relativeY * scaleY;
-		const newWidth = startPos.width * scaleX;
-		const newHeight = startPos.height * scaleY;
-		moveRectangle(id, newX, newY, saveHistory);
-		resizeRectangle(id, newWidth, newHeight, saveHistory);
-	});
+		const adjustY = (value: number): number => {
+			if (groupResizeHandleIndex === 0 || groupResizeHandleIndex === 1 || groupResizeHandleIndex === 4) {
+				return value + padding;
+			}
+			if (groupResizeHandleIndex === 2 || groupResizeHandleIndex === 3 || groupResizeHandleIndex === 6) {
+				return value - padding;
+			}
+			return value;
+		};
 
-	selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
-		const relativeX = startPos.x - startBox.x;
-		const relativeY = startPos.y - startBox.y;
-		const newX = targetBox.x + relativeX * scaleX;
-		const newY = targetBox.y + relativeY * scaleY;
-		const newRadiusX = startPos.radius_x * Math.abs(scaleX);
-		const newRadiusY = startPos.radius_y * Math.abs(scaleY);
-		moveEllipse(id, newX, newY, saveHistory);
-		resizeEllipse(id, newRadiusX, newRadiusY, saveHistory);
-	});
+		let newLeft = startLeft;
+		let newRight = startRight;
+		let newTop = startTop;
+		let newBottom = startBottom;
 
-	selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
-		const relativeX = startPos.x - startBox.x;
-		const relativeY = startPos.y - startBox.y;
-		const newX = targetBox.x + relativeX * scaleX;
-		const newY = targetBox.y + relativeY * scaleY;
-		const newWidth = startPos.width * scaleX;
-		const newHeight = startPos.height * scaleY;
-		moveDiamond(id, newX, newY, saveHistory);
-		resizeDiamond(id, newWidth, newHeight, saveHistory);
-	});
+		switch (groupResizeHandleIndex) {
+			case 0:
+				newLeft = adjustX(targetX);
+				newTop = adjustY(targetY);
+				break;
+			case 1:
+				newRight = adjustX(targetX);
+				newTop = adjustY(targetY);
+				break;
+			case 2:
+				newRight = adjustX(targetX);
+				newBottom = adjustY(targetY);
+				break;
+			case 3:
+				newLeft = adjustX(targetX);
+				newBottom = adjustY(targetY);
+				break;
+			case 4:
+				newTop = adjustY(targetY);
+				break;
+			case 5:
+				newRight = adjustX(targetX);
+				break;
+			case 6:
+				newBottom = adjustY(targetY);
+				break;
+			case 7:
+				newLeft = adjustX(targetX);
+				break;
+		}
 
-	selectedShapesStartPositions.lines.forEach((startPos, id) => {
-		const startRelativeX = startPos.start.x - startBox.x;
-		const startRelativeY = startPos.start.y - startBox.y;
-		const endRelativeX = startPos.end.x - startBox.x;
-		const endRelativeY = startPos.end.y - startBox.y;
-		const newStartX = targetBox.x + startRelativeX * scaleX;
-		const newStartY = targetBox.y + startRelativeY * scaleY;
-		const newEndX = targetBox.x + endRelativeX * scaleX;
-		const newEndY = targetBox.y + endRelativeY * scaleY;
-		moveLine(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
-	});
+		const rawWidth = newRight - newLeft;
+		const rawHeight = newBottom - newTop;
+		const normalizedX = rawWidth >= 0 ? newLeft : newRight;
+		const normalizedY = rawHeight >= 0 ? newTop : newBottom;
 
-	selectedShapesStartPositions.arrows.forEach((startPos, id) => {
-		const startRelativeX = startPos.start.x - startBox.x;
-		const startRelativeY = startPos.start.y - startBox.y;
-		const endRelativeX = startPos.end.x - startBox.x;
-		const endRelativeY = startPos.end.y - startBox.y;
-		const newStartX = targetBox.x + startRelativeX * scaleX;
-		const newStartY = targetBox.y + startRelativeY * scaleY;
-		const newEndX = targetBox.x + endRelativeX * scaleX;
-		const newEndY = targetBox.y + endRelativeY * scaleY;
-		moveArrow(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
-	});
-}
+		return {
+			x: normalizedX,
+			y: normalizedY,
+			width: Math.abs(rawWidth),
+			height: Math.abs(rawHeight),
+			rawWidth,
+			rawHeight,
+			scaleX: start.width === 0 ? Math.sign(rawWidth) || 1 : rawWidth / start.width,
+			scaleY: start.height === 0 ? Math.sign(rawHeight) || 1 : rawHeight / start.height
+		};
+	}
+
+	function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean) {
+		if (!groupResizeStartBox) return;
+		const startBox = groupResizeStartBox;
+		const scaleX =
+			startBox.width === 0
+				? (Math.sign(targetBox.rawWidth ?? targetBox.width) || 1)
+				: (targetBox.rawWidth ?? targetBox.width) / startBox.width;
+		const scaleY =
+			startBox.height === 0
+				? (Math.sign(targetBox.rawHeight ?? targetBox.height) || 1)
+				: (targetBox.rawHeight ?? targetBox.height) / startBox.height;
+
+		const originX = scaleX >= 0 ? targetBox.x : targetBox.x + targetBox.width;
+		const originY = scaleY >= 0 ? targetBox.y : targetBox.y + targetBox.height;
+
+		selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
+			const relativeX = startPos.x - startBox.x;
+			const relativeY = startPos.y - startBox.y;
+			const newX = originX + relativeX * scaleX;
+			const newY = originY + relativeY * scaleY;
+			const newWidth = Math.abs(startPos.width * scaleX);
+			const newHeight = Math.abs(startPos.height * scaleY);
+			moveRectangle(id, newX, newY, saveHistory);
+			resizeRectangle(id, newWidth, newHeight, saveHistory);
+		});
+
+		selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
+			const relativeX = startPos.x - startBox.x;
+			const relativeY = startPos.y - startBox.y;
+			const newX = originX + relativeX * scaleX;
+			const newY = originY + relativeY * scaleY;
+			const newRadiusX = Math.abs(startPos.radius_x * scaleX);
+			const newRadiusY = Math.abs(startPos.radius_y * scaleY);
+			moveEllipse(id, newX, newY, saveHistory);
+			resizeEllipse(id, newRadiusX, newRadiusY, saveHistory);
+		});
+
+		selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
+			const relativeX = startPos.x - startBox.x;
+			const relativeY = startPos.y - startBox.y;
+			const newX = originX + relativeX * scaleX;
+			const newY = originY + relativeY * scaleY;
+			const newWidth = Math.abs(startPos.width * scaleX);
+			const newHeight = Math.abs(startPos.height * scaleY);
+			moveDiamond(id, newX, newY, saveHistory);
+			resizeDiamond(id, newWidth, newHeight, saveHistory);
+		});
+
+		selectedShapesStartPositions.lines.forEach((startPos, id) => {
+			const startRelativeX = startPos.start.x - startBox.x;
+			const startRelativeY = startPos.start.y - startBox.y;
+			const endRelativeX = startPos.end.x - startBox.x;
+			const endRelativeY = startPos.end.y - startBox.y;
+			const newStartX = originX + startRelativeX * scaleX;
+			const newStartY = originY + startRelativeY * scaleY;
+			const newEndX = originX + endRelativeX * scaleX;
+			const newEndY = originY + endRelativeY * scaleY;
+			moveLine(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
+		});
+
+		selectedShapesStartPositions.arrows.forEach((startPos, id) => {
+			const startRelativeX = startPos.start.x - startBox.x;
+			const startRelativeY = startPos.start.y - startBox.y;
+			const endRelativeX = startPos.end.x - startBox.x;
+			const endRelativeY = startPos.end.y - startBox.y;
+			const newStartX = originX + startRelativeX * scaleX;
+			const newStartY = originY + startRelativeY * scaleY;
+			const newEndX = originX + endRelativeX * scaleX;
+			const newEndY = originY + endRelativeY * scaleY;
+			moveArrow(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
+		});
+	}
 
 	function handleShapeClick(
 		shape: Rectangle | Ellipse | Diamond,
@@ -608,116 +704,125 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 		
 		if ($activeTool === 'select') {
 			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length;
-			let currentGroupBox: BoundingBox | null = null;
+			const allowIndividualHandles = totalSelectedCount <= 1;
+			let rawGroupBox: BoundingBox | null = null;
+			let visualGroupBox: BoundingBox | null = null;
+			const selectionPaddingValue = getSelectionPaddingValue($zoom);
 			if (totalSelectedCount > 1) {
-				currentGroupBox = groupResizeCurrentBox ?? calculateGroupBoundingBox();
-			}
-
-			for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
-				const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
-				if (handleIndex !== null) {
-					isResizing = true;
-					resizeHandleIndex = handleIndex;
-					resizeStartShape = $selectedRectangles[i];
-					resizeStartShapeType = 'rectangle';
-					resizeStartPos = {
-						x: $selectedRectangles[i].position.x,
-						y: $selectedRectangles[i].position.y,
-						width: $selectedRectangles[i].width,
-						height: $selectedRectangles[i].height
-					};
-					resizeStartMousePos = { x, y };
-					isShiftPressedDuringResize = isShiftPressed;
-					return;
+				rawGroupBox = groupResizeCurrentBox ?? calculateGroupBoundingBox();
+				if (rawGroupBox) {
+					visualGroupBox = expandBoundingBox(rawGroupBox, selectionPaddingValue);
 				}
 			}
 
-			for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
-				const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
-				if (handleIndex !== null) {
-					isResizing = true;
-					resizeHandleIndex = handleIndex;
-					resizeStartShape = $selectedEllipses[i];
-					resizeStartShapeType = 'ellipse';
-					const ellipse = $selectedEllipses[i];
-					resizeStartPos = {
-						x: ellipse.position.x - ellipse.radius_x,
-						y: ellipse.position.y - ellipse.radius_y,
-						width: ellipse.radius_x * 2,
-						height: ellipse.radius_y * 2
-					};
-					resizeStartMousePos = { x, y };
-					isShiftPressedDuringResize = isShiftPressed;
-					return;
+			if (allowIndividualHandles) {
+				for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
+					const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedRectangles[i];
+						resizeStartShapeType = 'rectangle';
+						resizeStartPos = {
+							x: $selectedRectangles[i].position.x,
+							y: $selectedRectangles[i].position.y,
+							width: $selectedRectangles[i].width,
+							height: $selectedRectangles[i].height
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
+				for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
+					const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedEllipses[i];
+						resizeStartShapeType = 'ellipse';
+						const ellipse = $selectedEllipses[i];
+						resizeStartPos = {
+							x: ellipse.position.x - ellipse.radius_x,
+							y: ellipse.position.y - ellipse.radius_y,
+							width: ellipse.radius_x * 2,
+							height: ellipse.radius_y * 2
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
+				for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
+					const handleIndex = getResizeHandleAt(x, y, $selectedDiamonds[i], 'diamond', $zoom);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedDiamonds[i];
+						resizeStartShapeType = 'diamond';
+						resizeStartPos = {
+							x: $selectedDiamonds[i].position.x,
+							y: $selectedDiamonds[i].position.y,
+							width: $selectedDiamonds[i].width,
+							height: $selectedDiamonds[i].height
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
+				for (let i = $selectedLines.length - 1; i >= 0; i--) {
+					const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedLines[i];
+						resizeStartShapeType = 'line';
+						const line = $selectedLines[i];
+						resizeStartPos = {
+							x: line.start.x,
+							y: line.start.y,
+							width: line.end.x - line.start.x,
+							height: line.end.y - line.start.y
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
+				for (let i = $selectedArrows.length - 1; i >= 0; i--) {
+					const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedArrows[i];
+						resizeStartShapeType = 'arrow';
+						const arrow = $selectedArrows[i];
+						resizeStartPos = {
+							x: arrow.start.x,
+							y: arrow.start.y,
+							width: arrow.end.x - arrow.start.x,
+							height: arrow.end.y - arrow.start.y
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
 				}
 			}
 
-			for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
-				const handleIndex = getResizeHandleAt(x, y, $selectedDiamonds[i], 'diamond', $zoom);
-				if (handleIndex !== null) {
-					isResizing = true;
-					resizeHandleIndex = handleIndex;
-					resizeStartShape = $selectedDiamonds[i];
-					resizeStartShapeType = 'diamond';
-					resizeStartPos = {
-						x: $selectedDiamonds[i].position.x,
-						y: $selectedDiamonds[i].position.y,
-						width: $selectedDiamonds[i].width,
-						height: $selectedDiamonds[i].height
-					};
-					resizeStartMousePos = { x, y };
-					isShiftPressedDuringResize = isShiftPressed;
-					return;
-				}
-			}
-
-			for (let i = $selectedLines.length - 1; i >= 0; i--) {
-				const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
-				if (handleIndex !== null) {
-					isResizing = true;
-					resizeHandleIndex = handleIndex;
-					resizeStartShape = $selectedLines[i];
-					resizeStartShapeType = 'line';
-					const line = $selectedLines[i];
-					resizeStartPos = {
-						x: line.start.x,
-						y: line.start.y,
-						width: line.end.x - line.start.x,
-						height: line.end.y - line.start.y
-					};
-					resizeStartMousePos = { x, y };
-					isShiftPressedDuringResize = isShiftPressed;
-					return;
-				}
-			}
-
-			for (let i = $selectedArrows.length - 1; i >= 0; i--) {
-				const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
-				if (handleIndex !== null) {
-					isResizing = true;
-					resizeHandleIndex = handleIndex;
-					resizeStartShape = $selectedArrows[i];
-					resizeStartShapeType = 'arrow';
-					const arrow = $selectedArrows[i];
-					resizeStartPos = {
-						x: arrow.start.x,
-						y: arrow.start.y,
-						width: arrow.end.x - arrow.start.x,
-						height: arrow.end.y - arrow.start.y
-					};
-					resizeStartMousePos = { x, y };
-					isShiftPressedDuringResize = isShiftPressed;
-					return;
-				}
-			}
-
-			if (currentGroupBox) {
-				const groupHandleIndex = getGroupResizeHandleAt(x, y, currentGroupBox, $zoom);
+			if (visualGroupBox && rawGroupBox) {
+				const groupHandleIndex = getGroupResizeHandleAt(x, y, visualGroupBox, $zoom);
 				if (groupHandleIndex !== null) {
 					isGroupResizing = true;
 					groupResizeHandleIndex = groupHandleIndex;
-					groupResizeStartBox = currentGroupBox;
-					groupResizeCurrentBox = currentGroupBox;
+					groupResizeStartBox = rawGroupBox;
+					groupResizeCurrentBox = rawGroupBox;
+					groupResizePadding = selectionPaddingValue;
 					storeSelectedShapesStartPositions();
 					if ($editorApi) {
 						$editorApi.save_snapshot();
@@ -806,8 +911,13 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 				}
 			}
 
-			if (totalSelectedCount > 1 && currentGroupBox) {
-				if (x >= currentGroupBox.x && x <= currentGroupBox.x + currentGroupBox.width && y >= currentGroupBox.y && y <= currentGroupBox.y + currentGroupBox.height) {
+			if (totalSelectedCount > 1 && visualGroupBox) {
+				if (
+					x >= visualGroupBox.x &&
+					x <= visualGroupBox.x + visualGroupBox.width &&
+					y >= visualGroupBox.y &&
+					y <= visualGroupBox.y + visualGroupBox.height
+				) {
 					const firstSelectedRect = $selectedRectangles[0];
 					const firstSelectedEllipse = $selectedEllipses[0];
 					const firstSelectedDiamond = $selectedDiamonds[0];
@@ -911,179 +1021,159 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 			
 			if (resizeStartShapeType === 'rectangle') {
 				const rect = resizeStartShape as Rectangle;
-				let minX: number, maxX: number, minY: number, maxY: number;
-				
-				if (resizeHandleIndex === 0) {
-					minX = resizeStartPos.x + deltaX;
-					minY = resizeStartPos.y + deltaY;
-					maxX = resizeStartPos.x + resizeStartPos.width;
-					maxY = resizeStartPos.y + resizeStartPos.height;
-				} else if (resizeHandleIndex === 1) {
-					minX = resizeStartPos.x;
-					minY = resizeStartPos.y + deltaY;
-					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
-					maxY = resizeStartPos.y + resizeStartPos.height;
-				} else if (resizeHandleIndex === 2) {
-					minX = resizeStartPos.x;
-					minY = resizeStartPos.y;
-					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
-					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
-				} else {
-					minX = resizeStartPos.x + deltaX;
-					minY = resizeStartPos.y;
-					maxX = resizeStartPos.x + resizeStartPos.width;
-					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
-				}
-				
-				if (isShiftPressedDuringResize) {
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				const adjustsHorizontal = affectsLeft || affectsRight;
+				const adjustsVertical = affectsTop || affectsBottom;
+
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+
+				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
 					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
-					const currentWidth = maxX - minX;
-					const currentHeight = maxY - minY;
-					const widthChange = Math.abs(currentWidth - resizeStartPos.width);
-					const heightChange = Math.abs(currentHeight - resizeStartPos.height);
-					
-					if (widthChange > heightChange) {
-						const newHeight = currentWidth / aspectRatio;
-						const centerY = (minY + maxY) / 2;
-						minY = centerY - newHeight / 2;
-						maxY = centerY + newHeight / 2;
+					const width = right - left;
+					const height = bottom - top;
+					const absWidth = Math.abs(width);
+					const absHeight = Math.abs(height);
+
+					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+						const targetHeight = absWidth / aspectRatio;
+						if (height >= 0) {
+							bottom = top + targetHeight;
+						} else {
+							top = bottom + targetHeight;
+						}
 					} else {
-						const newWidth = currentHeight * aspectRatio;
-						const centerX = (minX + maxX) / 2;
-						minX = centerX - newWidth / 2;
-						maxX = centerX + newWidth / 2;
+						const targetWidth = absHeight * aspectRatio;
+						if (width >= 0) {
+							right = left + targetWidth;
+						} else {
+							left = right + targetWidth;
+						}
 					}
 				}
-				
-				const finalMinX = Math.min(minX, maxX);
-				const finalMaxX = Math.max(minX, maxX);
-				const finalMinY = Math.min(minY, maxY);
-				const finalMaxY = Math.max(minY, maxY);
-				
-				const newX = finalMinX;
-				const newY = finalMinY;
-				const newWidth = finalMaxX - finalMinX;
-				const newHeight = finalMaxY - finalMinY;
-				
-				if (newWidth > 0 && newHeight > 0) {
-					resizePreview = { x: newX, y: newY, width: newWidth, height: newHeight, type: 'rectangle', id: rect.id };
-					scheduleRender();
-				}
+
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+
+				const newWidth = finalRight - finalLeft;
+				const newHeight = finalBottom - finalTop;
+
+				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'rectangle', id: rect.id };
+				scheduleRender();
 			} else if (resizeStartShapeType === 'ellipse') {
 				const ellipse = resizeStartShape as Ellipse;
-				let minX: number, maxX: number, minY: number, maxY: number;
-				
-				if (resizeHandleIndex === 0) {
-					minX = resizeStartPos.x + deltaX;
-					minY = resizeStartPos.y + deltaY;
-					maxX = resizeStartPos.x + resizeStartPos.width;
-					maxY = resizeStartPos.y + resizeStartPos.height;
-				} else if (resizeHandleIndex === 1) {
-					minX = resizeStartPos.x;
-					minY = resizeStartPos.y + deltaY;
-					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
-					maxY = resizeStartPos.y + resizeStartPos.height;
-				} else if (resizeHandleIndex === 2) {
-					minX = resizeStartPos.x;
-					minY = resizeStartPos.y;
-					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
-					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
-				} else {
-					minX = resizeStartPos.x + deltaX;
-					minY = resizeStartPos.y;
-					maxX = resizeStartPos.x + resizeStartPos.width;
-					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
-				}
-				
-				if (isShiftPressedDuringResize) {
-					const currentWidth = maxX - minX;
-					const currentHeight = maxY - minY;
-					const maxSize = Math.max(Math.abs(currentWidth), Math.abs(currentHeight));
-					const centerX = (minX + maxX) / 2;
-					const centerY = (minY + maxY) / 2;
-					minX = centerX - maxSize / 2;
-					maxX = centerX + maxSize / 2;
-					minY = centerY - maxSize / 2;
-					maxY = centerY + maxSize / 2;
-				}
-				
-				const finalMinX = Math.min(minX, maxX);
-				const finalMaxX = Math.max(minX, maxX);
-				const finalMinY = Math.min(minY, maxY);
-				const finalMaxY = Math.max(minY, maxY);
-				
-				const newWidth = finalMaxX - finalMinX;
-				const newHeight = finalMaxY - finalMinY;
-				
-				if (newWidth > 0 && newHeight > 0) {
-					const centerX = finalMinX + newWidth / 2;
-					const centerY = finalMinY + newHeight / 2;
-					const radiusX = newWidth / 2;
-					const radiusY = newHeight / 2;
-					
-					resizePreview = { x: centerX, y: centerY, width: radiusX * 2, height: radiusY * 2, type: 'ellipse', id: ellipse.id };
-					scheduleRender();
-				}
-			} else if (resizeStartShapeType === 'diamond') {
-				const diamond = resizeStartShape as Diamond;
-				let minX: number, maxX: number, minY: number, maxY: number;
-				
-				if (resizeHandleIndex === 0) {
-					minX = resizeStartPos.x + deltaX;
-					minY = resizeStartPos.y + deltaY;
-					maxX = resizeStartPos.x + resizeStartPos.width;
-					maxY = resizeStartPos.y + resizeStartPos.height;
-				} else if (resizeHandleIndex === 1) {
-					minX = resizeStartPos.x;
-					minY = resizeStartPos.y + deltaY;
-					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
-					maxY = resizeStartPos.y + resizeStartPos.height;
-				} else if (resizeHandleIndex === 2) {
-					minX = resizeStartPos.x;
-					minY = resizeStartPos.y;
-					maxX = resizeStartPos.x + resizeStartPos.width + deltaX;
-					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
-				} else {
-					minX = resizeStartPos.x + deltaX;
-					minY = resizeStartPos.y;
-					maxX = resizeStartPos.x + resizeStartPos.width;
-					maxY = resizeStartPos.y + resizeStartPos.height + deltaY;
-				}
-				
-				if (isShiftPressedDuringResize) {
-					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
-					const currentWidth = maxX - minX;
-					const currentHeight = maxY - minY;
-					const widthChange = Math.abs(currentWidth - resizeStartPos.width);
-					const heightChange = Math.abs(currentHeight - resizeStartPos.height);
-					
-					if (widthChange > heightChange) {
-						const newHeight = currentWidth / aspectRatio;
-						const centerY = (minY + maxY) / 2;
-						minY = centerY - newHeight / 2;
-						maxY = centerY + newHeight / 2;
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				const adjustsHorizontal = affectsLeft || affectsRight;
+				const adjustsVertical = affectsTop || affectsBottom;
+
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+
+				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical) {
+					const width = right - left;
+					const height = bottom - top;
+					const maxSize = Math.max(Math.abs(width), Math.abs(height));
+					if (height >= 0) {
+						bottom = top + Math.sign(height || 1) * maxSize;
 					} else {
-						const newWidth = currentHeight * aspectRatio;
-						const centerX = (minX + maxX) / 2;
-						minX = centerX - newWidth / 2;
-						maxX = centerX + newWidth / 2;
+						top = bottom + Math.sign(height || 1) * maxSize;
+					}
+					if (width >= 0) {
+						right = left + Math.sign(width || 1) * maxSize;
+					} else {
+						left = right + Math.sign(width || 1) * maxSize;
 					}
 				}
-				
-				const finalMinX = Math.min(minX, maxX);
-				const finalMaxX = Math.max(minX, maxX);
-				const finalMinY = Math.min(minY, maxY);
-				const finalMaxY = Math.max(minY, maxY);
-				
-				const newX = finalMinX;
-				const newY = finalMinY;
-				const newWidth = finalMaxX - finalMinX;
-				const newHeight = finalMaxY - finalMinY;
-				
-				if (newWidth > 0 && newHeight > 0) {
-					resizePreview = { x: newX, y: newY, width: newWidth, height: newHeight, type: 'diamond', id: diamond.id };
-					scheduleRender();
+
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+
+				const newWidth = finalRight - finalLeft;
+				const newHeight = finalBottom - finalTop;
+				const centerX = finalLeft + newWidth / 2;
+				const centerY = finalTop + newHeight / 2;
+				const radiusX = Math.abs(newWidth / 2);
+				const radiusY = Math.abs(newHeight / 2);
+
+				resizePreview = { x: centerX, y: centerY, width: radiusX * 2, height: radiusY * 2, type: 'ellipse', id: ellipse.id };
+				scheduleRender();
+			} else if (resizeStartShapeType === 'diamond') {
+				const diamond = resizeStartShape as Diamond;
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				const adjustsHorizontal = affectsLeft || affectsRight;
+				const adjustsVertical = affectsTop || affectsBottom;
+
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+
+				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
+					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
+					const width = right - left;
+					const height = bottom - top;
+					const absWidth = Math.abs(width);
+					const absHeight = Math.abs(height);
+
+					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+						const targetHeight = absWidth / aspectRatio;
+						if (height >= 0) {
+							bottom = top + targetHeight;
+						} else {
+							top = bottom + targetHeight;
+						}
+					} else {
+						const targetWidth = absHeight * aspectRatio;
+						if (width >= 0) {
+							right = left + targetWidth;
+						} else {
+							left = right + targetWidth;
+						}
+					}
 				}
+
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+
+				const newWidth = finalRight - finalLeft;
+				const newHeight = finalBottom - finalTop;
+
+				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'diamond', id: diamond.id };
+				scheduleRender();
 			} else if (resizeStartShapeType === 'line') {
 				const line = resizeStartShape as Line;
 				let newStartX = resizeStartPos.x;
@@ -1194,7 +1284,12 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 				canvas.style.cursor = 'move';
 			} else {
 				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length;
-				const currentGroupBox = totalSelectedCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
+				const selectionPaddingValue = getSelectionPaddingValue($zoom);
+				const rawGroupBoxForCursor =
+					totalSelectedCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
+				const visualGroupBoxForCursor = rawGroupBoxForCursor
+					? expandBoundingBox(rawGroupBoxForCursor, selectionPaddingValue)
+					: null;
 
 				for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
 					const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
@@ -1235,17 +1330,17 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 					}
 				}
 				
-				if (currentGroupBox) {
-					const groupHandleIndex = getGroupResizeHandleAt(x, y, currentGroupBox, $zoom);
-					if (groupHandleIndex !== null) {
-						canvas.style.cursor = resizeCursors[groupHandleIndex];
-						return;
-					}
+			if (visualGroupBoxForCursor) {
+				const groupHandleIndex = getGroupResizeHandleAt(x, y, visualGroupBoxForCursor, $zoom);
+				if (groupHandleIndex !== null) {
+					canvas.style.cursor = resizeCursors[groupHandleIndex];
+					return;
 				}
+			}
 				
-				if (totalSelectedCount > 1) {
-					const groupBox = currentGroupBox ?? calculateGroupBoundingBox();
-					if (groupBox && x >= groupBox.x && x <= groupBox.x + groupBox.width && y >= groupBox.y && y <= groupBox.y + groupBox.height) {
+				if (visualGroupBoxForCursor) {
+					const box = visualGroupBoxForCursor;
+					if (x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height) {
 						canvas.style.cursor = 'move';
 						return;
 					}
@@ -1416,6 +1511,7 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 			groupResizeHandleIndex = null;
 			groupResizeStartBox = null;
 			groupResizeCurrentBox = null;
+			groupResizePadding = 0;
 		}
 		
 		if (isDragging && draggedShape && $editorApi) {
@@ -1607,19 +1703,31 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 2 / zoom;
 		
-		const corners = [
-			{ x: boxX, y: boxY },
-			{ x: boxX + boxWidth, y: boxY },
-			{ x: boxX + boxWidth, y: boxY + boxHeight },
-			{ x: boxX, y: boxY + boxHeight }
-		];
+		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight }).slice(0, 4);
 		
-		corners.forEach((corner) => {
+		handles.forEach((handle) => {
 			ctx.beginPath();
-			ctx.rect(corner.x - halfHandle, corner.y - halfHandle, handleSize, handleSize);
+			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
 			ctx.fill();
 			ctx.stroke();
 		});
+	}
+
+	function renderSelectionOutline(
+		ctx: CanvasRenderingContext2D,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		zoom: number,
+		includePadding: boolean = true
+	) {
+		ctx.save();
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 1 / zoom;
+		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
+		ctx.strokeRect(x - padding, y - padding, width + padding * 2, height + padding * 2);
+		ctx.restore();
 	}
 
 	function calculateGroupBoundingBox(): { x: number; y: number; width: number; height: number } | null {
@@ -1736,12 +1844,11 @@ function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean)
 		const maxX = Math.max(...allSelectedShapes.map(s => s.maxX));
 		const maxY = Math.max(...allSelectedShapes.map(s => s.maxY));
 		
-		const gap = 4 / $zoom;
 		return {
-			x: minX - gap,
-			y: minY - gap,
-			width: maxX - minX + gap * 2,
-			height: maxY - minY + gap * 2
+			x: minX,
+			y: minY,
+			width: maxX - minX,
+			height: maxY - minY
 		};
 	}
 
@@ -1772,6 +1879,13 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 		const isCreatingRectangle = $activeTool === 'rectangle' && isCreatingShape;
 		const isCreatingEllipse = $activeTool === 'ellipse' && isCreatingShape;
 		const isCreatingDiamond = $activeTool === 'diamond' && isCreatingShape;
+		const totalSelectionCount =
+			$selectedRectangles.length +
+			$selectedEllipses.length +
+			$selectedDiamonds.length +
+			$selectedLines.length +
+			$selectedArrows.length;
+		const showIndividualHandles = totalSelectionCount <= 1;
 		
 		renderCtx.save();
 		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
@@ -1802,7 +1916,11 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 			renderCtx.strokeRect(renderX, renderY, renderWidth, renderHeight);
 			
 			if (isSelected) {
-				renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				if (showIndividualHandles) {
+					renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				} else {
+					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				}
 			}
 		});
 		
@@ -1851,7 +1969,11 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 				const y = renderY - renderRadiusY;
 				const width = renderRadiusX * 2;
 				const height = renderRadiusY * 2;
-				renderResizeHandles(renderCtx, x, y, width, height, $zoom);
+				if (showIndividualHandles) {
+					renderResizeHandles(renderCtx, x, y, width, height, $zoom);
+				} else {
+					renderSelectionOutline(renderCtx, x, y, width, height, $zoom);
+				}
 			}
 		});
 		
@@ -1929,7 +2051,11 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 			renderCtx.stroke();
 			
 			if (isSelected) {
-				renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				if (showIndividualHandles) {
+					renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				} else {
+					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				}
 			}
 		});
 		
@@ -1990,7 +2116,7 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 			renderCtx.lineTo(renderEndX, renderEndY);
 			renderCtx.stroke();
 			
-			if (isSelected) {
+			if (isSelected && showIndividualHandles) {
 				const handleSize = 8 / $zoom;
 				const halfHandle = handleSize / 2;
 				
@@ -2071,7 +2197,7 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 			);
 			renderCtx.stroke();
 			
-			if (isSelected) {
+			if (isSelected && showIndividualHandles) {
 				const handleSize = 8 / $zoom;
 				const halfHandle = handleSize / 2;
 				
@@ -2119,7 +2245,12 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 			renderCtx.stroke();
 		}
 		
-		const groupBoundingBox = groupResizeCurrentBox ?? calculateGroupBoundingBox();
+		const groupBoundingBoxRaw =
+			totalSelectionCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
+		const groupBoundingBox =
+			groupBoundingBoxRaw && totalSelectionCount > 1
+				? expandBoundingBox(groupBoundingBoxRaw, getSelectionPaddingValue($zoom))
+				: null;
 		if (groupBoundingBox) {
 			renderGroupBoundingBox(renderCtx, groupBoundingBox, $zoom);
 		}

@@ -24,8 +24,8 @@
 			
 		const loaded = loadStateFromLocalStorage();
 		if (!loaded) {
-		rectangles.set(api.get_rectangles());
-		ellipses.set(api.get_ellipses());
+			rectangles.set(api.get_rectangles());
+			ellipses.set(api.get_ellipses());
 			lines.set(api.get_lines());
 			arrows.set(api.get_arrows());
 			diamonds.set(api.get_diamonds());
