@@ -38,7 +38,7 @@ impl Document {
         doc
     }
 
-    fn save_snapshot(&mut self) {
+    pub fn save_snapshot(&mut self) {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
             ellipses: self.ellipses.clone(),
@@ -46,6 +46,17 @@ impl Document {
             arrows: self.arrows.clone(),
             next_id: self.next_id,
         };
+        
+        if self.history_index > 0 {
+            let last_snapshot = &self.history[self.history_index - 1];
+            if last_snapshot.rectangles == snapshot.rectangles &&
+               last_snapshot.ellipses == snapshot.ellipses &&
+               last_snapshot.lines == snapshot.lines &&
+               last_snapshot.arrows == snapshot.arrows &&
+               last_snapshot.next_id == snapshot.next_id {
+                return;
+            }
+        }
         
         self.history.truncate(self.history_index);
         self.history.push(snapshot);
@@ -94,10 +105,15 @@ impl Document {
     }
 
     pub fn add_rectangle(&mut self, position: Point, width: f64, height: f64) -> u64 {
+        let id = self.add_rectangle_without_snapshot(position, width, height);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_rectangle_without_snapshot(&mut self, position: Point, width: f64, height: f64) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         self.rectangles.push(Rectangle::new(id, position, width, height));
-        self.save_snapshot();
         id
     }
 
@@ -108,11 +124,11 @@ impl Document {
     pub fn move_rectangle(&mut self, id: u64, new_position: Point, save_history: bool) {
         if let Some(rect) = self.rectangles.iter().find(|r| r.id == id) {
             if rect.position != new_position {
-                if save_history {
-                    self.save_snapshot();
-                }
                 if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
                     rect.position = new_position;
+                }
+                if save_history {
+                    self.save_snapshot();
                 }
             }
         }
@@ -121,12 +137,12 @@ impl Document {
     pub fn resize_rectangle(&mut self, id: u64, width: f64, height: f64, save_history: bool) {
         if let Some(rect) = self.rectangles.iter().find(|r| r.id == id) {
             if rect.width != width || rect.height != height {
-                if save_history {
-                    self.save_snapshot();
-                }
                 if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
                     rect.width = width;
                     rect.height = height;
+                }
+                if save_history {
+                    self.save_snapshot();
                 }
             }
         }
@@ -141,10 +157,15 @@ impl Document {
     }
 
     pub fn add_ellipse(&mut self, position: Point, radius_x: f64, radius_y: f64) -> u64 {
+        let id = self.add_ellipse_without_snapshot(position, radius_x, radius_y);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_ellipse_without_snapshot(&mut self, position: Point, radius_x: f64, radius_y: f64) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         self.ellipses.push(Ellipse::new(id, position, radius_x, radius_y));
-        self.save_snapshot();
         id
     }
 
@@ -155,11 +176,11 @@ impl Document {
     pub fn move_ellipse(&mut self, id: u64, new_position: Point, save_history: bool) {
         if let Some(ellipse) = self.ellipses.iter().find(|e| e.id == id) {
             if ellipse.position != new_position {
-                if save_history {
-                    self.save_snapshot();
-                }
                 if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
                     ellipse.position = new_position;
+                }
+                if save_history {
+                    self.save_snapshot();
                 }
             }
         }
@@ -168,12 +189,12 @@ impl Document {
     pub fn resize_ellipse(&mut self, id: u64, radius_x: f64, radius_y: f64, save_history: bool) {
         if let Some(ellipse) = self.ellipses.iter().find(|e| e.id == id) {
             if ellipse.radius_x != radius_x || ellipse.radius_y != radius_y {
-                if save_history {
-                    self.save_snapshot();
-                }
                 if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
                     ellipse.radius_x = radius_x;
                     ellipse.radius_y = radius_y;
+                }
+                if save_history {
+                    self.save_snapshot();
                 }
             }
         }
@@ -188,10 +209,15 @@ impl Document {
     }
 
     pub fn add_line(&mut self, start: Point, end: Point) -> u64 {
+        let id = self.add_line_without_snapshot(start, end);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_line_without_snapshot(&mut self, start: Point, end: Point) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         self.lines.push(Line::new(id, start, end));
-        self.save_snapshot();
         id
     }
 
@@ -202,12 +228,12 @@ impl Document {
     pub fn move_line(&mut self, id: u64, new_start: Point, new_end: Point, save_history: bool) {
         if let Some(line) = self.lines.iter().find(|l| l.id == id) {
             if line.start != new_start || line.end != new_end {
-                if save_history {
-                    self.save_snapshot();
-                }
                 if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
                     line.start = new_start;
                     line.end = new_end;
+                }
+                if save_history {
+                    self.save_snapshot();
                 }
             }
         }
@@ -222,10 +248,15 @@ impl Document {
     }
 
     pub fn add_arrow(&mut self, start: Point, end: Point) -> u64 {
+        let id = self.add_arrow_without_snapshot(start, end);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_arrow_without_snapshot(&mut self, start: Point, end: Point) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         self.arrows.push(Arrow::new(id, start, end));
-        self.save_snapshot();
         id
     }
 
@@ -236,12 +267,12 @@ impl Document {
     pub fn move_arrow(&mut self, id: u64, new_start: Point, new_end: Point, save_history: bool) {
         if let Some(arrow) = self.arrows.iter().find(|a| a.id == id) {
             if arrow.start != new_start || arrow.end != new_end {
-                if save_history {
-                    self.save_snapshot();
-                }
                 if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
                     arrow.start = new_start;
                     arrow.end = new_end;
+                }
+                if save_history {
+                    self.save_snapshot();
                 }
             }
         }

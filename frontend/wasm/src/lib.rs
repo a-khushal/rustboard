@@ -43,6 +43,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn add_rectangle_without_snapshot(&self, x: f64, y: f64, width: f64, height: f64) -> u64 {
+        self.document.borrow_mut().add_rectangle_without_snapshot(Point::new(x, y), width, height)
+    }
+
+    #[wasm_bindgen]
     pub fn get_rectangles(&self) -> JsValue {
         let rectangles = self.document.borrow().get_rectangles().to_vec();
         to_value(&rectangles).unwrap()
@@ -66,6 +71,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn add_ellipse(&self, x: f64, y: f64, radius_x: f64, radius_y: f64) -> u64 {
         self.document.borrow_mut().add_ellipse(Point::new(x, y), radius_x, radius_y)
+    }
+
+    #[wasm_bindgen]
+    pub fn add_ellipse_without_snapshot(&self, x: f64, y: f64, radius_x: f64, radius_y: f64) -> u64 {
+        self.document.borrow_mut().add_ellipse_without_snapshot(Point::new(x, y), radius_x, radius_y)
     }
 
     #[wasm_bindgen]
@@ -95,6 +105,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn add_line_without_snapshot(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
+        self.document.borrow_mut().add_line_without_snapshot(Point::new(start_x, start_y), Point::new(end_x, end_y))
+    }
+
+    #[wasm_bindgen]
     pub fn get_lines(&self) -> JsValue {
         let lines = self.document.borrow().get_lines().to_vec();
         to_value(&lines).unwrap()
@@ -113,6 +128,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn add_arrow(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
         self.document.borrow_mut().add_arrow(Point::new(start_x, start_y), Point::new(end_x, end_y))
+    }
+
+    #[wasm_bindgen]
+    pub fn add_arrow_without_snapshot(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
+        self.document.borrow_mut().add_arrow_without_snapshot(Point::new(start_x, start_y), Point::new(end_x, end_y))
     }
 
     #[wasm_bindgen]
@@ -139,5 +159,10 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn deserialize(&self, data: &str) -> bool {
         self.document.borrow_mut().deserialize(data)
+    }
+
+    #[wasm_bindgen]
+    pub fn save_snapshot(&self) {
+        self.document.borrow_mut().save_snapshot();
     }
 }

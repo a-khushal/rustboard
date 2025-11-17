@@ -36,21 +36,11 @@
 			}, 0);
 		}
 
-			unsubscribeRectangles = rectangles.subscribe(() => {
-				saveStateToLocalStorage();
-			});
-
-			unsubscribeEllipses = ellipses.subscribe(() => {
-				saveStateToLocalStorage();
-			});
-
-			unsubscribeLines = lines.subscribe(() => {
-				saveStateToLocalStorage();
-			});
-
-		unsubscribeArrows = arrows.subscribe(() => {
-			saveStateToLocalStorage();
-		});
+			const saveState = () => saveStateToLocalStorage();
+			unsubscribeRectangles = rectangles.subscribe(saveState);
+			unsubscribeEllipses = ellipses.subscribe(saveState);
+			unsubscribeLines = lines.subscribe(saveState);
+			unsubscribeArrows = arrows.subscribe(saveState);
 
 		unsubscribeZoom = zoom.subscribe(() => {
 			saveZoomToLocalStorage();

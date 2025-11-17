@@ -1,27 +1,20 @@
 <script lang="ts">
-	import { editorApi, rectangles, ellipses, type Rectangle, type Ellipse } from '$lib/stores/editor';
+	import { editorApi } from '$lib/stores/editor';
+	import { updateAllStoresAfterUndoRedo } from '$lib/utils/undo-redo';
 
 	function undo() {
 		if (!$editorApi) return;
-		
 		const success = $editorApi.undo();
 		if (success) {
-			const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
-			const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
-			rectangles.set(updatedRectangles);
-			ellipses.set(updatedEllipses);
+			updateAllStoresAfterUndoRedo();
 		}
 	}
 
 	function redo() {
 		if (!$editorApi) return;
-		
 		const success = $editorApi.redo();
 		if (success) {
-			const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
-			const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
-			rectangles.set(updatedRectangles);
-			ellipses.set(updatedEllipses);
+			updateAllStoresAfterUndoRedo();
 		}
 	}
 </script>
