@@ -17,6 +17,8 @@
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 	import { copyToClipboard, getClipboard, hasClipboardData } from '$lib/utils/clipboard';
 	import { updateAllStoresAfterUndoRedo } from '$lib/utils/undo-redo';
+	import { pasteShapes } from '$lib/utils/paste-shapes';
+	import { clearAllSelections } from '$lib/utils/selection';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
@@ -119,13 +121,50 @@
 			return;
 		}
 
-		if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!$editorApi) return;
+			
+			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0;
+			if (!hasSelection) return;
+			
+			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows);
+			const clipboard = getClipboard();
+			
+			const bounds: Array<{ minX: number; minY: number }> = [];
+			clipboard.rectangles.forEach(r => bounds.push({ minX: r.position.x, minY: r.position.y }));
+			clipboard.ellipses.forEach(e => bounds.push({ minX: e.position.x - e.radius_x, minY: e.position.y - e.radius_y }));
+			clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
+			clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
+			
+			if (bounds.length === 0) return;
+			
+			const minX = Math.min(...bounds.map(b => b.minX));
+			const minY = Math.min(...bounds.map(b => b.minY));
+			const duplicateX = minX + 20;
+			const duplicateY = minY + 20;
+			
+			pasteShapes(clipboard, duplicateX, duplicateY);
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+			event.preventDefault();
+			selectedRectangles.set([...$rectangles]);
+			selectedEllipses.set([...$ellipses]);
+			selectedLines.set([...$lines]);
+			selectedArrows.set([...$arrows]);
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
 			event.preventDefault();
 			if (!$editorApi || !hasClipboardData()) return;
 			
 			const clipboard = getClipboard();
-			
 			let pasteX: number, pasteY: number;
+			
 			if (lastMouseWorldPos) {
 				pasteX = lastMouseWorldPos.x;
 				pasteY = lastMouseWorldPos.y;
@@ -136,86 +175,8 @@
 				pasteX = centerWorld.x;
 				pasteY = centerWorld.y;
 			}
-
-			const allShapes: Array<{ minX: number; minY: number }> = [];
 			
-			clipboard.rectangles.forEach(r => {
-				allShapes.push({ minX: r.position.x, minY: r.position.y });
-			});
-			
-			clipboard.ellipses.forEach(e => {
-				allShapes.push({ minX: e.position.x - e.radius_x, minY: e.position.y - e.radius_y });
-			});
-			
-			clipboard.lines.forEach(l => {
-				allShapes.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) });
-			});
-			
-			clipboard.arrows.forEach(a => {
-				allShapes.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) });
-			});
-			
-			const minX = allShapes.length > 0 ? Math.min(...allShapes.map(s => s.minX)) : pasteX;
-			const minY = allShapes.length > 0 ? Math.min(...allShapes.map(s => s.minY)) : pasteY;
-
-			$editorApi.save_snapshot();
-
-			const pastedIds = {
-				rectangles: [] as number[],
-				ellipses: [] as number[],
-				lines: [] as number[],
-				arrows: [] as number[]
-			};
-
-			clipboard.rectangles.forEach(rect => {
-				const offsetX = rect.position.x - minX + pasteX;
-				const offsetY = rect.position.y - minY + pasteY;
-				const newId = ($editorApi as any).add_rectangle_without_snapshot(offsetX, offsetY, rect.width, rect.height);
-				pastedIds.rectangles.push(Number(newId));
-			});
-
-			clipboard.ellipses.forEach(ellipse => {
-				const offsetX = ellipse.position.x - minX + pasteX;
-				const offsetY = ellipse.position.y - minY + pasteY;
-				const newId = ($editorApi as any).add_ellipse_without_snapshot(offsetX, offsetY, ellipse.radius_x, ellipse.radius_y);
-				pastedIds.ellipses.push(Number(newId));
-			});
-
-			clipboard.lines.forEach(line => {
-				const startX = line.start.x - minX + pasteX;
-				const startY = line.start.y - minY + pasteY;
-				const endX = line.end.x - minX + pasteX;
-				const endY = line.end.y - minY + pasteY;
-				const newId = ($editorApi as any).add_line_without_snapshot(startX, startY, endX, endY);
-				pastedIds.lines.push(Number(newId));
-			});
-
-			clipboard.arrows.forEach(arrow => {
-				const startX = arrow.start.x - minX + pasteX;
-				const startY = arrow.start.y - minY + pasteY;
-				const endX = arrow.end.x - minX + pasteX;
-				const endY = arrow.end.y - minY + pasteY;
-				const newId = ($editorApi as any).add_arrow_without_snapshot(startX, startY, endX, endY);
-				pastedIds.arrows.push(Number(newId));
-			});
-
-			$editorApi.save_snapshot();
-
-			const updatedRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
-			const updatedEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
-			const updatedLines = Array.from(($editorApi as any).get_lines() as Line[]);
-			const updatedArrows = Array.from(($editorApi as any).get_arrows() as Arrow[]);
-
-			rectangles.set(updatedRectangles);
-			ellipses.set(updatedEllipses);
-			lines.set(updatedLines);
-			arrows.set(updatedArrows);
-
-			selectedRectangles.set(updatedRectangles.filter(r => pastedIds.rectangles.includes(r.id)));
-			selectedEllipses.set(updatedEllipses.filter(e => pastedIds.ellipses.includes(e.id)));
-			selectedLines.set(updatedLines.filter(l => pastedIds.lines.includes(l.id)));
-			selectedArrows.set(updatedArrows.filter(a => pastedIds.arrows.includes(a.id)));
-			
+			pasteShapes(clipboard, pasteX, pasteY);
 			return;
 		}
 
@@ -559,32 +520,23 @@
 
 			if (isShiftPressed) return;
 
-			selectedRectangles.set([]);
-			selectedEllipses.set([]);
-			selectedLines.set([]);
-			selectedArrows.set([]);
+			clearAllSelections();
 		} else if ($activeTool === 'rectangle' || $activeTool === 'ellipse') {
-			selectedRectangles.set([]);
-			selectedEllipses.set([]);
+			clearAllSelections();
 			isCreatingShape = true;
 			isShiftPressedDuringCreation = isShiftPressed;
 			createStartPos = { x, y };
 			createCurrentPos = { x, y };
 			scheduleRender();
 		} else if ($activeTool === 'line') {
-			selectedRectangles.set([]);
-			selectedEllipses.set([]);
-			selectedLines.set([]);
+			clearAllSelections();
 			isCreatingShape = true;
 			isShiftPressedDuringCreation = isShiftPressed;
 			lineStart = { x, y };
 			lineEnd = { x, y };
 			scheduleRender();
 		} else if ($activeTool === 'arrow') {
-			selectedRectangles.set([]);
-			selectedEllipses.set([]);
-			selectedLines.set([]);
-			selectedArrows.set([]);
+			clearAllSelections();
 			isCreatingShape = true;
 			isShiftPressedDuringCreation = isShiftPressed;
 			arrowStart = { x, y };
