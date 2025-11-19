@@ -78,3 +78,22 @@ impl Diamond {
         }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Text {
+    pub id: u64,
+    pub position: Point,
+    pub text: String,
+	#[serde(rename = "fontSize", default = "default_font_size")]
+	pub font_size: f64,
+}
+
+impl Text {
+	pub fn new(id: u64, position: Point, text: String, font_size: f64) -> Self {
+		Self { id, position, text, font_size }
+    }
+}
+
+fn default_font_size() -> f64 {
+	16.0
+}

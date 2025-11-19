@@ -11,7 +11,8 @@
 		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
 		{ id: 'diamond' as Tool, label: 'Diamond', icon: 'diamond' },
 		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
-		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' }
+		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
+		{ id: 'text' as Tool, label: 'Text', icon: 'text' }
 	];
 </script>
 
@@ -50,6 +51,11 @@
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="2" y1="8" x2="12" y2="8"/>
 					<polyline points="9,5 12,8 9,11"/>
+				</svg>
+			{:else if tool.icon === 'text'}
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 15 15">
+					<path fill="currentColor" fill-rule="evenodd" d="M3.95 2.95V4.5a.45.45 0 0 1-.9 0v-2a.45.45 0 0 1 .45-.45h8a.45.45 0 0 1 .45.45v2a.45.45 0 1 1-.9 0V2.95h-3v9.1h1.204a.45.45 0 0 1 0 .9h-3.5a.45.45 0 1 1 0-.9H6.95v-9.1h-3Z" clip-rule="evenodd">
+					</path>
 				</svg>
 			{/if}
 		</button>

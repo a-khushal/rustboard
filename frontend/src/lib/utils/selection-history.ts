@@ -10,7 +10,9 @@ import {
 	selectedLines,
 	selectedArrows,
 	selectedDiamonds,
-	editorApi
+	editorApi,
+	selectedTexts,
+	texts
 } from '$lib/stores/editor';
 
 export type SelectionSnapshot = {
@@ -19,6 +21,7 @@ export type SelectionSnapshot = {
 	diamonds: number[];
 	lines: number[];
 	arrows: number[];
+	texts: number[];
 	historyIndex: number;
 };
 
@@ -39,7 +42,8 @@ function snapshotEquals(a: SelectionSnapshot, b: SelectionSnapshot): boolean {
 		arraysEqual(a.ellipses, b.ellipses) &&
 		arraysEqual(a.diamonds, b.diamonds) &&
 		arraysEqual(a.lines, b.lines) &&
-		arraysEqual(a.arrows, b.arrows)
+		arraysEqual(a.arrows, b.arrows) &&
+		arraysEqual(a.texts, b.texts)
 	);
 }
 
@@ -66,6 +70,7 @@ export function getCurrentSelectionSnapshot(): SelectionSnapshot {
 		diamonds: get(selectedDiamonds).map((diamond) => diamond.id),
 		lines: get(selectedLines).map((line) => line.id),
 		arrows: get(selectedArrows).map((arrow) => arrow.id),
+		texts: get(selectedTexts).map((text) => text.id),
 		historyIndex: currentHistoryIndex()
 	};
 }
@@ -91,13 +96,14 @@ export function initSelectionHistory(): void {
 	initialized = true;
 
 	const selectionSnapshotStore = derived(
-		[selectedRectangles, selectedEllipses, selectedDiamonds, selectedLines, selectedArrows],
-		([$rects, $ells, $dias, $lines, $arrows]) => ({
+		[selectedRectangles, selectedEllipses, selectedDiamonds, selectedLines, selectedArrows, selectedTexts],
+		([$rects, $ells, $dias, $lines, $arrows, $texts]) => ({
 			rectangles: $rects.map((rect) => rect.id),
 			ellipses: $ells.map((ellipse) => ellipse.id),
 			diamonds: $dias.map((diamond) => diamond.id),
 			lines: $lines.map((line) => line.id),
 			arrows: $arrows.map((arrow) => arrow.id),
+			texts: $texts.map((text) => text.id),
 			historyIndex: currentHistoryIndex()
 		})
 	);
@@ -147,12 +153,14 @@ export function restoreSelectionForHistoryIndex(historyIndex: number): void {
 	const availableDiamonds = get(diamonds);
 	const availableLines = get(lines);
 	const availableArrows = get(arrows);
+	const availableTexts = get(texts);
 
 	selectedRectangles.set(filterByIds(availableRects, snapshot.rectangles));
 	selectedEllipses.set(filterByIds(availableEllipses, snapshot.ellipses));
 	selectedDiamonds.set(filterByIds(availableDiamonds, snapshot.diamonds));
 	selectedLines.set(filterByIds(availableLines, snapshot.lines));
 	selectedArrows.set(filterByIds(availableArrows, snapshot.arrows));
+	selectedTexts.set(filterByIds(availableTexts, snapshot.texts));
 	isSuppressed = false;
 }
 

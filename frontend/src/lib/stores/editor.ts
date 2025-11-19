@@ -35,6 +35,13 @@ export interface Diamond {
 	height: number;
 }
 
+export interface Text {
+	id: number;
+	position: { x: number; y: number };
+	text: string;
+	fontSize: number;
+}
+
 export const wasmLoaded = writable<boolean>(false);
 export const editorApi = writable<EditorApi | null>(null);
 export const viewportOffset = writable({ x: 0, y: 0});
@@ -51,3 +58,5 @@ export const arrows = writable<Arrow[]>([]);
 export const selectedArrows = writable<Arrow[]>([]);
 export const diamonds = writable<Diamond[]>([]);
 export const selectedDiamonds = writable<Diamond[]>([]);
+export const texts = writable<Text[]>([]);
+export const selectedTexts = writable<Text[]>([]);

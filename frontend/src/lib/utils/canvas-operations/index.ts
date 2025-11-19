@@ -3,3 +3,4 @@ export * from './ellipse';
 export * from './line';
 export * from './arrow';
 export * from './diamond';
+export * from './texts';

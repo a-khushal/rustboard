@@ -1,4 +1,78 @@
-import type { Ellipse, Rectangle, Line, Arrow, Diamond } from '$lib/stores/editor';
+import type { Ellipse, Rectangle, Line, Arrow, Diamond, Text } from '$lib/stores/editor';
+
+const DEFAULT_FONT_SIZE = 16;
+export const DEFAULT_TEXT_FONT_SIZE = DEFAULT_FONT_SIZE;
+export const TEXT_LINE_HEIGHT_RATIO = 1.25;
+const DEFAULT_TEXT_ASCENT = 12;
+const DEFAULT_TEXT_DESCENT = 4;
+
+export function getFontForSize(fontSize: number = DEFAULT_FONT_SIZE): string {
+	return `${fontSize}px sans-serif`;
+}
+
+export function measureTextBounds(
+	textValue: string,
+	ctx?: CanvasRenderingContext2D,
+	fontSize: number = DEFAULT_FONT_SIZE
+): { width: number; ascent: number; descent: number; height: number } {
+	const targetText = textValue ?? '';
+
+	if (!ctx) {
+		const scale = fontSize / DEFAULT_FONT_SIZE;
+		const fallbackWidth = Math.max(targetText.length, 1) * 8 * scale;
+		const ascent = DEFAULT_TEXT_ASCENT * scale;
+		const descent = DEFAULT_TEXT_DESCENT * scale;
+		return { width: fallbackWidth, ascent, descent, height: ascent + descent };
+	}
+
+	ctx.save();
+	ctx.font = getFontForSize(fontSize);
+	const metrics = ctx.measureText(targetText || ' ');
+	ctx.restore();
+
+	const ascent = metrics.actualBoundingBoxAscent || DEFAULT_TEXT_ASCENT * (fontSize / DEFAULT_FONT_SIZE);
+	const descent = metrics.actualBoundingBoxDescent || DEFAULT_TEXT_DESCENT * (fontSize / DEFAULT_FONT_SIZE);
+	return {
+		width: metrics.width || Math.max(targetText.length, 1) * 8 * (fontSize / DEFAULT_FONT_SIZE),
+		ascent,
+		descent,
+		height: ascent + descent,
+	};
+}
+
+export function measureMultilineText(
+	textValue: string,
+	fontSize: number = DEFAULT_FONT_SIZE,
+	ctx?: CanvasRenderingContext2D
+): {
+	lines: string[];
+	width: number;
+	height: number;
+	ascent: number;
+	descent: number;
+	lineHeight: number;
+	lineWidths: number[];
+} {
+	const rawLines = textValue?.split('\n') ?? [''];
+	const lines = rawLines.length > 0 ? rawLines : [''];
+	const lineMetrics = lines.map(line => measureTextBounds(line || ' ', ctx, fontSize));
+	const ascent = Math.max(...lineMetrics.map(m => m.ascent), DEFAULT_TEXT_ASCENT * (fontSize / DEFAULT_FONT_SIZE));
+	const descent = Math.max(...lineMetrics.map(m => m.descent), DEFAULT_TEXT_DESCENT * (fontSize / DEFAULT_FONT_SIZE));
+	const baseHeight = ascent + descent;
+	const lineHeight = baseHeight * TEXT_LINE_HEIGHT_RATIO;
+	const width = Math.max(...lineMetrics.map(m => Math.max(m.width, 1)), 1);
+	const height = lines.length <= 1 ? baseHeight : baseHeight + (lines.length - 1) * lineHeight;
+
+	return {
+		lines,
+		width,
+		height,
+		ascent,
+		descent,
+		lineHeight,
+		lineWidths: lineMetrics.map(m => m.width),
+	};
+}
 
 export function isPointInRectangle(x: number, y: number, rect: Rectangle): boolean {
 	return (
@@ -118,4 +192,26 @@ export function lineIntersectsBox(line: Line | Arrow, box: { x: number; y: numbe
 
 export function arrowIntersectsBox(arrow: Arrow, box: { x: number; y: number; width: number; height: number }): boolean {
 	return lineIntersectsBox(arrow, box);
+}
+
+export function isPointInText(x: number, y: number, text: Text, ctx?: CanvasRenderingContext2D): boolean {
+	const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_FONT_SIZE, ctx);
+	const top = text.position.y - layout.ascent;
+	return (
+		x >= text.position.x &&
+		x <= text.position.x + layout.width &&
+		y >= top &&
+		y <= top + layout.height
+	);
+}
+
+export function textIntersectsBox(text: Text, box: { x: number; y: number; width: number; height: number }, ctx?: CanvasRenderingContext2D): boolean {
+	const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx);
+	const top = text.position.y - layout.ascent;
+	return (
+		text.position.x >= box.x &&
+		top >= box.y &&
+		text.position.x + layout.width <= box.x + box.width &&
+		top + layout.height <= box.y + box.height
+	);
 }

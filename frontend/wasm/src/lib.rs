@@ -17,6 +17,7 @@ impl EditorApi {
         }
     }
 
+    // u
     #[wasm_bindgen]
     pub fn undo(&self) -> bool {
         self.document.borrow_mut().undo()
@@ -37,6 +38,7 @@ impl EditorApi {
         self.document.borrow().can_redo()
     }
 
+    // rectangle
     #[wasm_bindgen]
     pub fn add_rectangle(&self, x: f64, y: f64, width: f64, height: f64) -> u64 {
         self.document.borrow_mut().add_rectangle(Point::new(x, y), width, height)
@@ -78,6 +80,7 @@ impl EditorApi {
         self.document.borrow().history_index()
     }
 
+    // diamond
     #[wasm_bindgen]
     pub fn add_diamond(&self, x: f64, y: f64, width: f64, height: f64) -> u64 {
         self.document.borrow_mut().add_diamond(Point::new(x, y), width, height)
@@ -150,6 +153,7 @@ impl EditorApi {
         self.document.borrow_mut().delete_ellipse_without_snapshot(id)
     }
 
+    // line
     #[wasm_bindgen]
     pub fn add_line(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
         self.document.borrow_mut().add_line(Point::new(start_x, start_y), Point::new(end_x, end_y))
@@ -181,6 +185,7 @@ impl EditorApi {
         self.document.borrow_mut().delete_line_without_snapshot(id)
     }
 
+    // arrow
     #[wasm_bindgen]
     pub fn add_arrow(&self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
         self.document.borrow_mut().add_arrow(Point::new(start_x, start_y), Point::new(end_x, end_y))
@@ -210,6 +215,53 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn delete_arrow_without_snapshot(&self, id: u64) -> bool {
         self.document.borrow_mut().delete_arrow_without_snapshot(id)
+    }
+
+    // text
+    #[wasm_bindgen]
+    pub fn add_text(&self, x: f64, y: f64, text: String) -> u64 {
+        self.document.borrow_mut().add_text(Point::new(x, y), text)
+    }
+
+    #[wasm_bindgen]
+    pub fn add_text_without_snapshot(&self, x: f64, y: f64, text: String) -> u64 {
+        self.document.borrow_mut().add_text_without_snapshot(Point::new(x, y), text)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_texts(&self) -> JsValue {
+        let texts = self.document.borrow().get_texts().to_vec();
+        to_value(&texts).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_text(&self, id: u64, x: f64, y: f64, save_history: bool) {
+        self.document.borrow_mut().move_text(id, Point::new(x, y), save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn update_text(&self, id: u64, text: String, save_history: bool) {
+        self.document.borrow_mut().update_text(id, text, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn resize_text(&self, id: u64, font_size: f64, save_history: bool) {
+        self.document.borrow_mut().resize_text(id, font_size, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn resize_text_without_snapshot(&self, id: u64, font_size: f64) {
+        self.document.borrow_mut().resize_text_without_snapshot(id, font_size);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_text(&self, id: u64) {
+        self.document.borrow_mut().delete_text(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_text_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_text_without_snapshot(id)
     }
 
     #[wasm_bindgen]

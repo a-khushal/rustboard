@@ -1,19 +1,20 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		lines, selectedLines, arrows, selectedArrows,
-		diamonds, selectedDiamonds,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond 
+		diamonds, selectedDiamonds, texts, selectedTexts,
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text
 	} from '$lib/stores/editor';
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox } from '$lib/utils/geometry';
+import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle,
 		addEllipse, moveEllipse, resizeEllipse,
 		addDiamond, moveDiamond, resizeDiamond,
 		addLine, moveLine,
-		addArrow, moveArrow
+		addArrow, moveArrow,
+		addText, moveText, setTextFontSize, updateTextContent, deleteTextById
 	} from '$lib/utils/canvas-operations/index';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
@@ -32,7 +33,7 @@
 	let ctx: CanvasRenderingContext2D | null = null;
 	let isDragging = false;
 	let dragStartPos = { x: 0, y: 0 };
-	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | null = null;
+	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | null = null;
 	let isSpacePressed = false;
 	let isPanning = false;
 	let panStartPos = { x: 0, y: 0 };
@@ -48,13 +49,14 @@
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond'; id: number } | null = null;
+let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text'; id: number; fontSize?: number; baseline?: number } | null = null;
+let resizeStartTextAscent = 0;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	let isSelectingBox = false;
 	let selectionBoxStart: { x: number; y: number } | null = null;
@@ -65,12 +67,14 @@
 			diamonds: Map<number, { x: number; y: number; width: number; height: number }>;
 			lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number } }>;
 			arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number } }>;
+			texts: Map<number, { x: number; y: number; text: string; fontSize: number }>;
 		} = {
 			rectangles: new Map(),
 			ellipses: new Map(),
 			diamonds: new Map(),
 			lines: new Map(),
-			arrows: new Map()
+			arrows: new Map(),
+			texts: new Map()
 		};
 	let isGroupResizing = false;
 	let groupResizeHandleIndex: number | null = null;
@@ -81,7 +85,37 @@
 	let renderDependencies: Record<string, unknown> | null = null;
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 
+	let isTypingText = false;
+	let typingTextId: number | null = null;
+	let typingOriginalValue = '';
+	let typingValue = '';
+	let typingWorldPos: { x: number; y: number } | null = null;
+	let typingScreenPos = { x: 0, y: 0 };
+	let typingDirty = false;
+	let typingFontSize = DEFAULT_TEXT_FONT_SIZE;
+	let textInputRef: HTMLTextAreaElement | null = null;
+	let typingLayout = measureMultilineText('', DEFAULT_TEXT_FONT_SIZE);
+
 	function handleKeyDown(event: KeyboardEvent) {
+		if (isTypingText) {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				cancelTypingText();
+				return;
+			}
+			if ((event.key === 'Enter' || event.key === 'NumpadEnter') && (event.metaKey || event.ctrlKey)) {
+				event.preventDefault();
+				commitTypingText();
+				return;
+			}
+			if (event.key === 'Enter' || event.key === 'NumpadEnter') {
+				event.preventDefault();
+				insertTextAtCursor('\n');
+				return;
+			}
+			return;
+		}
+
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
 			event.preventDefault();
 			if ($editorApi) {
@@ -130,7 +164,7 @@
 			if (isCreatingShape) {
 				return;
 			}
-			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow') {
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'text') {
 				activeTool.set('select');
 			}
 			return;
@@ -139,7 +173,7 @@
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
 			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0) {
-				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds);
+				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts);
 			}
 			return;
 		}
@@ -152,7 +186,7 @@
 			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0;
 			if (!hasSelection) return;
 			
-			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds);
+			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts);
 			const clipboard = getClipboard();
 			
 			const bounds: Array<{ minX: number; minY: number }> = [];
@@ -161,7 +195,8 @@
 			clipboard.diamonds.forEach(d => bounds.push({ minX: d.position.x, minY: d.position.y }));
 			clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
 			clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
-			
+			clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
+
 			if (bounds.length === 0) return;
 			
 			const minX = Math.min(...bounds.map(b => b.minX));
@@ -177,9 +212,10 @@
 			event.preventDefault();
 			selectedRectangles.set([...$rectangles]);
 			selectedEllipses.set([...$ellipses]);
-			selectedDiamonds.set([...$diamonds]);
 			selectedLines.set([...$lines]);
 			selectedArrows.set([...$arrows]);
+			selectedDiamonds.set([...$diamonds]);
+			selectedTexts.set([...$texts]);
 			return;
 		}
 
@@ -212,8 +248,9 @@
 		const hasSelectedDiamonds = $selectedDiamonds.length > 0;
 		const hasSelectedLines = $selectedLines.length > 0;
 		const hasSelectedArrows = $selectedArrows.length > 0;
+		const hasSelectedTexts = $selectedTexts.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedTexts) return;
 
 		event.preventDefault();
 		
@@ -222,8 +259,9 @@
 		const diamondIds = hasSelectedDiamonds ? $selectedDiamonds.map(diamond => diamond.id) : [];
 		const lineIds = hasSelectedLines ? $selectedLines.map(line => line.id) : [];
 		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
+		const textIds = hasSelectedTexts ? $selectedTexts.map(text => text.id) : [];
 		
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -235,8 +273,8 @@
 	function getResizeHandleAt(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond',
+		shape: Rectangle | Ellipse | Diamond | Text,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
 		zoom: number
 	): number | null {
 		const gap = 4 / zoom;
@@ -255,6 +293,13 @@
 			boxY = diamond.position.y - gap;
 			boxWidth = diamond.width + gap * 2;
 			boxHeight = diamond.height + gap * 2;
+		} else if (shapeType === 'text') {
+			const text = shape as Text;
+			const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
+			boxX = text.position.x - gap;
+			boxY = text.position.y - layout.ascent - gap;
+			boxWidth = layout.width + gap * 2;
+			boxHeight = layout.height + gap * 2;
 		} else {
 			const ellipse = shape as Ellipse;
 			boxX = ellipse.position.x - ellipse.radius_x - gap;
@@ -269,6 +314,119 @@
 			{ x: boxX, y: boxY, width: boxWidth, height: boxHeight },
 			zoom
 		);
+	}
+
+	async function startTypingSession(
+		id: number,
+		initialValue: string,
+		originalValue: string,
+		worldPosition: { x: number; y: number },
+		selectAll: boolean,
+		fontSize: number
+	) {
+		typingTextId = id;
+		typingValue = initialValue;
+		typingOriginalValue = originalValue;
+		typingWorldPos = { ...worldPosition };
+		typingDirty = initialValue !== originalValue;
+		typingFontSize = fontSize;
+		typingLayout = measureMultilineText(initialValue || '', typingFontSize, ctx ?? undefined);
+		isTypingText = true;
+		await tick();
+		if (textInputRef) {
+			textInputRef.focus();
+			if (selectAll) {
+				textInputRef.select();
+			} else {
+				const caretPos = typingValue.length;
+				textInputRef.setSelectionRange(caretPos, caretPos);
+			}
+		}
+	}
+
+	function resetTypingState() {
+		isTypingText = false;
+		typingTextId = null;
+		typingOriginalValue = '';
+		typingValue = '';
+		typingWorldPos = null;
+		typingDirty = false;
+		typingFontSize = DEFAULT_TEXT_FONT_SIZE;
+		typingLayout = measureMultilineText('', typingFontSize, ctx ?? undefined);
+	}
+
+	function handleTextInputInput(event: Event) {
+		if (!isTypingText || typingTextId === null) return;
+		const target = event.target as HTMLInputElement | HTMLTextAreaElement;
+		const newValue = target.value;
+		typingValue = newValue;
+		typingDirty = newValue !== typingOriginalValue;
+		updateTextContent(typingTextId, newValue, false);
+	}
+
+	function insertTextAtCursor(value: string) {
+		if (!textInputRef || typingTextId === null) return;
+		const start = textInputRef.selectionStart ?? typingValue.length;
+		const end = textInputRef.selectionEnd ?? typingValue.length;
+		const newValue = typingValue.slice(0, start) + value + typingValue.slice(end);
+		typingValue = newValue;
+		textInputRef.value = newValue;
+		typingDirty = newValue !== typingOriginalValue;
+		updateTextContent(typingTextId, newValue, false);
+		const cursor = start + value.length;
+		setTimeout(() => {
+			textInputRef?.setSelectionRange(cursor, cursor);
+		}, 0);
+	}
+
+	function handleTextInputKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault();
+			commitTypingText();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			cancelTypingText();
+		}
+	}
+
+	function commitTypingText() {
+		if (!isTypingText || typingTextId === null) return;
+		const currentId = typingTextId;
+		const finalValue = typingValue;
+		const originalValue = typingOriginalValue;
+		const wasDirty = typingDirty;
+
+		if (finalValue.replace(/\s+/g, '') === '') {
+			const saveHistory = originalValue.trim().length > 0;
+			deleteTextById(currentId, saveHistory);
+			resetTypingState();
+			return;
+		}
+
+		if (wasDirty) {
+			updateTextContent(currentId, finalValue, false);
+			if ($editorApi) {
+				$editorApi.save_snapshot();
+			}
+		}
+
+		resetTypingState();
+	}
+
+	function cancelTypingText() {
+		if (!isTypingText || typingTextId === null) return;
+		const currentId = typingTextId;
+		if (typingOriginalValue.trim() === '') {
+			deleteTextById(currentId, false);
+		} else if (typingDirty) {
+			updateTextContent(currentId, typingOriginalValue, false);
+		}
+		resetTypingState();
+	}
+
+	function startTypingExistingText(text: Text) {
+		selectedTexts.set([text]);
+		startTypingSession(text.id, text.text, text.text, { x: text.position.x, y: text.position.y }, true, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE);
 	}
 
 	function getHandlePositions(box: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> {
@@ -289,6 +447,18 @@
 
 	function getSelectionPaddingValue(currentZoom: number): number {
 		return 4 / currentZoom;
+	}
+
+	function worldToScreen(
+		worldX: number,
+		worldY: number,
+		offset: { x: number; y: number },
+		zoomLevel: number
+	): { x: number; y: number } {
+		return {
+			x: worldX * zoomLevel + offset.x,
+			y: worldY * zoomLevel + offset.y
+		};
 	}
 
 	function expandBoundingBox(box: BoundingBox, padding: number): BoundingBox {
@@ -401,8 +571,9 @@
 		selectedShapesStartPositions.diamonds.clear();
 		selectedShapesStartPositions.lines.clear();
 		selectedShapesStartPositions.arrows.clear();
+		selectedShapesStartPositions.texts.clear();
 		
-		$selectedRectangles.forEach(rect => {
+			$selectedRectangles.forEach(rect => {
 			selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height });
 		});
 		
@@ -420,6 +591,10 @@
 		
 		$selectedArrows.forEach(arrow => {
 			selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y } });
+		});
+
+		$selectedTexts.forEach(text => {
+			selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE });
 		});
 	}
 
@@ -649,11 +824,32 @@
 			
 			moveArrow(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
 		});
+
+		selectedShapesStartPositions.texts.forEach((startPos, id) => {
+			const relativeX = startPos.x - startBox.x;
+			const relativeY = startPos.y - startBox.y;
+			let newX: number;
+			let newY: number;
+			if (isFlippedX) {
+				newX = originX - relativeX * absScaleX;
+			} else {
+				newX = originX + relativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newY = originY - relativeY * absScaleY;
+			} else {
+				newY = originY + relativeY * absScaleY;
+			}
+
+			const newFontSize = (startPos.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * Math.max(absScaleX, absScaleY);
+			moveText(id, newX, newY, saveHistory);
+			setTextFontSize(id, Math.max(4, newFontSize), saveHistory);
+		});
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond',
+		shape: Rectangle | Ellipse | Diamond | Text,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
 		isShiftPressed: boolean,
 		x: number,
 		y: number
@@ -675,6 +871,7 @@
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedTexts.set([]);
 			}
 
 			draggedShape = clickedRect;
@@ -695,7 +892,7 @@
 				);
 			} else if (!isAlreadySelected) {
 				selectedDiamonds.set([clickedDiamond]);
-				selectedRectangles.set([]);
+			selectedRectangles.set([]);
 				selectedEllipses.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
@@ -706,7 +903,7 @@
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
 			isDragging = true;
-		} else {
+		} else if (shapeType === 'ellipse') {
 			const clickedEllipse = shape as Ellipse;
 			const index = $selectedEllipses.findIndex(e => e.id === clickedEllipse.id);
 			const isAlreadySelected = index >= 0;
@@ -723,9 +920,35 @@
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedTexts.set([]);
 			}
 
 			draggedShape = clickedEllipse;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
+		} else if (shapeType === 'text') {
+			const clickedText = shape as Text;
+			const index = $selectedTexts.findIndex(t => t.id === clickedText.id);
+			const isAlreadySelected = index >= 0;
+			
+			if (isShiftPressed) {
+				selectedTexts.set(
+					isAlreadySelected
+					? $selectedTexts.filter(t => t.id !== clickedText.id)
+					: [...$selectedTexts, clickedText]
+				);
+			} else if (!isAlreadySelected) {
+				selectedTexts.set([clickedText]);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+			}
+
+			draggedShape = clickedText;
 			dragStartPos = { x, y };
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
@@ -738,6 +961,10 @@
 
 		event.preventDefault();
 		canvas.focus();
+
+		if (isTypingText) {
+			commitTypingText();
+		}
 
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
@@ -753,10 +980,19 @@
 
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 
+		if (event.detail === 2 && ctx) {
+			for (let i = $texts.length - 1; i >= 0; i--) {
+				if (isPointInText(x, y, $texts[i], ctx)) {
+					startTypingExistingText($texts[i]);
+					return;
+				}
+			}
+		}
+
 		const isShiftPressed = event.shiftKey;
 		
 		if ($activeTool === 'select') {
-			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length;
+			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length;
 			const allowIndividualHandles = totalSelectedCount <= 1;
 			let rawGroupBox: BoundingBox | null = null;
 			let visualGroupBox: BoundingBox | null = null;
@@ -866,6 +1102,33 @@
 						return;
 					}
 				}
+
+				if (allowIndividualHandles && ctx) {
+					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(x, y, $selectedTexts[i], 'text', $zoom);
+						if (handleIndex !== null) {
+							isResizing = true;
+							resizeHandleIndex = handleIndex;
+							resizeStartShape = $selectedTexts[i];
+							resizeStartShapeType = 'text';
+							const fontSize = $selectedTexts[i].fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+							const layout = measureMultilineText($selectedTexts[i].text, fontSize, ctx);
+							const width = layout.width;
+							const height = layout.height;
+							resizeStartPos = {
+								x: $selectedTexts[i].position.x,
+								y: $selectedTexts[i].position.y,
+								width,
+								height
+							};
+							resizeStartTextAscent = layout.ascent;
+							resizeStartMousePos = { x, y };
+							isShiftPressedDuringResize = isShiftPressed;
+							return;
+						}
+					}
+				}
+
 			}
 
 			if (visualGroupBox && rawGroupBox) {
@@ -902,8 +1165,8 @@
 				}
 			}
 
-			for (let i = $rectangles.length - 1; i >= 0; i--) {
-				if (isPointInRectangle(x, y, $rectangles[i])) {
+		for (let i = $rectangles.length - 1; i >= 0; i--) {
+			if (isPointInRectangle(x, y, $rectangles[i])) {
 					handleShapeClick($rectangles[i], 'rectangle', isShiftPressed, x, y);
 					return;
 				}
@@ -928,8 +1191,8 @@
 					const clickedLine = $lines[i];
 					const index = $selectedLines.findIndex(l => l.id === clickedLine.id);
 					const isAlreadySelected = index >= 0;
-					
-					if (isShiftPressed) {
+				
+				if (isShiftPressed) {
 						selectedLines.set(
 							isAlreadySelected
 								? $selectedLines.filter(l => l.id !== clickedLine.id)
@@ -970,16 +1233,24 @@
 						selectedEllipses.set([]);
 						selectedDiamonds.set([]);
 						selectedLines.set([]);
+						selectedTexts.set([]);
 					}
 					
 					draggedShape = clickedArrow;
 					dragStartPos = { x, y };
 					dragOffset = { x: 0, y: 0 };
 					storeSelectedShapesStartPositions();
-					isDragging = true;
+				isDragging = true;
 					return;
 				}
 			}
+
+			for (let i = $texts.length - 1; i >= 0; i--) {
+				if (ctx && isPointInText(x, y, $texts[i], ctx)) {
+					handleShapeClick($texts[i], 'text', isShiftPressed, x, y);
+				return;
+			}
+		}
 
 			if (totalSelectedCount > 1 && visualGroupBox) {
 				if (
@@ -993,6 +1264,7 @@
 					const firstSelectedDiamond = $selectedDiamonds[0];
 					const firstSelectedLine = $selectedLines[0];
 					const firstSelectedArrow = $selectedArrows[0];
+					const firstSelectedText = $selectedTexts[0];
 					
 					if (firstSelectedRect) {
 						draggedShape = firstSelectedRect;
@@ -1004,6 +1276,8 @@
 						draggedShape = firstSelectedLine;
 					} else if (firstSelectedArrow) {
 						draggedShape = firstSelectedArrow;
+					} else if (firstSelectedText) {
+						draggedShape = firstSelectedText;
 					}
 					
 					if (draggedShape) {
@@ -1011,7 +1285,7 @@
 						dragOffset = { x: 0, y: 0 };
 						storeSelectedShapesStartPositions();
 						isDragging = true;
-						return;
+				return;
 					}
 				}
 			}
@@ -1043,11 +1317,20 @@
 			arrowStart = { x, y };
 			arrowEnd = { x, y };
 			scheduleRender();
+		} else if ($activeTool === 'text') {
+			clearAllSelections();
+			const newId = addText(x, y, '', false);
+			if (newId !== null) {
+				startTypingSession(newId, '', '', { x, y }, false, DEFAULT_TEXT_FONT_SIZE);
+			}
+			activeTool.set('select');
+			scheduleRender();
 		}
 	}
 
 	function handleMouseMove(event: MouseEvent) {
 		if (!canvas) return;
+		if (isTypingText) return;
 
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
@@ -1115,10 +1398,11 @@
 				const adjustsHorizontal = affectsLeft || affectsRight;
 				const adjustsVertical = affectsTop || affectsBottom;
 
+				const baseline = resizeStartPos.y;
 				let left = resizeStartPos.x;
 				let right = resizeStartPos.x + resizeStartPos.width;
-				let top = resizeStartPos.y;
-				let bottom = resizeStartPos.y + resizeStartPos.height;
+				let top = baseline - resizeStartTextAscent;
+				let bottom = top + resizeStartPos.height;
 
 				if (affectsLeft) left = resizeStartPos.x + deltaX;
 				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
@@ -1341,6 +1625,41 @@
 					id: arrow.id 
 				};
 				scheduleRender();
+			} else if (resizeStartShapeType === 'text') {
+				const text = resizeStartShape as Text;
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+				
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+				
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+				
+				const newWidth = Math.max(10, finalRight - finalLeft);
+				const newHeight = Math.max(10, finalBottom - finalTop);
+				const startWidth = Math.max(1, resizeStartPos.width);
+				const startHeight = Math.max(1, resizeStartPos.height);
+				const widthScale = newWidth / startWidth;
+				const heightScale = newHeight / startHeight;
+				const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
+				const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
+				const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
+				const newBaseline = finalTop + previewLayout.ascent;
+				
+				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
+				scheduleRender();
 			}
 			return;
 		}
@@ -1364,13 +1683,15 @@
 				arrowEnd = { x, y };
 				scheduleRender();
 			}
+		} else if ($activeTool === 'text') {
+			canvas.style.cursor = 'text';
 		} else if ($activeTool === 'select') {
 			if (isResizing) {
 				canvas.style.cursor = resizeHandleIndex !== null ? resizeCursors[resizeHandleIndex] : 'default';
 			} else if (isDragging && draggedShape) {
 				canvas.style.cursor = 'move';
 			} else {
-				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length;
+				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length;
 				const selectionPaddingValue = getSelectionPaddingValue($zoom);
 				const rawGroupBoxForCursor =
 					totalSelectedCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
@@ -1378,42 +1699,44 @@
 					? expandBoundingBox(rawGroupBoxForCursor, selectionPaddingValue)
 					: null;
 
-				for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
-					const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
-					if (handleIndex !== null) {
-						canvas.style.cursor = resizeCursors[handleIndex];
-						return;
+				if (totalSelectedCount <= 1) {
+					for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
+							return;
+						}
 					}
-				}
-				for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
-					const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
-					if (handleIndex !== null) {
-						canvas.style.cursor = resizeCursors[handleIndex];
-						return;
+					for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
+							return;
+						}
 					}
-				}
-				
-				for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
-					const handleIndex = getResizeHandleAt(x, y, $selectedDiamonds[i], 'diamond', $zoom);
-					if (handleIndex !== null) {
-						canvas.style.cursor = resizeCursors[handleIndex];
-						return;
+					
+					for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(x, y, $selectedDiamonds[i], 'diamond', $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
+							return;
+						}
 					}
-				}
-				
-				for (let i = $selectedLines.length - 1; i >= 0; i--) {
-					const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
-					if (handleIndex !== null) {
-						canvas.style.cursor = 'pointer';
-						return;
+					
+					for (let i = $selectedLines.length - 1; i >= 0; i--) {
+						const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = 'pointer';
+							return;
+						}
 					}
-				}
-				
-				for (let i = $selectedArrows.length - 1; i >= 0; i--) {
-					const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
-					if (handleIndex !== null) {
-						canvas.style.cursor = 'pointer';
-						return;
+					
+					for (let i = $selectedArrows.length - 1; i >= 0; i--) {
+						const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = 'pointer';
+							return;
+						}
 					}
 				}
 				
@@ -1425,32 +1748,32 @@
 				}
 			}
 				
-				if (visualGroupBoxForCursor) {
-					const box = visualGroupBoxForCursor;
-					if (x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height) {
-						canvas.style.cursor = 'move';
-						return;
-					}
+			if (visualGroupBoxForCursor) {
+				const box = visualGroupBoxForCursor;
+				if (x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height) {
+					canvas.style.cursor = 'move';
+					return;
 				}
-				
-				for (let i = $rectangles.length - 1; i >= 0; i--) {
-					if (isPointInRectangle(x, y, $rectangles[i])) {
-						canvas.style.cursor = 'move';
-						return;
-					}
+		}
+
+		for (let i = $rectangles.length - 1; i >= 0; i--) {
+			if (isPointInRectangle(x, y, $rectangles[i])) {
+					canvas.style.cursor = 'move';
+				return;
 				}
-				for (let i = $ellipses.length - 1; i >= 0; i--) {
-					if (isPointInEllipse(x, y, $ellipses[i])) {
-						canvas.style.cursor = 'move';
-						return;
-					}
+			}
+			for (let i = $ellipses.length - 1; i >= 0; i--) {
+				if (isPointInEllipse(x, y, $ellipses[i])) {
+					canvas.style.cursor = 'move';
+					return;
 				}
-				for (let i = $diamonds.length - 1; i >= 0; i--) {
-					if (isPointInDiamond(x, y, $diamonds[i])) {
-						canvas.style.cursor = 'move';
-						return;
-					}
+			}
+			for (let i = $diamonds.length - 1; i >= 0; i--) {
+				if (isPointInDiamond(x, y, $diamonds[i])) {
+					canvas.style.cursor = 'move';
+					return;
 				}
+			}
 			for (let i = $lines.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
 					canvas.style.cursor = 'move';
@@ -1463,10 +1786,16 @@
 					return;
 				}
 			}
-				canvas.style.cursor = 'default';
+			if (ctx) {
+				for (let i = $texts.length - 1; i >= 0; i--) {
+					if (isPointInText(x, y, $texts[i], ctx)) {
+						canvas.style.cursor = 'move';
+						return;
+					}
+				}
 			}
-		} else {
 			canvas.style.cursor = 'default';
+		}
 		}
 
 		if (isSelectingBox && selectionBoxStart) {
@@ -1482,8 +1811,26 @@
 			scheduleRender();
 		}
 	}
+
+	function handleCanvasDoubleClick(event: MouseEvent) {
+		if (!canvas || !ctx) return;
+		if (isTypingText) return;
+		event.preventDefault();
+
+		const rect = canvas.getBoundingClientRect();
+		const screenX = event.clientX - rect.left;
+		const screenY = event.clientY - rect.top;
+		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+
+		for (let i = $texts.length - 1; i >= 0; i--) {
+			if (isPointInText(x, y, $texts[i], ctx)) {
+				startTypingExistingText($texts[i]);
+				return;
+			}
+		}
+	}
 	
-	function handleMouseUp() {
+    function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
 		}
@@ -1514,6 +1861,12 @@
 				const newEndX = resizePreview.x + resizePreview.width;
 				const newEndY = resizePreview.y + resizePreview.height;
 				moveArrow(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
+			} else if (resizePreview.type === 'text') {
+				const targetY = resizePreview.baseline ?? resizeStartPos.y;
+				if (resizePreview.fontSize) {
+					setTextFontSize(resizePreview.id, resizePreview.fontSize, false);
+				}
+				moveText(resizePreview.id, resizePreview.x, targetY, true);
 			}
 			resizePreview = null;
 		}
@@ -1532,6 +1885,7 @@
 				const selectedDias: Diamond[] = [];
 				const selectedLinesArray: Line[] = [];
 				const selectedArrs: Arrow[] = [];
+				const selectedTextsArray: Text[] = [];
 				
 				$rectangles.forEach(rect => {
 					if (rectangleIntersectsBox(rect, box)) {
@@ -1563,11 +1917,18 @@
 					}
 				});
 				
+				$texts.forEach(text => {
+					if (textIntersectsBox(text, box, ctx ?? undefined)) {
+						selectedTextsArray.push(text);
+					}
+				});
+				
 				selectedRectangles.set(selectedRects);
 				selectedEllipses.set(selectedElls);
 				selectedDiamonds.set(selectedDias);
 				selectedLines.set(selectedLinesArray);
 				selectedArrows.set(selectedArrs);
+				selectedTexts.set(selectedTextsArray);
 			}
 			
 			isSelectingBox = false;
@@ -1585,6 +1946,7 @@
 			resizeStartMousePos = { x: 0, y: 0 };
 			isShiftPressedDuringResize = false;
 			resizePreview = null;
+			resizeStartTextAscent = 0;
 		}
 		
 		if (isGroupResizing) {
@@ -1637,6 +1999,12 @@
 				const newEndX = startPos.end.x + dragOffset.x;
 				const newEndY = startPos.end.y + dragOffset.y;
 				moveArrow(id, newStartX, newStartY, newEndX, newEndY, false);
+			});
+			
+			selectedShapesStartPositions.texts.forEach((startPos, id) => {
+				const newX = startPos.x + dragOffset.x;
+				const newY = startPos.y + dragOffset.y;
+				moveText(id, newX, newY, false);
 			});
 			
 			$editorApi.save_snapshot();
@@ -1966,6 +2334,30 @@
 			});
 		});
 		
+		if (ctx) {
+			$selectedTexts.forEach(text => {
+				const isDragged = isDragging && selectedShapesStartPositions.texts.has(text.id);
+				let x: number, y: number, width: number, height: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.texts.get(text.id)!;
+					x = startPos.x + dragOffset.x;
+					y = startPos.y + dragOffset.y;
+				} else {
+					x = text.position.x;
+					y = text.position.y;
+				}
+				const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
+				width = layout.width;
+				height = layout.height;
+				allSelectedShapes.push({
+					minX: x,
+					minY: y - layout.ascent,
+					maxX: x + width,
+					maxY: y - layout.ascent + height
+				});
+			});
+		}
+		
 		if (allSelectedShapes.length === 0) return null;
 		if (allSelectedShapes.length === 1) return null;
 		
@@ -2014,7 +2406,8 @@
 			$selectedEllipses.length +
 			$selectedDiamonds.length +
 			$selectedLines.length +
-			$selectedArrows.length;
+			$selectedArrows.length +
+			$selectedTexts.length;
 		const showIndividualHandles = totalSelectionCount <= 1;
 		
 		renderCtx.save();
@@ -2374,6 +2767,50 @@
 			);
 			renderCtx.stroke();
 		}
+		
+		$texts.forEach((text: Text) => {
+			const isSelected = $selectedTexts.some(selected => selected.id === text.id);
+			const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts.has(text.id);
+			const isResizedText = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id && resizePreview.fontSize;
+			
+			let renderX: number, renderY: number;
+			if (isDragged) {
+				const startPos = selectedShapesStartPositions.texts.get(text.id)!;
+				renderX = startPos.x + dragOffset.x;
+				renderY = startPos.y + dragOffset.y;
+			} else {
+				renderX = text.position.x;
+				renderY = text.position.y;
+			}
+			if (isResizedText) {
+				renderX = resizePreview!.x;
+				renderY = resizePreview!.baseline ?? renderY;
+			}
+
+			const baseFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+			const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
+			renderCtx.fillStyle = '#000000';
+			renderCtx.font = getFontForSize(fontSize);
+			const layout = measureMultilineText(text.text, fontSize, renderCtx);
+
+			layout.lines.forEach((line, index) => {
+				const baselineY = renderY + index * layout.lineHeight;
+				renderCtx.fillText(line || ' ', renderX, baselineY);
+			});
+			
+			if (isSelected) {
+				const boxX = renderX;
+				const boxY = renderY - layout.ascent;
+				const width = layout.width;
+				const height = layout.height;
+
+				if (showIndividualHandles) {
+					renderResizeHandles(renderCtx, boxX, boxY, width, height, $zoom);
+				} else {
+					renderSelectionOutline(renderCtx, boxX, boxY, width, height, $zoom);
+				}
+			}
+		});
 
 		const groupBoundingBoxRaw =
 			totalSelectionCount > 1 
@@ -2418,9 +2855,17 @@
 
 	function initCanvas() {
 		if (!canvas) return;
-		ctx = canvas.getContext('2d');
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
+			ctx = canvas.getContext('2d');
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+	}
+
+	$: if (isTypingText) {
+		typingLayout = measureMultilineText(typingValue || '', typingFontSize, ctx ?? undefined);
+	}
+
+	$: if (isTypingText && typingWorldPos) {
+		typingScreenPos = worldToScreen(typingWorldPos.x, typingWorldPos.y, $viewportOffset, $zoom);
 	}
 
 	onMount(() => {
@@ -2457,7 +2902,9 @@
 		arrows: $arrows,
 		selectedArrows: $selectedArrows,
 		diamonds: $diamonds,
-		selectedDiamonds: $selectedDiamonds
+		selectedDiamonds: $selectedDiamonds,
+		texts: $texts,
+		selectedTexts: $selectedTexts
 	};
 
 	$: if (ctx && canvas && !isCreatingShape && renderDependencies) {
@@ -2469,13 +2916,29 @@
 	<Toolbar />
 	<ZoomControls />
 	<UndoRedoControls />
-	<canvas
-		on:mousedown={handleMouseDown}
-		on:mousemove={handleMouseMove}
-		on:mouseup={handleMouseUp}
+	{#if isTypingText && typingWorldPos}
+		<textarea
+			bind:this={textInputRef}
+			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none text-transparent caret-black whitespace-pre overflow-hidden appearance-none"
+			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:sans-serif; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px;`}
+			spellcheck="false"
+			autocomplete="off"
+			autocapitalize="off"
+			rows="1"
+			bind:value={typingValue}
+			on:input={handleTextInputInput}
+			on:keydown={handleTextInputKeyDown}
+			on:blur={commitTypingText}
+		></textarea>
+	{/if}
+<canvas
+	on:mousedown={handleMouseDown}
+	on:mousemove={handleMouseMove}
+	on:mouseup={handleMouseUp}
+	on:dblclick={handleCanvasDoubleClick}
 		on:wheel={(e) => handleViewportScroll(e, canvas!)}
-		bind:this={canvas}
+	bind:this={canvas}
 		class="w-full h-full bg-stone-50"
-		tabindex="0"
-	></canvas>
+	tabindex="0"
+></canvas>
 </div>

@@ -1,5 +1,8 @@
-use crate::elements::{Ellipse, Rectangle, Line, Arrow, Diamond};
+const DEFAULT_TEXT_FONT_SIZE: f64 = 16.0;
+
+use crate::elements::{Arrow, Diamond, Ellipse, Line, Rectangle};
 use crate::geometry::Point;
+use crate::Text;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -9,6 +12,7 @@ struct DocumentSnapshot {
     lines: Vec<Line>,
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
+    texts: Vec<Text>,
     next_id: u64,
 }
 
@@ -18,6 +22,7 @@ pub struct Document {
     lines: Vec<Line>,
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
+    texts: Vec<Text>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
     history_index: usize,
@@ -32,6 +37,7 @@ impl Document {
             lines: Vec::new(),
             arrows: Vec::new(),
             diamonds: Vec::new(),
+            texts: Vec::new(),
             next_id: 0,
             history: Vec::new(),
             history_index: 0,
@@ -48,25 +54,28 @@ impl Document {
             lines: self.lines.clone(),
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
+            texts: self.texts.clone(),
             next_id: self.next_id,
         };
-        
+
         if self.history_index > 0 {
             let last_snapshot = &self.history[self.history_index - 1];
-            if last_snapshot.rectangles == snapshot.rectangles &&
-               last_snapshot.ellipses == snapshot.ellipses &&
-               last_snapshot.lines == snapshot.lines &&
-               last_snapshot.arrows == snapshot.arrows &&
-               last_snapshot.diamonds == snapshot.diamonds &&
-               last_snapshot.next_id == snapshot.next_id {
+            if last_snapshot.rectangles == snapshot.rectangles
+                && last_snapshot.ellipses == snapshot.ellipses
+                && last_snapshot.lines == snapshot.lines
+                && last_snapshot.arrows == snapshot.arrows
+                && last_snapshot.diamonds == snapshot.diamonds
+                && last_snapshot.texts == snapshot.texts
+                && last_snapshot.next_id == snapshot.next_id
+            {
                 return;
             }
         }
-        
+
         self.history.truncate(self.history_index);
         self.history.push(snapshot);
         self.history_index = self.history.len();
-        
+
         if self.history.len() > self.max_history {
             self.history.remove(0);
             self.history_index -= 1;
@@ -79,6 +88,7 @@ impl Document {
         self.lines = snapshot.lines.clone();
         self.arrows = snapshot.arrows.clone();
         self.diamonds = snapshot.diamonds.clone();
+        self.texts = snapshot.texts.clone();
         self.next_id = snapshot.next_id;
     }
 
@@ -120,10 +130,16 @@ impl Document {
         id
     }
 
-    pub fn add_rectangle_without_snapshot(&mut self, position: Point, width: f64, height: f64) -> u64 {
+    pub fn add_rectangle_without_snapshot(
+        &mut self,
+        position: Point,
+        width: f64,
+        height: f64,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.rectangles.push(Rectangle::new(id, position, width, height));
+        self.rectangles
+            .push(Rectangle::new(id, position, width, height));
         id
     }
 
@@ -177,10 +193,16 @@ impl Document {
         id
     }
 
-    pub fn add_diamond_without_snapshot(&mut self, position: Point, width: f64, height: f64) -> u64 {
+    pub fn add_diamond_without_snapshot(
+        &mut self,
+        position: Point,
+        width: f64,
+        height: f64,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.diamonds.push(Diamond::new(id, position, width, height));
+        self.diamonds
+            .push(Diamond::new(id, position, width, height));
         id
     }
 
@@ -234,10 +256,16 @@ impl Document {
         id
     }
 
-    pub fn add_ellipse_without_snapshot(&mut self, position: Point, radius_x: f64, radius_y: f64) -> u64 {
+    pub fn add_ellipse_without_snapshot(
+        &mut self,
+        position: Point,
+        radius_x: f64,
+        radius_y: f64,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.ellipses.push(Ellipse::new(id, position, radius_x, radius_y));
+        self.ellipses
+            .push(Ellipse::new(id, position, radius_x, radius_y));
         id
     }
 
@@ -373,6 +401,88 @@ impl Document {
         existed
     }
 
+    pub fn add_text(&mut self, position: Point, text: String) -> u64 {
+        self.add_text_with_size(position, text, DEFAULT_TEXT_FONT_SIZE, true)
+    }
+
+    pub fn add_text_without_snapshot(&mut self, position: Point, text: String) -> u64 {
+        self.add_text_with_size(position, text, DEFAULT_TEXT_FONT_SIZE, false)
+    }
+
+    pub fn add_text_with_size_without_snapshot(&mut self, position: Point, text: String, font_size: f64) -> u64 {
+        self.add_text_with_size(position, text, font_size, false)
+    }
+
+    fn add_text_with_size(&mut self, position: Point, text: String, font_size: f64, save_snapshot: bool) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.texts.push(Text::new(id, position, text, font_size));
+        if save_snapshot {
+            self.save_snapshot();
+        }
+        id
+    }
+
+    pub fn get_texts(&self) -> &[Text] {
+        &self.texts
+    }
+
+    pub fn move_text(&mut self, id: u64, new_position: Point, save_history: bool) {
+        if let Some(text) = self.texts.iter().find(|t| t.id == id) {
+            if text.position != new_position {
+                if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+                    text.position = new_position;
+                }
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn update_text(&mut self, id: u64, new_text: String, save_history: bool) {
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            if text.text != new_text {
+                text.text = new_text;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn delete_text(&mut self, id: u64) {
+        let existed = self.delete_text_without_snapshot(id);
+        if existed {
+            self.save_snapshot();
+        }
+    }
+
+    pub fn delete_text_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.texts.iter().any(|t| t.id == id);
+        self.texts.retain(|t| t.id != id);
+        existed
+    }
+
+    pub fn resize_text(&mut self, id: u64, new_font_size: f64, save_history: bool) {
+        let clamped = new_font_size.max(4.0);
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            if (text.font_size - clamped).abs() > f64::EPSILON {
+                text.font_size = clamped;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn resize_text_without_snapshot(&mut self, id: u64, new_font_size: f64) {
+        let clamped = new_font_size.max(4.0);
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.font_size = clamped;
+        }
+    }
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
@@ -380,6 +490,7 @@ impl Document {
             lines: self.lines.clone(),
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
+            texts: self.texts.clone(),
             next_id: self.next_id,
         };
         serde_json::to_string(&snapshot).unwrap_or_default()
