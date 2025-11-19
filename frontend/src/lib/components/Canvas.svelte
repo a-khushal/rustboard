@@ -1735,65 +1735,101 @@ let groupResizePadding = 0;
 		
 		$selectedRectangles.forEach(rect => {
 			const isDragged = isDragging && selectedShapesStartPositions.rectangles.has(rect.id);
-			let x: number, y: number;
-			if (isDragged) {
+			const isResized = isResizing && resizePreview && resizePreview.type === 'rectangle' && resizePreview.id === rect.id;
+			let x: number, y: number, width: number, height: number;
+			if (isResized && resizePreview) {
+				x = resizePreview.x;
+				y = resizePreview.y;
+				width = resizePreview.width;
+				height = resizePreview.height;
+			} else if (isDragged) {
 				const startPos = selectedShapesStartPositions.rectangles.get(rect.id)!;
 				x = startPos.x + dragOffset.x;
 				y = startPos.y + dragOffset.y;
+				width = rect.width;
+				height = rect.height;
 			} else {
 				x = rect.position.x;
 				y = rect.position.y;
+				width = rect.width;
+				height = rect.height;
 			}
 			allSelectedShapes.push({
 				minX: x,
 				minY: y,
-				maxX: x + rect.width,
-				maxY: y + rect.height
+				maxX: x + width,
+				maxY: y + height
 			});
 		});
 		
 		$selectedEllipses.forEach(ellipse => {
 			const isDragged = isDragging && selectedShapesStartPositions.ellipses.has(ellipse.id);
-			let x: number, y: number;
-			if (isDragged) {
+			const isResized = isResizing && resizePreview && resizePreview.type === 'ellipse' && resizePreview.id === ellipse.id;
+			let x: number, y: number, radiusX: number, radiusY: number;
+			if (isResized && resizePreview) {
+				x = resizePreview.x;
+				y = resizePreview.y;
+				radiusX = resizePreview.width / 2;
+				radiusY = resizePreview.height / 2;
+			} else if (isDragged) {
 				const startPos = selectedShapesStartPositions.ellipses.get(ellipse.id)!;
 				x = startPos.x + dragOffset.x;
 				y = startPos.y + dragOffset.y;
+				radiusX = ellipse.radius_x;
+				radiusY = ellipse.radius_y;
 			} else {
 				x = ellipse.position.x;
 				y = ellipse.position.y;
+				radiusX = ellipse.radius_x;
+				radiusY = ellipse.radius_y;
 			}
 			allSelectedShapes.push({
-				minX: x - ellipse.radius_x,
-				minY: y - ellipse.radius_y,
-				maxX: x + ellipse.radius_x,
-				maxY: y + ellipse.radius_y
+				minX: x - radiusX,
+				minY: y - radiusY,
+				maxX: x + radiusX,
+				maxY: y + radiusY
 			});
 		});
 		
 		$selectedDiamonds.forEach(diamond => {
 			const isDragged = isDragging && selectedShapesStartPositions.diamonds.has(diamond.id);
-			let x: number, y: number;
-			if (isDragged) {
+			const isResized = isResizing && resizePreview && resizePreview.type === 'diamond' && resizePreview.id === diamond.id;
+			let x: number, y: number, width: number, height: number;
+			if (isResized && resizePreview) {
+				x = resizePreview.x;
+				y = resizePreview.y;
+				width = resizePreview.width;
+				height = resizePreview.height;
+			} else if (isDragged) {
 				const startPos = selectedShapesStartPositions.diamonds.get(diamond.id)!;
 				x = startPos.x + dragOffset.x;
 				y = startPos.y + dragOffset.y;
+				width = diamond.width;
+				height = diamond.height;
 			} else {
 				x = diamond.position.x;
 				y = diamond.position.y;
+				width = diamond.width;
+				height = diamond.height;
 			}
 			allSelectedShapes.push({
 				minX: x,
 				minY: y,
-				maxX: x + diamond.width,
-				maxY: y + diamond.height
+				maxX: x + width,
+				maxY: y + height
 			});
 		});
 		
 		$selectedLines.forEach(line => {
 			const isDragged = isDragging && selectedShapesStartPositions.lines.has(line.id);
+			const isResized = isResizing && resizePreview && resizePreview.type === 'line' && resizePreview.id === line.id;
 			let startX: number, startY: number, endX: number, endY: number;
-			if (isDragged) {
+			if (isResized && resizePreview) {
+				startX = resizePreview.x;
+				startY = resizePreview.y;
+				endX = resizePreview.x + resizePreview.width;
+				endY = resizePreview.y + resizePreview.height;
+			} else if (isDragged) {
 				const startPos = selectedShapesStartPositions.lines.get(line.id)!;
 				startX = startPos.start.x + dragOffset.x;
 				startY = startPos.start.y + dragOffset.y;
@@ -1815,8 +1851,14 @@ let groupResizePadding = 0;
 		
 		$selectedArrows.forEach(arrow => {
 			const isDragged = isDragging && selectedShapesStartPositions.arrows.has(arrow.id);
+			const isResized = isResizing && resizePreview && resizePreview.type === 'arrow' && resizePreview.id === arrow.id;
 			let startX: number, startY: number, endX: number, endY: number;
-			if (isDragged) {
+			if (isResized && resizePreview) {
+				startX = resizePreview.x;
+				startY = resizePreview.y;
+				endX = resizePreview.x + resizePreview.width;
+				endY = resizePreview.y + resizePreview.height;
+			} else if (isDragged) {
 				const startPos = selectedShapesStartPositions.arrows.get(arrow.id)!;
 				startX = startPos.start.x + dragOffset.x;
 				startY = startPos.start.y + dragOffset.y;
@@ -2244,9 +2286,11 @@ function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox,
 			);
 			renderCtx.stroke();
 		}
-		
+
 		const groupBoundingBoxRaw =
-			totalSelectionCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
+			totalSelectionCount > 1 
+				? (isGroupResizing ? calculateGroupBoundingBox() : (groupResizeCurrentBox ?? calculateGroupBoundingBox()))
+				: null;
 		const groupBoundingBox =
 			groupBoundingBoxRaw && totalSelectionCount > 1
 				? expandBoundingBox(groupBoundingBoxRaw, getSelectionPaddingValue($zoom))
