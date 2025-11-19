@@ -142,7 +142,28 @@ let resizeStartTextAscent = 0;
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '=' || event.key === '-')) {
 			event.preventDefault();
-			if (event.key === '+' || event.key === '=') {
+			const isPlus = event.key === '+' || event.key === '=';
+			
+			if (isTypingText && typingTextId !== null) {
+				const delta = isPlus ? 2 : -2;
+				const newSize = Math.max(4, typingFontSize + delta);
+				typingFontSize = newSize;
+				typingLayout = measureMultilineText(typingValue, typingFontSize, ctx ?? undefined);
+				setTextFontSize(typingTextId, newSize, false);
+				return;
+			}
+
+			if ($selectedTexts.length > 0 && !isTypingText) {
+				const delta = isPlus ? 2 : -2;
+				$selectedTexts.forEach(text => {
+					const currentSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+					const newSize = Math.max(4, currentSize + delta);
+					setTextFontSize(text.id, newSize, true);
+				});
+				return;
+			}
+
+			if (isPlus) {
 				zoomIn();
 			} else if (event.key === '-') {
 				zoomOut();
@@ -380,7 +401,7 @@ let resizeStartTextAscent = 0;
 	}
 
 	function handleTextInputKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Enter' && !event.shiftKey) {
+		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
 			event.preventDefault();
 			commitTypingText();
 		} else if (event.key === 'Escape') {
@@ -482,52 +503,13 @@ let resizeStartTextAscent = 0;
 		const handles = getHandlePositions(box);
 
 		for (let i = 0; i < handles.length; i++) {
-			if (i < 4) {
-				const handle = handles[i];
-				if (
-					Math.abs(x - handle.x) <= halfHandle &&
-					Math.abs(y - handle.y) <= halfHandle
-				) {
-					return i;
-				}
+			const handle = handles[i];
+			if (
+				Math.abs(x - handle.x) <= halfHandle &&
+				Math.abs(y - handle.y) <= halfHandle
+			) {
+				return i;
 			}
-		}
-
-		const left = box.x;
-		const right = box.x + box.width;
-		const top = box.y;
-		const bottom = box.y + box.height;
-
-		if (
-			Math.abs(y - top) <= edgeTolerance &&
-			x >= left - edgeTolerance &&
-			x <= right + edgeTolerance
-		) {
-			return 4;
-		}
-
-		if (
-			Math.abs(x - right) <= edgeTolerance &&
-			y >= top - edgeTolerance &&
-			y <= bottom + edgeTolerance
-		) {
-			return 5;
-		}
-
-		if (
-			Math.abs(y - bottom) <= edgeTolerance &&
-			x >= left - edgeTolerance &&
-			x <= right + edgeTolerance
-		) {
-			return 6;
-		}
-
-		if (
-			Math.abs(x - left) <= edgeTolerance &&
-			y >= top - edgeTolerance &&
-			y <= bottom + edgeTolerance
-		) {
-			return 7;
 		}
 
 		return null;
@@ -960,7 +942,7 @@ let resizeStartTextAscent = 0;
 		if (!canvas) return;
 
 		event.preventDefault();
-		canvas.focus();
+		canvas.focus({ preventScroll: true });
 
 		if (isTypingText) {
 			commitTypingText();
@@ -1626,40 +1608,43 @@ let resizeStartTextAscent = 0;
 				};
 				scheduleRender();
 			} else if (resizeStartShapeType === 'text') {
-				const text = resizeStartShape as Text;
-				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
-				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
-				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
-				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
-				
-				let left = resizeStartPos.x;
-				let right = resizeStartPos.x + resizeStartPos.width;
-				let top = resizeStartPos.y;
-				let bottom = resizeStartPos.y + resizeStartPos.height;
-				
-				if (affectsLeft) left = resizeStartPos.x + deltaX;
-				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
-				if (affectsTop) top = resizeStartPos.y + deltaY;
-				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
-				
-				const finalLeft = Math.min(left, right);
-				const finalRight = Math.max(left, right);
-				const finalTop = Math.min(top, bottom);
-				const finalBottom = Math.max(top, bottom);
-				
-				const newWidth = Math.max(10, finalRight - finalLeft);
-				const newHeight = Math.max(10, finalBottom - finalTop);
-				const startWidth = Math.max(1, resizeStartPos.width);
-				const startHeight = Math.max(1, resizeStartPos.height);
-				const widthScale = newWidth / startWidth;
-				const heightScale = newHeight / startHeight;
-				const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
-				const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
-				const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
-				const newBaseline = finalTop + previewLayout.ascent;
-				
-				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
-				scheduleRender();
+			const text = resizeStartShape as Text;
+			const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+			const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+			const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+			const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+
+			const startBoxTop = resizeStartPos.y - resizeStartTextAscent;
+			const startBoxBottom = startBoxTop + resizeStartPos.height;
+			
+			let left = resizeStartPos.x;
+			let right = resizeStartPos.x + resizeStartPos.width;
+			let top = startBoxTop;
+			let bottom = startBoxBottom;
+			
+			if (affectsLeft) left = resizeStartPos.x + deltaX;
+			if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+			if (affectsTop) top = startBoxTop + deltaY;
+			if (affectsBottom) bottom = startBoxBottom + deltaY;
+			
+			const finalLeft = Math.min(left, right);
+			const finalRight = Math.max(left, right);
+			const finalTop = Math.min(top, bottom);
+			const finalBottom = Math.max(top, bottom);
+			
+			const newWidth = Math.max(10, finalRight - finalLeft);
+			const newHeight = Math.max(10, finalBottom - finalTop);
+			const startWidth = Math.max(1, resizeStartPos.width);
+			const startHeight = Math.max(1, resizeStartPos.height);
+			const widthScale = newWidth / startWidth;
+			const heightScale = newHeight / startHeight;
+			const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
+			const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
+			const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
+			const newBaseline = finalTop + previewLayout.ascent;
+			
+			resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
+			scheduleRender();
 			}
 			return;
 		}
@@ -1735,6 +1720,14 @@ let resizeStartTextAscent = 0;
 						const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
 						if (handleIndex !== null) {
 							canvas.style.cursor = 'pointer';
+							return;
+						}
+					}
+					
+					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(x, y, $selectedTexts[i], 'text', $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
 						}
 					}
@@ -2159,7 +2152,7 @@ let resizeStartTextAscent = 0;
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 2 / zoom;
 		
-		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight }).slice(0, 4);
+		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight });
 		
 		handles.forEach((handle) => {
 			ctx.beginPath();
@@ -2769,6 +2762,7 @@ let resizeStartTextAscent = 0;
 		}
 		
 		$texts.forEach((text: Text) => {
+			if (isTypingText && text.id === typingTextId) return;
 			const isSelected = $selectedTexts.some(selected => selected.id === text.id);
 			const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts.has(text.id);
 			const isResizedText = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id && resizePreview.fontSize;
@@ -2919,7 +2913,7 @@ let resizeStartTextAscent = 0;
 	{#if isTypingText && typingWorldPos}
 		<textarea
 			bind:this={textInputRef}
-			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none text-transparent caret-black whitespace-pre overflow-hidden appearance-none"
+			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre overflow-hidden appearance-none"
 			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:sans-serif; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px;`}
 			spellcheck="false"
 			autocomplete="off"
