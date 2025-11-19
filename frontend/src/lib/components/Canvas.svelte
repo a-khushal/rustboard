@@ -73,10 +73,11 @@
 			arrows: new Map()
 		};
 	let isGroupResizing = false;
-let groupResizeHandleIndex: number | null = null;
-let groupResizeStartBox: BoundingBox | null = null;
-let groupResizeCurrentBox: BoundingBox | null = null;
-let groupResizePadding = 0;
+	let groupResizeHandleIndex: number | null = null;
+	let groupResizeStartBox: BoundingBox | null = null;
+	let groupResizeCurrentBox: BoundingBox | null = null;
+	let groupResizePadding = 0;
+	let groupResizeStartMousePos = { x: 0, y: 0 };
 	let renderDependencies: Record<string, unknown> | null = null;
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 
@@ -450,27 +451,6 @@ let groupResizePadding = 0;
 		const startRight = start.x + start.width;
 		const startTop = start.y;
 		const startBottom = start.y + start.height;
-		const padding = groupResizePadding;
-
-		const adjustX = (value: number): number => {
-			if (groupResizeHandleIndex === 0 || groupResizeHandleIndex === 3 || groupResizeHandleIndex === 7) {
-				return value + padding;
-			}
-			if (groupResizeHandleIndex === 1 || groupResizeHandleIndex === 2 || groupResizeHandleIndex === 5) {
-				return value - padding;
-			}
-			return value;
-		};
-
-		const adjustY = (value: number): number => {
-			if (groupResizeHandleIndex === 0 || groupResizeHandleIndex === 1 || groupResizeHandleIndex === 4) {
-				return value + padding;
-			}
-			if (groupResizeHandleIndex === 2 || groupResizeHandleIndex === 3 || groupResizeHandleIndex === 6) {
-				return value - padding;
-			}
-			return value;
-		};
 
 		let newLeft = startLeft;
 		let newRight = startRight;
@@ -479,32 +459,32 @@ let groupResizePadding = 0;
 
 		switch (groupResizeHandleIndex) {
 			case 0:
-				newLeft = adjustX(targetX);
-				newTop = adjustY(targetY);
+				newLeft = targetX;
+				newTop = targetY;
 				break;
 			case 1:
-				newRight = adjustX(targetX);
-				newTop = adjustY(targetY);
+				newRight = targetX;
+				newTop = targetY;
 				break;
 			case 2:
-				newRight = adjustX(targetX);
-				newBottom = adjustY(targetY);
+				newRight = targetX;
+				newBottom = targetY;
 				break;
 			case 3:
-				newLeft = adjustX(targetX);
-				newBottom = adjustY(targetY);
+				newLeft = targetX;
+				newBottom = targetY;
 				break;
 			case 4:
-				newTop = adjustY(targetY);
+				newTop = targetY;
 				break;
 			case 5:
-				newRight = adjustX(targetX);
+				newRight = targetX;
 				break;
 			case 6:
-				newBottom = adjustY(targetY);
+				newBottom = targetY;
 				break;
 			case 7:
-				newLeft = adjustX(targetX);
+				newLeft = targetX;
 				break;
 		}
 
@@ -528,25 +508,40 @@ let groupResizePadding = 0;
 	function resizeSelectedShapesToBox(targetBox: BoundingBox, saveHistory: boolean) {
 		if (!groupResizeStartBox) return;
 		const startBox = groupResizeStartBox;
-		const scaleX =
-			startBox.width === 0
-				? (Math.sign(targetBox.rawWidth ?? targetBox.width) || 1)
-				: (targetBox.rawWidth ?? targetBox.width) / startBox.width;
-		const scaleY =
-			startBox.height === 0
-				? (Math.sign(targetBox.rawHeight ?? targetBox.height) || 1)
-				: (targetBox.rawHeight ?? targetBox.height) / startBox.height;
+		const rawScaleX = startBox.width === 0
+			? (Math.sign(targetBox.rawWidth ?? targetBox.width) || 1)
+			: (targetBox.rawWidth ?? targetBox.width) / startBox.width;
+		const rawScaleY = startBox.height === 0
+			? (Math.sign(targetBox.rawHeight ?? targetBox.height) || 1)
+			: (targetBox.rawHeight ?? targetBox.height) / startBox.height;
+		
+		const absScaleX = Math.abs(rawScaleX);
+		const absScaleY = Math.abs(rawScaleY);
+		const isFlippedX = rawScaleX < 0;
+		const isFlippedY = rawScaleY < 0;
 
-		const originX = scaleX >= 0 ? targetBox.x : targetBox.x + targetBox.width;
-		const originY = scaleY >= 0 ? targetBox.y : targetBox.y + targetBox.height;
+		const originX = isFlippedX ? targetBox.x + targetBox.width : targetBox.x;
+		const originY = isFlippedY ? targetBox.y + targetBox.height : targetBox.y;
 
 		selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
 			const relativeX = startPos.x - startBox.x;
 			const relativeY = startPos.y - startBox.y;
-			const newX = originX + relativeX * scaleX;
-			const newY = originY + relativeY * scaleY;
-			const newWidth = Math.abs(startPos.width * scaleX);
-			const newHeight = Math.abs(startPos.height * scaleY);
+			const newWidth = startPos.width * absScaleX;
+			const newHeight = startPos.height * absScaleY;
+			
+			let newX: number;
+			let newY: number;
+			if (isFlippedX) {
+				newX = originX - relativeX * absScaleX - newWidth;
+			} else {
+				newX = originX + relativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newY = originY - relativeY * absScaleY - newHeight;
+			} else {
+				newY = originY + relativeY * absScaleY;
+			}
+			
 			moveRectangle(id, newX, newY, saveHistory);
 			resizeRectangle(id, newWidth, newHeight, saveHistory);
 		});
@@ -554,10 +549,22 @@ let groupResizePadding = 0;
 		selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
 			const relativeX = startPos.x - startBox.x;
 			const relativeY = startPos.y - startBox.y;
-			const newX = originX + relativeX * scaleX;
-			const newY = originY + relativeY * scaleY;
-			const newRadiusX = Math.abs(startPos.radius_x * scaleX);
-			const newRadiusY = Math.abs(startPos.radius_y * scaleY);
+			const newRadiusX = startPos.radius_x * absScaleX;
+			const newRadiusY = startPos.radius_y * absScaleY;
+			
+			let newX: number;
+			let newY: number;
+			if (isFlippedX) {
+				newX = originX - relativeX * absScaleX;
+			} else {
+				newX = originX + relativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newY = originY - relativeY * absScaleY;
+			} else {
+				newY = originY + relativeY * absScaleY;
+			}
+			
 			moveEllipse(id, newX, newY, saveHistory);
 			resizeEllipse(id, newRadiusX, newRadiusY, saveHistory);
 		});
@@ -565,10 +572,22 @@ let groupResizePadding = 0;
 		selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
 			const relativeX = startPos.x - startBox.x;
 			const relativeY = startPos.y - startBox.y;
-			const newX = originX + relativeX * scaleX;
-			const newY = originY + relativeY * scaleY;
-			const newWidth = Math.abs(startPos.width * scaleX);
-			const newHeight = Math.abs(startPos.height * scaleY);
+			const newWidth = startPos.width * absScaleX;
+			const newHeight = startPos.height * absScaleY;
+			
+			let newX: number;
+			let newY: number;
+			if (isFlippedX) {
+				newX = originX - relativeX * absScaleX - newWidth;
+			} else {
+				newX = originX + relativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newY = originY - relativeY * absScaleY - newHeight;
+			} else {
+				newY = originY + relativeY * absScaleY;
+			}
+			
 			moveDiamond(id, newX, newY, saveHistory);
 			resizeDiamond(id, newWidth, newHeight, saveHistory);
 		});
@@ -578,10 +597,27 @@ let groupResizePadding = 0;
 			const startRelativeY = startPos.start.y - startBox.y;
 			const endRelativeX = startPos.end.x - startBox.x;
 			const endRelativeY = startPos.end.y - startBox.y;
-			const newStartX = originX + startRelativeX * scaleX;
-			const newStartY = originY + startRelativeY * scaleY;
-			const newEndX = originX + endRelativeX * scaleX;
-			const newEndY = originY + endRelativeY * scaleY;
+			
+			let newStartX: number;
+			let newStartY: number;
+			let newEndX: number;
+			let newEndY: number;
+			
+			if (isFlippedX) {
+				newStartX = originX - startRelativeX * absScaleX;
+				newEndX = originX - endRelativeX * absScaleX;
+			} else {
+				newStartX = originX + startRelativeX * absScaleX;
+				newEndX = originX + endRelativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newStartY = originY - startRelativeY * absScaleY;
+				newEndY = originY - endRelativeY * absScaleY;
+			} else {
+				newStartY = originY + startRelativeY * absScaleY;
+				newEndY = originY + endRelativeY * absScaleY;
+			}
+			
 			moveLine(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
 		});
 
@@ -590,10 +626,27 @@ let groupResizePadding = 0;
 			const startRelativeY = startPos.start.y - startBox.y;
 			const endRelativeX = startPos.end.x - startBox.x;
 			const endRelativeY = startPos.end.y - startBox.y;
-			const newStartX = originX + startRelativeX * scaleX;
-			const newStartY = originY + startRelativeY * scaleY;
-			const newEndX = originX + endRelativeX * scaleX;
-			const newEndY = originY + endRelativeY * scaleY;
+			
+			let newStartX: number;
+			let newStartY: number;
+			let newEndX: number;
+			let newEndY: number;
+			
+			if (isFlippedX) {
+				newStartX = originX - startRelativeX * absScaleX;
+				newEndX = originX - endRelativeX * absScaleX;
+			} else {
+				newStartX = originX + startRelativeX * absScaleX;
+				newEndX = originX + endRelativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newStartY = originY - startRelativeY * absScaleY;
+				newEndY = originY - endRelativeY * absScaleY;
+			} else {
+				newStartY = originY + startRelativeY * absScaleY;
+				newEndY = originY + endRelativeY * absScaleY;
+			}
+			
 			moveArrow(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
 		});
 	}
@@ -823,6 +876,23 @@ let groupResizePadding = 0;
 					groupResizeStartBox = rawGroupBox;
 					groupResizeCurrentBox = rawGroupBox;
 					groupResizePadding = selectionPaddingValue;
+					
+					let adjustedX = x;
+					let adjustedY = y;
+					if (groupHandleIndex === 0 || groupHandleIndex === 3 || groupHandleIndex === 7) {
+						adjustedX = x - selectionPaddingValue;
+					}
+					if (groupHandleIndex === 1 || groupHandleIndex === 2 || groupHandleIndex === 5) {
+						adjustedX = x + selectionPaddingValue;
+					}
+					if (groupHandleIndex === 0 || groupHandleIndex === 1 || groupHandleIndex === 4) {
+						adjustedY = y - selectionPaddingValue;
+					}
+					if (groupHandleIndex === 2 || groupHandleIndex === 3 || groupHandleIndex === 6) {
+						adjustedY = y + selectionPaddingValue;
+					}
+					groupResizeStartMousePos = { x: adjustedX, y: adjustedY };
+					
 					storeSelectedShapesStartPositions();
 					if ($editorApi) {
 						$editorApi.save_snapshot();
@@ -1004,7 +1074,24 @@ let groupResizePadding = 0;
 		const { x, y } = worldPos;
 		
 		if (isGroupResizing && groupResizeHandleIndex !== null) {
-			const newBox = computeGroupResizeBox(x, y);
+			const padding = groupResizePadding;
+			let adjustedX = x;
+			let adjustedY = y;
+			
+			if (groupResizeHandleIndex === 0 || groupResizeHandleIndex === 3 || groupResizeHandleIndex === 7) {
+				adjustedX = x - padding;
+			}
+			if (groupResizeHandleIndex === 1 || groupResizeHandleIndex === 2 || groupResizeHandleIndex === 5) {
+				adjustedX = x + padding;
+			}
+			if (groupResizeHandleIndex === 0 || groupResizeHandleIndex === 1 || groupResizeHandleIndex === 4) {
+				adjustedY = y - padding;
+			}
+			if (groupResizeHandleIndex === 2 || groupResizeHandleIndex === 3 || groupResizeHandleIndex === 6) {
+				adjustedY = y + padding;
+			}
+			
+			const newBox = computeGroupResizeBox(adjustedX, adjustedY);
 			if (newBox) {
 				groupResizeCurrentBox = newBox;
 				resizeSelectedShapesToBox(newBox, false);
@@ -1228,7 +1315,7 @@ let groupResizePadding = 0;
 					newEndX = resizeStartPos.x + resizeStartPos.width + deltaX;
 					newEndY = resizeStartPos.y + resizeStartPos.height + deltaY;
 				}
-				
+
 				if (isShiftPressedDuringResize) {
 					const dx = newEndX - newStartX;
 					const dy = newEndY - newStartY;
@@ -1512,6 +1599,7 @@ let groupResizePadding = 0;
 			groupResizeStartBox = null;
 			groupResizeCurrentBox = null;
 			groupResizePadding = 0;
+			groupResizeStartMousePos = { x: 0, y: 0 };
 		}
 		
 		if (isDragging && draggedShape && $editorApi) {
@@ -1894,13 +1982,13 @@ let groupResizePadding = 0;
 		};
 	}
 
-function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
+	function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 1 / zoom;
-		ctx.setLineDash([5 / zoom, 5 / zoom]);
+		ctx.setLineDash([2.5 / zoom, 2.5 / zoom]);
 		ctx.strokeRect(box.x, box.y, box.width, box.height);
 		ctx.setLineDash([]);
-	renderGroupResizeHandles(ctx, box, zoom);
+		renderGroupResizeHandles(ctx, box, zoom);
 	}
 
 	function render() {
