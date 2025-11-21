@@ -53,9 +53,9 @@
 					<polyline points="9,5 12,8 9,11"/>
 				</svg>
 			{:else if tool.icon === 'text'}
-				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 15 15">
-					<path fill="currentColor" fill-rule="evenodd" d="M3.95 2.95V4.5a.45.45 0 0 1-.9 0v-2a.45.45 0 0 1 .45-.45h8a.45.45 0 0 1 .45.45v2a.45.45 0 1 1-.9 0V2.95h-3v9.1h1.204a.45.45 0 0 1 0 .9h-3.5a.45.45 0 1 1 0-.9H6.95v-9.1h-3Z" clip-rule="evenodd">
-					</path>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+					<line x1="4" y1="3" x2="12" y2="3" />
+					<line x1="8" y1="3" x2="8" y2="13" />
 				</svg>
 			{/if}
 		</button>

@@ -117,7 +117,7 @@ let resizeStartTextAscent = 0;
 		}
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
-			event.preventDefault();
+		event.preventDefault();
 			if ($editorApi) {
 				const success = event.shiftKey ? $editorApi.redo() : $editorApi.undo();
 				if (success) {
@@ -298,38 +298,45 @@ let resizeStartTextAscent = 0;
 		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
 		zoom: number
 	): number | null {
+		const padding = getSelectionPaddingValue(zoom);
 		const gap = 4 / zoom;
 		
 		let boxX: number, boxY: number, boxWidth: number, boxHeight: number;
 		
 		if (shapeType === 'rectangle') {
 			const rect = shape as Rectangle;
-			boxX = rect.position.x - gap;
-			boxY = rect.position.y - gap;
-			boxWidth = rect.width + gap * 2;
-			boxHeight = rect.height + gap * 2;
+			boxX = rect.position.x - padding - gap;
+			boxY = rect.position.y - padding - gap;
+			boxWidth = rect.width + (padding + gap) * 2;
+			boxHeight = rect.height + (padding + gap) * 2;
 		} else if (shapeType === 'diamond') {
 			const diamond = shape as Diamond;
-			boxX = diamond.position.x - gap;
-			boxY = diamond.position.y - gap;
-			boxWidth = diamond.width + gap * 2;
-			boxHeight = diamond.height + gap * 2;
+			boxX = diamond.position.x - padding - gap;
+			boxY = diamond.position.y - padding - gap;
+			boxWidth = diamond.width + (padding + gap) * 2;
+			boxHeight = diamond.height + (padding + gap) * 2;
 		} else if (shapeType === 'text') {
 			const text = shape as Text;
 			const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
-			boxX = text.position.x - gap;
-			boxY = text.position.y - layout.ascent - gap;
-			boxWidth = layout.width + gap * 2;
-			boxHeight = layout.height + gap * 2;
+			const horizontalPadding = 4 / zoom;
+			const verticalPadding = 4 / zoom;
+			boxX = text.position.x - horizontalPadding - gap;
+			boxY = text.position.y - layout.ascent - verticalPadding - gap;
+			boxWidth = layout.width + (horizontalPadding + gap) * 2;
+			boxHeight = layout.height + (verticalPadding + gap) * 2;
 		} else {
 			const ellipse = shape as Ellipse;
-			boxX = ellipse.position.x - ellipse.radius_x - gap;
-			boxY = ellipse.position.y - ellipse.radius_y - gap;
-			boxWidth = (ellipse.radius_x * 2) + gap * 2;
-			boxHeight = (ellipse.radius_y * 2) + gap * 2;
+			const x = ellipse.position.x - ellipse.radius_x;
+			const y = ellipse.position.y - ellipse.radius_y;
+			const width = ellipse.radius_x * 2;
+			const height = ellipse.radius_y * 2;
+			boxX = x - padding - gap;
+			boxY = y - padding - gap;
+			boxWidth = width + (padding + gap) * 2;
+			boxHeight = height + (padding + gap) * 2;
 		}
 		
-		return hitTestHandles(
+		return hitTestEdges(
 			x,
 			y,
 			{ x: boxX, y: boxY, width: boxWidth, height: boxHeight },
@@ -345,6 +352,15 @@ let resizeStartTextAscent = 0;
 		selectAll: boolean,
 		fontSize: number
 	) {
+		const savedViewportOffset = { ...$viewportOffset };
+		const savedScrollX = window.scrollX;
+		const savedScrollY = window.scrollY;
+		
+		const restoreViewport = () => {
+			viewportOffset.set(savedViewportOffset);
+			window.scrollTo(savedScrollX, savedScrollY);
+		};
+		
 		typingTextId = id;
 		typingValue = initialValue;
 		typingOriginalValue = originalValue;
@@ -353,15 +369,40 @@ let resizeStartTextAscent = 0;
 		typingFontSize = fontSize;
 		typingLayout = measureMultilineText(initialValue || '', typingFontSize, ctx ?? undefined);
 		isTypingText = true;
+		
+		restoreViewport();
+		
 		await tick();
+		restoreViewport();
+		
 		if (textInputRef) {
-			textInputRef.focus();
+			restoreViewport();
+			textInputRef.focus({ preventScroll: true });
+			restoreViewport();
+			
 			if (selectAll) {
 				textInputRef.select();
 			} else {
 				const caretPos = typingValue.length;
 				textInputRef.setSelectionRange(caretPos, caretPos);
 			}
+			
+			restoreViewport();
+			
+			const checkInterval = setInterval(() => {
+				if (!textInputRef || !isTypingText) {
+					clearInterval(checkInterval);
+					return;
+				}
+				if (window.scrollX !== savedScrollX || window.scrollY !== savedScrollY) {
+					window.scrollTo(savedScrollX, savedScrollY);
+				}
+				if ($viewportOffset.x !== savedViewportOffset.x || $viewportOffset.y !== savedViewportOffset.y) {
+					viewportOffset.set(savedViewportOffset);
+				}
+			}, 10);
+			
+			setTimeout(() => clearInterval(checkInterval), 500);
 		}
 	}
 
@@ -407,6 +448,14 @@ let resizeStartTextAscent = 0;
 		} else if (event.key === 'Escape') {
 			event.preventDefault();
 			cancelTypingText();
+		} else if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '=' || event.key === '-')) {
+			event.preventDefault();
+			const isPlus = event.key === '+' || event.key === '=';
+			if (isPlus) {
+				zoomIn();
+			} else {
+				zoomOut();
+			}
 		}
 	}
 
@@ -446,7 +495,7 @@ let resizeStartTextAscent = 0;
 	}
 
 	function startTypingExistingText(text: Text) {
-		selectedTexts.set([text]);
+		clearAllSelections();
 		startTypingSession(text.id, text.text, text.text, { x: text.position.x, y: text.position.y }, true, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE);
 	}
 
@@ -467,7 +516,7 @@ let resizeStartTextAscent = 0;
 	}
 
 	function getSelectionPaddingValue(currentZoom: number): number {
-		return 4 / currentZoom;
+		return 2 / currentZoom;
 	}
 
 	function worldToScreen(
@@ -515,6 +564,39 @@ let resizeStartTextAscent = 0;
 		return null;
 	}
 
+	function hitTestEdges(
+		x: number,
+		y: number,
+		box: { x: number; y: number; width: number; height: number },
+		zoom: number
+	): number | null {
+		const edgeTolerance = 8 / zoom;
+		const { x: boxX, y: boxY, width: boxWidth, height: boxHeight } = box;
+		const boxRight = boxX + boxWidth;
+		const boxBottom = boxY + boxHeight;
+		
+		const onTopEdge = Math.abs(y - boxY) <= edgeTolerance && x >= boxX && x <= boxRight;
+		const onRightEdge = Math.abs(x - boxRight) <= edgeTolerance && y >= boxY && y <= boxBottom;
+		const onBottomEdge = Math.abs(y - boxBottom) <= edgeTolerance && x >= boxX && x <= boxRight;
+		const onLeftEdge = Math.abs(x - boxX) <= edgeTolerance && y >= boxY && y <= boxBottom;
+		
+		const onTopLeftCorner = Math.abs(x - boxX) <= edgeTolerance && Math.abs(y - boxY) <= edgeTolerance;
+		const onTopRightCorner = Math.abs(x - boxRight) <= edgeTolerance && Math.abs(y - boxY) <= edgeTolerance;
+		const onBottomRightCorner = Math.abs(x - boxRight) <= edgeTolerance && Math.abs(y - boxBottom) <= edgeTolerance;
+		const onBottomLeftCorner = Math.abs(x - boxX) <= edgeTolerance && Math.abs(y - boxBottom) <= edgeTolerance;
+		
+		if (onTopLeftCorner) return 0;
+		if (onTopRightCorner) return 1;
+		if (onBottomRightCorner) return 2;
+		if (onBottomLeftCorner) return 3;
+		if (onTopEdge) return 4;
+		if (onRightEdge) return 5;
+		if (onBottomEdge) return 6;
+		if (onLeftEdge) return 7;
+		
+		return null;
+	}
+
 	function getLineResizeHandleAt(x: number, y: number, line: Line, zoom: number): number | null {
 		const handleSize = 8 / zoom;
 		const halfHandle = handleSize / 2;
@@ -555,7 +637,7 @@ let resizeStartTextAscent = 0;
 		selectedShapesStartPositions.arrows.clear();
 		selectedShapesStartPositions.texts.clear();
 		
-			$selectedRectangles.forEach(rect => {
+		$selectedRectangles.forEach(rect => {
 			selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height });
 		});
 		
@@ -581,19 +663,36 @@ let resizeStartTextAscent = 0;
 	}
 
 	function getGroupResizeHandleAt(x: number, y: number, box: BoundingBox, zoom: number): number | null {
-		return hitTestHandles(x, y, box, zoom);
+		const gap = 4 / zoom;
+		const outlineX = box.x - gap;
+		const outlineY = box.y - gap;
+		const outlineWidth = box.width + gap * 2;
+		const outlineHeight = box.height + gap * 2;
+		return hitTestEdges(x, y, { x: outlineX, y: outlineY, width: outlineWidth, height: outlineHeight }, zoom);
 	}
 
 	function renderGroupResizeHandles(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
 		const handleSize = 8 / zoom;
 		const halfHandle = handleSize / 2;
-		const handles = getHandlePositions(box).slice(0, 4);
+		const gap = 4 / zoom;
+		
+		const outlineX = box.x - gap;
+		const outlineY = box.y - gap;
+		const outlineWidth = box.width + gap * 2;
+		const outlineHeight = box.height + gap * 2;
 
 		ctx.fillStyle = '#ffffff';
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 2 / zoom;
 
-		handles.forEach(handle => {
+		const cornerHandles = [
+			{ x: outlineX, y: outlineY },
+			{ x: outlineX + outlineWidth, y: outlineY },
+			{ x: outlineX + outlineWidth, y: outlineY + outlineHeight },
+			{ x: outlineX, y: outlineY + outlineHeight }
+		];
+
+		cornerHandles.forEach(handle => {
 			ctx.beginPath();
 			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
 			ctx.fill();
@@ -874,7 +973,7 @@ let resizeStartTextAscent = 0;
 				);
 			} else if (!isAlreadySelected) {
 				selectedDiamonds.set([clickedDiamond]);
-			selectedRectangles.set([]);
+		selectedRectangles.set([]);
 				selectedEllipses.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
@@ -963,6 +1062,7 @@ let resizeStartTextAscent = 0;
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 
 		if (event.detail === 2 && ctx) {
+			event.preventDefault();
 			for (let i = $texts.length - 1; i >= 0; i--) {
 				if (isPointInText(x, y, $texts[i], ctx)) {
 					startTypingExistingText($texts[i]);
@@ -1189,13 +1289,13 @@ let resizeStartTextAscent = 0;
 					}
 					
 					draggedShape = clickedLine;
-					dragStartPos = { x, y };
+				dragStartPos = { x, y };
 					dragOffset = { x: 0, y: 0 };
 					storeSelectedShapesStartPositions();
 					isDragging = true;
-					return;
-				}
+				return;
 			}
+		}
 
 			for (let i = $arrows.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $arrows[i], 5 / $zoom)) {
@@ -1211,7 +1311,7 @@ let resizeStartTextAscent = 0;
 						);
 					} else if (!isAlreadySelected) {
 						selectedArrows.set([clickedArrow]);
-						selectedRectangles.set([]);
+		selectedRectangles.set([]);
 						selectedEllipses.set([]);
 						selectedDiamonds.set([]);
 						selectedLines.set([]);
@@ -1338,6 +1438,18 @@ let resizeStartTextAscent = 0;
 
 		const { x, y } = worldPos;
 		
+		if (isDragging && draggedShape) {
+			canvas.style.cursor = 'move';
+			const deltaX = x - dragStartPos.x;
+			const deltaY = y - dragStartPos.y;
+			
+			dragOffset = { x: deltaX, y: deltaY };
+			if (ctx && canvas) {
+				render();
+			}
+			return;
+		}
+		
 		if (isGroupResizing && groupResizeHandleIndex !== null) {
 			const padding = groupResizePadding;
 			let adjustedX = x;
@@ -1380,11 +1492,10 @@ let resizeStartTextAscent = 0;
 				const adjustsHorizontal = affectsLeft || affectsRight;
 				const adjustsVertical = affectsTop || affectsBottom;
 
-				const baseline = resizeStartPos.y;
 				let left = resizeStartPos.x;
 				let right = resizeStartPos.x + resizeStartPos.width;
-				let top = baseline - resizeStartTextAscent;
-				let bottom = top + resizeStartPos.height;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
 
 				if (affectsLeft) left = resizeStartPos.x + deltaX;
 				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
@@ -1616,16 +1727,40 @@ let resizeStartTextAscent = 0;
 
 			const startBoxTop = resizeStartPos.y - resizeStartTextAscent;
 			const startBoxBottom = startBoxTop + resizeStartPos.height;
+			const startRight = resizeStartPos.x + resizeStartPos.width;
 			
-			let left = resizeStartPos.x;
-			let right = resizeStartPos.x + resizeStartPos.width;
-			let top = startBoxTop;
-			let bottom = startBoxBottom;
+			let left: number;
+			let right: number;
+			let top: number;
+			let bottom: number;
 			
-			if (affectsLeft) left = resizeStartPos.x + deltaX;
-			if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
-			if (affectsTop) top = startBoxTop + deltaY;
-			if (affectsBottom) bottom = startBoxBottom + deltaY;
+			if (affectsLeft && affectsRight) {
+				left = resizeStartPos.x + deltaX;
+				right = startRight + deltaX;
+			} else if (affectsLeft) {
+				left = resizeStartPos.x + deltaX;
+				right = startRight;
+			} else if (affectsRight) {
+				left = resizeStartPos.x;
+				right = startRight + deltaX;
+			} else {
+				left = resizeStartPos.x;
+				right = startRight;
+			}
+			
+			if (affectsTop && affectsBottom) {
+				top = startBoxTop + deltaY;
+				bottom = startBoxBottom + deltaY;
+			} else if (affectsTop) {
+				top = startBoxTop + deltaY;
+				bottom = startBoxBottom;
+			} else if (affectsBottom) {
+				top = startBoxTop;
+				bottom = startBoxBottom + deltaY;
+			} else {
+				top = startBoxTop;
+				bottom = startBoxBottom;
+			}
 			
 			const finalLeft = Math.min(left, right);
 			const finalRight = Math.max(left, right);
@@ -1795,14 +1930,6 @@ let resizeStartTextAscent = 0;
 			selectionBoxEnd = { x, y };
 			scheduleRender();
 		}
-
-		if (isDragging && draggedShape && $editorApi) {
-			const deltaX = x - dragStartPos.x;
-			const deltaY = y - dragStartPos.y;
-			
-			dragOffset = { x: deltaX, y: deltaY };
-			scheduleRender();
-		}
 	}
 
 	function handleCanvasDoubleClick(event: MouseEvent) {
@@ -1823,7 +1950,7 @@ let resizeStartTextAscent = 0;
 		}
 	}
 	
-    function handleMouseUp() {
+	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
 		}
@@ -2135,7 +2262,7 @@ let resizeStartTextAscent = 0;
 	function renderResizeHandles(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {
 		const handleSize = 8 / zoom;
 		const halfHandle = handleSize / 2;
-		const gap = 4 / zoom;
+		const gap = 2 / zoom;
 		
 		const boxX = x - gap;
 		const boxY = y - gap;
@@ -2154,7 +2281,8 @@ let resizeStartTextAscent = 0;
 		
 		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight });
 		
-		handles.forEach((handle) => {
+		// Only render corner handles (indices 0-3), but keep all handles for hit-testing
+		handles.slice(0, 4).forEach((handle) => {
 			ctx.beginPath();
 			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
 			ctx.fill();
@@ -2175,8 +2303,47 @@ let resizeStartTextAscent = 0;
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 1 / zoom;
 		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
-		ctx.strokeRect(x - padding, y - padding, width + padding * 2, height + padding * 2);
+		const gap = 4 / zoom;
+		ctx.strokeRect(x - padding - gap, y - padding - gap, width + (padding + gap) * 2, height + (padding + gap) * 2);
 		ctx.restore();
+	}
+
+	function renderCornerHandles(
+		ctx: CanvasRenderingContext2D,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		zoom: number,
+		includePadding: boolean = true
+	) {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
+		const gap = 4 / zoom;
+		
+		const outlineX = x - padding - gap;
+		const outlineY = y - padding - gap;
+		const outlineWidth = width + (padding + gap) * 2;
+		const outlineHeight = height + (padding + gap) * 2;
+		
+		ctx.fillStyle = '#ffffff';
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 2 / zoom;
+		
+		const cornerHandles = [
+			{ x: outlineX, y: outlineY },
+			{ x: outlineX + outlineWidth, y: outlineY },
+			{ x: outlineX + outlineWidth, y: outlineY + outlineHeight },
+			{ x: outlineX, y: outlineY + outlineHeight }
+		];
+		
+		cornerHandles.forEach((handle) => {
+			ctx.beginPath();
+			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
+			ctx.fill();
+			ctx.stroke();
+		});
 	}
 
 	function calculateGroupBoundingBox(): { x: number; y: number; width: number; height: number } | null {
@@ -2330,7 +2497,7 @@ let resizeStartTextAscent = 0;
 		if (ctx) {
 			$selectedTexts.forEach(text => {
 				const isDragged = isDragging && selectedShapesStartPositions.texts.has(text.id);
-				let x: number, y: number, width: number, height: number;
+				let x: number, y: number;
 				if (isDragged) {
 					const startPos = selectedShapesStartPositions.texts.get(text.id)!;
 					x = startPos.x + dragOffset.x;
@@ -2340,13 +2507,18 @@ let resizeStartTextAscent = 0;
 					y = text.position.y;
 				}
 				const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
-				width = layout.width;
-				height = layout.height;
+				const horizontalPadding = 4 / $zoom;
+				const verticalPadding = 4 / $zoom;
+				const gap = 4 / $zoom;
+				const boxX = x - horizontalPadding - gap;
+				const boxY = y - layout.ascent - verticalPadding - gap;
+				const boxWidth = layout.width + (horizontalPadding + gap) * 2;
+				const boxHeight = layout.height + (verticalPadding + gap) * 2;
 				allSelectedShapes.push({
-					minX: x,
-					minY: y - layout.ascent,
-					maxX: x + width,
-					maxY: y - layout.ascent + height
+					minX: boxX,
+					minY: boxY,
+					maxX: boxX + boxWidth,
+					maxY: boxY + boxHeight
 				});
 			});
 		}
@@ -2368,11 +2540,14 @@ let resizeStartTextAscent = 0;
 	}
 
 	function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
+		ctx.save();
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 1 / zoom;
+		const gap = 4 / zoom;
 		ctx.setLineDash([2.5 / zoom, 2.5 / zoom]);
-		ctx.strokeRect(box.x, box.y, box.width, box.height);
+		ctx.strokeRect(box.x - gap, box.y - gap, box.width + gap * 2, box.height + gap * 2);
 		ctx.setLineDash([]);
+		ctx.restore();
 		renderGroupResizeHandles(ctx, box, zoom);
 	}
 
@@ -2432,10 +2607,9 @@ let resizeStartTextAscent = 0;
 			renderCtx.strokeRect(renderX, renderY, renderWidth, renderHeight);
 			
 			if (isSelected) {
+				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
 				if (showIndividualHandles) {
-					renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
-				} else {
-					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
 				}
 			}
 		});
@@ -2485,10 +2659,9 @@ let resizeStartTextAscent = 0;
 				const y = renderY - renderRadiusY;
 				const width = renderRadiusX * 2;
 				const height = renderRadiusY * 2;
+				renderSelectionOutline(renderCtx, x, y, width, height, $zoom);
 				if (showIndividualHandles) {
-					renderResizeHandles(renderCtx, x, y, width, height, $zoom);
-				} else {
-					renderSelectionOutline(renderCtx, x, y, width, height, $zoom);
+					renderCornerHandles(renderCtx, x, y, width, height, $zoom);
 				}
 			}
 		});
@@ -2567,10 +2740,9 @@ let resizeStartTextAscent = 0;
 			renderCtx.stroke();
 			
 			if (isSelected) {
+				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
 				if (showIndividualHandles) {
-					renderResizeHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
-				} else {
-					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
 				}
 			}
 		});
@@ -2793,15 +2965,16 @@ let resizeStartTextAscent = 0;
 			});
 			
 			if (isSelected) {
-				const boxX = renderX;
-				const boxY = renderY - layout.ascent;
-				const width = layout.width;
-				const height = layout.height;
+				const horizontalPadding = 4 / $zoom;
+				const verticalPadding = 4 / $zoom;
+				const boxX = renderX - horizontalPadding;
+				const boxY = renderY - layout.ascent - verticalPadding;
+				const width = layout.width + horizontalPadding * 2;
+				const height = layout.height + verticalPadding * 2;
 
+				renderSelectionOutline(renderCtx, boxX, boxY, width, height, $zoom, false);
 				if (showIndividualHandles) {
-					renderResizeHandles(renderCtx, boxX, boxY, width, height, $zoom);
-				} else {
-					renderSelectionOutline(renderCtx, boxX, boxY, width, height, $zoom);
+					renderCornerHandles(renderCtx, boxX, boxY, width, height, $zoom, false);
 				}
 			}
 		});
@@ -2829,9 +3002,6 @@ let resizeStartTextAscent = 0;
 			renderCtx.setLineDash([5 / $zoom, 5 / $zoom]);
 			renderCtx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 			renderCtx.setLineDash([]);
-			
-			renderCtx.fillStyle = 'rgba(30, 136, 229, 0.1)';
-			renderCtx.fillRect(boxX, boxY, boxWidth, boxHeight);
 		}
 		
 		renderCtx.restore();
@@ -2849,9 +3019,9 @@ let resizeStartTextAscent = 0;
 
 	function initCanvas() {
 		if (!canvas) return;
-			ctx = canvas.getContext('2d');
-			canvas.width = window.innerWidth;
-			canvas.height = window.innerHeight;
+		ctx = canvas.getContext('2d');
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
 	}
 
 	$: if (isTypingText) {
@@ -2913,11 +3083,12 @@ let resizeStartTextAscent = 0;
 	{#if isTypingText && typingWorldPos}
 		<textarea
 			bind:this={textInputRef}
-			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre overflow-hidden appearance-none"
-			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:sans-serif; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px;`}
+			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre overflow-hidden appearance-none pointer-events-auto"
+			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:sans-serif; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px; contain: layout style paint;`}
 			spellcheck="false"
 			autocomplete="off"
 			autocapitalize="off"
+			tabindex="-1"
 			rows="1"
 			bind:value={typingValue}
 			on:input={handleTextInputInput}
