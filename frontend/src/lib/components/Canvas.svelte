@@ -153,16 +153,6 @@ let resizeStartTextAscent = 0;
 				return;
 			}
 
-			if ($selectedTexts.length > 0 && !isTypingText) {
-				const delta = isPlus ? 2 : -2;
-				$selectedTexts.forEach(text => {
-					const currentSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-					const newSize = Math.max(4, currentSize + delta);
-					setTextFontSize(text.id, newSize, true);
-				});
-				return;
-			}
-
 			if (isPlus) {
 				zoomIn();
 			} else if (event.key === '-') {
@@ -1720,65 +1710,125 @@ let resizeStartTextAscent = 0;
 				scheduleRender();
 			} else if (resizeStartShapeType === 'text') {
 			const text = resizeStartShape as Text;
+			const isCornerHandle = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 3;
+			const isSideHandle = resizeHandleIndex === 5 || resizeHandleIndex === 7;
 			const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
 			const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
 			const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
 			const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
 
-			const startBoxTop = resizeStartPos.y - resizeStartTextAscent;
+			const horizontalPadding = 4 / $zoom;
+			const startTextX = resizeStartPos.x;
+			const startTextY = resizeStartPos.y;
+			const startBoxLeft = startTextX - horizontalPadding;
+			const startBoxRight = startTextX + resizeStartPos.width + horizontalPadding;
+			const startBoxTop = startTextY - resizeStartTextAscent;
 			const startBoxBottom = startBoxTop + resizeStartPos.height;
-			const startRight = resizeStartPos.x + resizeStartPos.width;
 			
-			let left: number;
-			let right: number;
+			let newBoxLeft: number;
+			let newBoxRight: number;
+			let newTextX: number;
 			let top: number;
 			let bottom: number;
 			
-			if (affectsLeft && affectsRight) {
-				left = resizeStartPos.x + deltaX;
-				right = startRight + deltaX;
-			} else if (affectsLeft) {
-				left = resizeStartPos.x + deltaX;
-				right = startRight;
-			} else if (affectsRight) {
-				left = resizeStartPos.x;
-				right = startRight + deltaX;
-			} else {
-				left = resizeStartPos.x;
-				right = startRight;
-			}
-			
-			if (affectsTop && affectsBottom) {
-				top = startBoxTop + deltaY;
-				bottom = startBoxBottom + deltaY;
-			} else if (affectsTop) {
-				top = startBoxTop + deltaY;
-				bottom = startBoxBottom;
-			} else if (affectsBottom) {
-				top = startBoxTop;
-				bottom = startBoxBottom + deltaY;
-			} else {
+			if (isSideHandle) {
+				if (affectsLeft) {
+					newBoxLeft = Math.min(startBoxLeft + deltaX, startBoxRight - horizontalPadding * 2 - 10);
+					newBoxRight = startBoxRight;
+					newTextX = newBoxLeft + horizontalPadding;
+				} else if (affectsRight) {
+					newBoxLeft = startBoxLeft;
+					newBoxRight = Math.max(startBoxRight + deltaX, startBoxLeft + horizontalPadding * 2 + 10);
+					newTextX = startTextX;
+				} else {
+					newBoxLeft = startBoxLeft;
+					newBoxRight = startBoxRight;
+					newTextX = startTextX;
+				}
 				top = startBoxTop;
 				bottom = startBoxBottom;
+			} else {
+				const startLeft = startTextX;
+				const startRight = startTextX + resizeStartPos.width;
+				
+				let left: number;
+				let right: number;
+				
+				if (affectsLeft && affectsRight) {
+					left = startLeft + deltaX;
+					right = startRight + deltaX;
+				} else if (affectsLeft) {
+					left = Math.min(startLeft + deltaX, startRight - 10);
+					right = startRight;
+				} else if (affectsRight) {
+					left = startLeft;
+					right = Math.max(startRight + deltaX, startLeft + 10);
+				} else {
+					left = startLeft;
+					right = startRight;
+				}
+				
+				newBoxLeft = left - horizontalPadding;
+				newBoxRight = right + horizontalPadding;
+				newTextX = left;
+				
+				if (affectsTop && affectsBottom) {
+					top = startBoxTop + deltaY;
+					bottom = startBoxBottom + deltaY;
+				} else if (affectsTop) {
+					top = Math.min(startBoxTop + deltaY, startBoxBottom - 10);
+					bottom = startBoxBottom;
+				} else if (affectsBottom) {
+					top = startBoxTop;
+					bottom = Math.max(startBoxBottom + deltaY, startBoxTop + 10);
+				} else {
+					top = startBoxTop;
+					bottom = startBoxBottom;
+				}
 			}
 			
-			const finalLeft = Math.min(left, right);
-			const finalRight = Math.max(left, right);
-			const finalTop = Math.min(top, bottom);
-			const finalBottom = Math.max(top, bottom);
+			if (isCornerHandle) {
+				const left = newTextX;
+				const right = newBoxRight - horizontalPadding;
+				if (left >= right) {
+					if (affectsLeft) {
+						newTextX = right - 10;
+						newBoxLeft = newTextX - horizontalPadding;
+					} else {
+						newBoxRight = left + 10 + horizontalPadding;
+					}
+				}
+				if (top >= bottom) {
+					if (affectsTop) {
+						top = bottom - 10;
+					} else {
+						bottom = top + 10;
+					}
+				}
+			}
 			
-			const newWidth = Math.max(10, finalRight - finalLeft);
-			const newHeight = Math.max(10, finalBottom - finalTop);
-			const startWidth = Math.max(1, resizeStartPos.width);
-			const startHeight = Math.max(1, resizeStartPos.height);
-			const widthScale = newWidth / startWidth;
-			const heightScale = newHeight / startHeight;
-			const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
-			const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
-			const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
-			const newBaseline = finalTop + previewLayout.ascent;
+			const newWidth = Math.max(10, newBoxRight - newBoxLeft);
+			const newHeight = Math.max(10, bottom - top);
 			
-			resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
+			if (isSideHandle) {
+				const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+				const textWidth = Math.max(10, newWidth - horizontalPadding * 2);
+				const previewLayout = measureMultilineText(text.text, fontSize, ctx ?? undefined, textWidth);
+				const newBaseline = top + previewLayout.ascent;
+				
+				resizePreview = { x: newTextX, y: top, width: newWidth, height: previewLayout.height, type: 'text', id: text.id, fontSize: fontSize, baseline: newBaseline };
+			} else {
+				const startWidth = Math.max(1, resizeStartPos.width);
+				const startHeight = Math.max(1, resizeStartPos.height);
+				const widthScale = newWidth / startWidth;
+				const heightScale = newHeight / startHeight;
+				const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
+				const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
+				const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
+				const newBaseline = top + previewLayout.ascent;
+				
+				resizePreview = { x: newTextX, y: top, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
+			}
 			scheduleRender();
 			}
 			return;
@@ -1982,11 +2032,26 @@ let resizeStartTextAscent = 0;
 				const newEndY = resizePreview.y + resizePreview.height;
 				moveArrow(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
 			} else if (resizePreview.type === 'text') {
-				const targetY = resizePreview.baseline ?? resizeStartPos.y;
-				if (resizePreview.fontSize) {
-					setTextFontSize(resizePreview.id, resizePreview.fontSize, false);
+				const preview = resizePreview;
+				const targetY = preview.baseline ?? resizeStartPos.y;
+				const text = $texts.find(t => t.id === preview.id);
+				if (text && ctx) {
+					const originalFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+					const isSideResize = preview.fontSize === originalFontSize && preview.width !== undefined;
+					
+					if (isSideResize && preview.width) {
+						const horizontalPadding = 4 / $zoom;
+						const textWidth = Math.max(10, preview.width - horizontalPadding * 2);
+						const wrappedLayout = measureMultilineText(text.text, originalFontSize, ctx, textWidth);
+						const wrappedText = wrappedLayout.lines.join('\n');
+						if (wrappedText !== text.text) {
+							updateTextContent(preview.id, wrappedText, false);
+						}
+					} else if (preview.fontSize && preview.fontSize !== originalFontSize) {
+						setTextFontSize(preview.id, preview.fontSize, false);
+					}
 				}
-				moveText(resizePreview.id, resizePreview.x, targetY, true);
+				moveText(preview.id, preview.x, targetY, true);
 			}
 			resizePreview = null;
 		}
@@ -2309,6 +2374,44 @@ let resizeStartTextAscent = 0;
 	}
 
 	function renderCornerHandles(
+		ctx: CanvasRenderingContext2D,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		zoom: number,
+		includePadding: boolean = true
+	) {
+		const handleSize = 8 / zoom;
+		const halfHandle = handleSize / 2;
+		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
+		const gap = 4 / zoom;
+		
+		const outlineX = x - padding - gap;
+		const outlineY = y - padding - gap;
+		const outlineWidth = width + (padding + gap) * 2;
+		const outlineHeight = height + (padding + gap) * 2;
+		
+		ctx.fillStyle = '#ffffff';
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 2 / zoom;
+		
+		const cornerHandles = [
+			{ x: outlineX, y: outlineY },
+			{ x: outlineX + outlineWidth, y: outlineY },
+			{ x: outlineX + outlineWidth, y: outlineY + outlineHeight },
+			{ x: outlineX, y: outlineY + outlineHeight }
+		];
+		
+		cornerHandles.forEach((handle) => {
+			ctx.beginPath();
+			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
+			ctx.fill();
+			ctx.stroke();
+		});
+	}
+
+	function renderTextHandles(
 		ctx: CanvasRenderingContext2D,
 		x: number,
 		y: number,
@@ -2957,7 +3060,15 @@ let resizeStartTextAscent = 0;
 			const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
 			renderCtx.fillStyle = '#000000';
 			renderCtx.font = getFontForSize(fontSize);
-			const layout = measureMultilineText(text.text, fontSize, renderCtx);
+			
+			let layout;
+			if (isResizedText && resizePreview!.width) {
+				const horizontalPadding = 4 / $zoom;
+				const textWidth = Math.max(10, resizePreview!.width - horizontalPadding * 2);
+				layout = measureMultilineText(text.text, fontSize, renderCtx, textWidth);
+			} else {
+				layout = measureMultilineText(text.text, fontSize, renderCtx);
+			}
 
 			layout.lines.forEach((line, index) => {
 				const baselineY = renderY + index * layout.lineHeight;
@@ -2967,14 +3078,16 @@ let resizeStartTextAscent = 0;
 			if (isSelected) {
 				const horizontalPadding = 4 / $zoom;
 				const verticalPadding = 4 / $zoom;
+				const textTop = renderY - layout.ascent;
+				const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
 				const boxX = renderX - horizontalPadding;
-				const boxY = renderY - layout.ascent - verticalPadding;
+				const boxY = textTop - verticalPadding;
 				const width = layout.width + horizontalPadding * 2;
-				const height = layout.height + verticalPadding * 2;
+				const height = (textBottom - textTop) + verticalPadding * 2;
 
 				renderSelectionOutline(renderCtx, boxX, boxY, width, height, $zoom, false);
 				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, boxX, boxY, width, height, $zoom, false);
+					renderTextHandles(renderCtx, boxX, boxY, width, height, $zoom, false);
 				}
 			}
 		});

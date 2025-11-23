@@ -40,10 +40,59 @@ export function measureTextBounds(
 	};
 }
 
+export function wrapTextToWidth(
+	text: string,
+	maxWidth: number,
+	fontSize: number = DEFAULT_FONT_SIZE,
+	ctx?: CanvasRenderingContext2D
+): string[] {
+	if (!ctx || maxWidth <= 0) {
+		return text.split('\n');
+	}
+
+	ctx.save();
+	ctx.font = getFontForSize(fontSize);
+
+	const lines: string[] = [];
+	const paragraphs = text.split('\n');
+
+	for (const paragraph of paragraphs) {
+		if (paragraph === '') {
+			lines.push('');
+			continue;
+		}
+
+		const words = paragraph.split(/\s+/);
+		let currentLine = '';
+
+		for (const word of words) {
+			const testLine = currentLine ? `${currentLine} ${word}` : word;
+			const metrics = ctx.measureText(testLine);
+
+			if (metrics.width <= maxWidth || currentLine === '') {
+				currentLine = testLine;
+			} else {
+				if (currentLine) {
+					lines.push(currentLine);
+				}
+				currentLine = word;
+			}
+		}
+
+		if (currentLine) {
+			lines.push(currentLine);
+		}
+	}
+
+	ctx.restore();
+	return lines;
+}
+
 export function measureMultilineText(
 	textValue: string,
 	fontSize: number = DEFAULT_FONT_SIZE,
-	ctx?: CanvasRenderingContext2D
+	ctx?: CanvasRenderingContext2D,
+	maxWidth?: number
 ): {
 	lines: string[];
 	width: number;
@@ -53,8 +102,14 @@ export function measureMultilineText(
 	lineHeight: number;
 	lineWidths: number[];
 } {
-	const rawLines = textValue?.split('\n') ?? [''];
-	const lines = rawLines.length > 0 ? rawLines : [''];
+	let lines: string[];
+	if (maxWidth !== undefined && maxWidth > 0 && ctx) {
+		lines = wrapTextToWidth(textValue, maxWidth, fontSize, ctx);
+	} else {
+		const rawLines = textValue?.split('\n') ?? [''];
+		lines = rawLines.length > 0 ? rawLines : [''];
+	}
+
 	const lineMetrics = lines.map(line => measureTextBounds(line || ' ', ctx, fontSize));
 	const ascent = Math.max(...lineMetrics.map(m => m.ascent), DEFAULT_TEXT_ASCENT * (fontSize / DEFAULT_FONT_SIZE));
 	const descent = Math.max(...lineMetrics.map(m => m.descent), DEFAULT_TEXT_DESCENT * (fontSize / DEFAULT_FONT_SIZE));
@@ -95,14 +150,14 @@ export function isPointOnLine(x: number, y: number, line: Line | Arrow, threshol
 	const dx = end.x - start.x;
 	const dy = end.y - start.y;
 	const length = Math.sqrt(dx * dx + dy * dy);
-	
+
 	if (length === 0) return false;
-	
+
 	const t = Math.max(0, Math.min(1, ((x - start.x) * dx + (y - start.y) * dy) / (length * length)));
 	const projX = start.x + t * dx;
 	const projY = start.y + t * dy;
 	const dist = Math.sqrt((x - projX) ** 2 + (y - projY) ** 2);
-	
+
 	return dist <= threshold;
 }
 
@@ -131,15 +186,15 @@ export function diamondIntersectsBox(diamond: Diamond, box: { x: number; y: numb
 	const centerY = diamond.position.y + diamond.height / 2;
 	const halfWidth = diamond.width / 2;
 	const halfHeight = diamond.height / 2;
-	
+
 	const corners = [
 		{ x: centerX, y: centerY - halfHeight },
 		{ x: centerX + halfWidth, y: centerY },
 		{ x: centerX, y: centerY + halfHeight },
 		{ x: centerX - halfWidth, y: centerY }
 	];
-	
-	return corners.every(corner => 
+
+	return corners.every(corner =>
 		corner.x >= box.x && corner.x <= box.x + box.width &&
 		corner.y >= box.y && corner.y <= box.y + box.height
 	);
@@ -152,7 +207,7 @@ export function ellipseIntersectsBox(ellipse: Ellipse, box: { x: number; y: numb
 		width: ellipse.radius_x * 2,
 		height: ellipse.radius_y * 2
 	};
-	
+
 	if (
 		ellipseBounds.x < box.x ||
 		ellipseBounds.y < box.y ||
@@ -161,11 +216,11 @@ export function ellipseIntersectsBox(ellipse: Ellipse, box: { x: number; y: numb
 	) {
 		return false;
 	}
-	
+
 	for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 16) {
 		const testX = ellipse.position.x + Math.cos(angle) * ellipse.radius_x;
 		const testY = ellipse.position.y + Math.sin(angle) * ellipse.radius_y;
-		
+
 		if (
 			testX < box.x || testX > box.x + box.width ||
 			testY < box.y || testY > box.y + box.height
@@ -173,7 +228,7 @@ export function ellipseIntersectsBox(ellipse: Ellipse, box: { x: number; y: numb
 			return false;
 		}
 	}
-	
+
 	return true;
 }
 
@@ -186,7 +241,7 @@ export function lineIntersectsBox(line: Line | Arrow, box: { x: number; y: numbe
 		line.end.x >= box.x && line.end.x <= box.x + box.width &&
 		line.end.y >= box.y && line.end.y <= box.y + box.height
 	);
-	
+
 	return lineStartInBox && lineEndInBox;
 }
 
