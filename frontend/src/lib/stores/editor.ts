@@ -7,6 +7,9 @@ export interface Rectangle {
 	position: { x: number; y: number };
 	width: number;
 	height: number;
+	stroke_color?: string;
+	fill_color?: string | null;
+	line_width?: number;
 }
 
 export interface Ellipse {
@@ -14,18 +17,25 @@ export interface Ellipse {
 	position: { x: number; y: number };
 	radius_x: number;
 	radius_y: number;
+	stroke_color?: string;
+	fill_color?: string | null;
+	line_width?: number;
 }
 
 export interface Line {
 	id: number;
 	start: { x: number; y: number };
 	end: { x: number; y: number };
+	stroke_color?: string;
+	line_width?: number;
 }
 
 export interface Arrow {
 	id: number;
 	start: { x: number; y: number };
 	end: { x: number; y: number };
+	stroke_color?: string;
+	line_width?: number;
 }
 
 export interface Diamond {
@@ -33,6 +43,9 @@ export interface Diamond {
 	position: { x: number; y: number };
 	width: number;
 	height: number;
+	stroke_color?: string;
+	fill_color?: string | null;
+	line_width?: number;
 }
 
 export interface Text {
@@ -40,6 +53,7 @@ export interface Text {
 	position: { x: number; y: number };
 	text: string;
 	fontSize: number;
+	text_color?: string;
 }
 
 export const wasmLoaded = writable<boolean>(false);

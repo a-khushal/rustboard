@@ -187,6 +187,39 @@ impl Document {
         existed
     }
 
+    pub fn set_rectangle_stroke_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if rect.stroke_color != color {
+                rect.stroke_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_rectangle_fill_color(&mut self, id: u64, color: Option<String>, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if rect.fill_color != color {
+                rect.fill_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_rectangle_line_width(&mut self, id: u64, width: f64, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if (rect.line_width - width).abs() > f64::EPSILON {
+                rect.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_diamond(&mut self, position: Point, width: f64, height: f64) -> u64 {
         let id = self.add_diamond_without_snapshot(position, width, height);
         self.save_snapshot();
@@ -248,6 +281,39 @@ impl Document {
         let existed = self.diamonds.iter().any(|d| d.id == id);
         self.diamonds.retain(|d| d.id != id);
         existed
+    }
+
+    pub fn set_diamond_stroke_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if diamond.stroke_color != color {
+                diamond.stroke_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_diamond_fill_color(&mut self, id: u64, color: Option<String>, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if diamond.fill_color != color {
+                diamond.fill_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_diamond_line_width(&mut self, id: u64, width: f64, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if (diamond.line_width - width).abs() > f64::EPSILON {
+                diamond.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
     }
 
     pub fn add_ellipse(&mut self, position: Point, radius_x: f64, radius_y: f64) -> u64 {
@@ -313,6 +379,39 @@ impl Document {
         existed
     }
 
+    pub fn set_ellipse_stroke_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            if ellipse.stroke_color != color {
+                ellipse.stroke_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_ellipse_fill_color(&mut self, id: u64, color: Option<String>, save_history: bool) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            if ellipse.fill_color != color {
+                ellipse.fill_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_ellipse_line_width(&mut self, id: u64, width: f64, save_history: bool) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            if (ellipse.line_width - width).abs() > f64::EPSILON {
+                ellipse.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_line(&mut self, start: Point, end: Point) -> u64 {
         let id = self.add_line_without_snapshot(start, end);
         self.save_snapshot();
@@ -357,6 +456,28 @@ impl Document {
         existed
     }
 
+    pub fn set_line_stroke_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            if line.stroke_color != color {
+                line.stroke_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_line_line_width(&mut self, id: u64, width: f64, save_history: bool) {
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            if (line.line_width - width).abs() > f64::EPSILON {
+                line.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_arrow(&mut self, start: Point, end: Point) -> u64 {
         let id = self.add_arrow_without_snapshot(start, end);
         self.save_snapshot();
@@ -399,6 +520,28 @@ impl Document {
         let existed = self.arrows.iter().any(|a| a.id == id);
         self.arrows.retain(|a| a.id != id);
         existed
+    }
+
+    pub fn set_arrow_stroke_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            if arrow.stroke_color != color {
+                arrow.stroke_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_arrow_line_width(&mut self, id: u64, width: f64, save_history: bool) {
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            if (arrow.line_width - width).abs() > f64::EPSILON {
+                arrow.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
     }
 
     pub fn add_text(&mut self, position: Point, text: String) -> u64 {
@@ -480,6 +623,17 @@ impl Document {
         let clamped = new_font_size.max(4.0);
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
             text.font_size = clamped;
+        }
+    }
+
+    pub fn set_text_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            if text.text_color != color {
+                text.text_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
         }
     }
 

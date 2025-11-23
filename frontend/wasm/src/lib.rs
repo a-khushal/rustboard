@@ -265,6 +265,76 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_rectangle_stroke_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_rectangle_stroke_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_rectangle_fill_color(&self, id: u64, color: Option<String>, save_history: bool) {
+        self.document.borrow_mut().set_rectangle_fill_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_rectangle_line_width(&self, id: u64, width: f64, save_history: bool) {
+        self.document.borrow_mut().set_rectangle_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_ellipse_stroke_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_ellipse_stroke_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_ellipse_fill_color(&self, id: u64, color: Option<String>, save_history: bool) {
+        self.document.borrow_mut().set_ellipse_fill_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_ellipse_line_width(&self, id: u64, width: f64, save_history: bool) {
+        self.document.borrow_mut().set_ellipse_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_diamond_stroke_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_diamond_stroke_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_diamond_fill_color(&self, id: u64, color: Option<String>, save_history: bool) {
+        self.document.borrow_mut().set_diamond_fill_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_diamond_line_width(&self, id: u64, width: f64, save_history: bool) {
+        self.document.borrow_mut().set_diamond_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_line_stroke_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_line_stroke_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_line_line_width(&self, id: u64, width: f64, save_history: bool) {
+        self.document.borrow_mut().set_line_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_arrow_stroke_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_arrow_stroke_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_arrow_line_width(&self, id: u64, width: f64, save_history: bool) {
+        self.document.borrow_mut().set_arrow_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_text_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn serialize(&self) -> String {
         self.document.borrow().serialize()
     }

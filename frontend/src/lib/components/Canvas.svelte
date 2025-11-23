@@ -26,6 +26,7 @@ import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, 
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
+	import StylePanel from './StylePanel.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
 
 	type BoundingBox = { x: number; y: number; width: number; height: number; rawWidth?: number; rawHeight?: number; scaleX?: number; scaleY?: number };
@@ -963,10 +964,11 @@ let resizeStartTextAscent = 0;
 				);
 			} else if (!isAlreadySelected) {
 				selectedDiamonds.set([clickedDiamond]);
-		selectedRectangles.set([]);
+				selectedRectangles.set([]);
 				selectedEllipses.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedTexts.set([]);
 			}
 
 			draggedShape = clickedDiamond;
@@ -1276,6 +1278,7 @@ let resizeStartTextAscent = 0;
 						selectedEllipses.set([]);
 						selectedDiamonds.set([]);
 						selectedArrows.set([]);
+						selectedTexts.set([]);
 					}
 					
 					draggedShape = clickedLine;
@@ -2589,11 +2592,10 @@ let resizeStartTextAscent = 0;
 				const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
 				const horizontalPadding = 4 / $zoom;
 				const verticalPadding = 4 / $zoom;
-				const gap = 4 / $zoom;
-				const boxX = x - horizontalPadding - gap;
-				const boxY = y - layout.ascent - verticalPadding - gap;
-				const boxWidth = layout.width + (horizontalPadding + gap) * 2;
-				const boxHeight = layout.height + (verticalPadding + gap) * 2;
+				const boxX = x - horizontalPadding;
+				const boxY = y - layout.ascent - verticalPadding;
+				const boxWidth = layout.width + horizontalPadding * 2;
+				const boxHeight = layout.height + verticalPadding * 2;
 				allSelectedShapes.push({
 					minX: boxX,
 					minY: boxY,
@@ -2682,8 +2684,18 @@ let resizeStartTextAscent = 0;
 			const renderWidth = isResized && resizePreview ? resizePreview.width : rect.width;
 			const renderHeight = isResized && resizePreview ? resizePreview.height : rect.height;
 			
-			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2;
+			const strokeColor = rect.stroke_color || '#000000';
+			const fillColor = rect.fill_color;
+			const lineWidth = rect.line_width || 2;
+			
+			renderCtx.lineWidth = lineWidth;
+			
+			if (fillColor) {
+				renderCtx.fillStyle = fillColor;
+				renderCtx.fillRect(renderX, renderY, renderWidth, renderHeight);
+			}
+			
+			renderCtx.strokeStyle = strokeColor;
 			renderCtx.strokeRect(renderX, renderY, renderWidth, renderHeight);
 			
 			if (isSelected) {
@@ -2728,10 +2740,20 @@ let resizeStartTextAscent = 0;
 			const renderRadiusX = isResized && resizePreview ? resizePreview.width / 2 : ellipse.radius_x;
 			const renderRadiusY = isResized && resizePreview ? resizePreview.height / 2 : ellipse.radius_y;
 			
-			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2;
+			const strokeColor = ellipse.stroke_color || '#000000';
+			const fillColor = ellipse.fill_color;
+			const lineWidth = ellipse.line_width || 2;
+			
+			renderCtx.lineWidth = lineWidth;
 			renderCtx.beginPath();
 			renderCtx.ellipse(renderX, renderY, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
+			
+			if (fillColor) {
+				renderCtx.fillStyle = fillColor;
+				renderCtx.fill();
+			}
+			
+			renderCtx.strokeStyle = strokeColor;
 			renderCtx.stroke();
 			
 			if (isSelected) {
@@ -2809,14 +2831,24 @@ let resizeStartTextAscent = 0;
 			const halfWidth = renderWidth / 2;
 			const halfHeight = renderHeight / 2;
 			
-			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2;
+			const strokeColor = diamond.stroke_color || '#000000';
+			const fillColor = diamond.fill_color;
+			const lineWidth = diamond.line_width || 2;
+			
+			renderCtx.lineWidth = lineWidth;
 			renderCtx.beginPath();
 			renderCtx.moveTo(centerX, centerY - halfHeight);
 			renderCtx.lineTo(centerX + halfWidth, centerY);
 			renderCtx.lineTo(centerX, centerY + halfHeight);
 			renderCtx.lineTo(centerX - halfWidth, centerY);
 			renderCtx.closePath();
+			
+			if (fillColor) {
+				renderCtx.fillStyle = fillColor;
+				renderCtx.fill();
+			}
+			
+			renderCtx.strokeStyle = strokeColor;
 			renderCtx.stroke();
 			
 			if (isSelected) {
@@ -2877,8 +2909,11 @@ let resizeStartTextAscent = 0;
 				renderEndY = line.end.y;
 			}
 			
-			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2;
+			const strokeColor = line.stroke_color || '#000000';
+			const lineWidth = line.line_width || 2;
+			
+			renderCtx.strokeStyle = strokeColor;
+			renderCtx.lineWidth = lineWidth;
 			renderCtx.beginPath();
 			renderCtx.moveTo(renderStartX, renderStartY);
 			renderCtx.lineTo(renderEndX, renderEndY);
@@ -2940,8 +2975,11 @@ let resizeStartTextAscent = 0;
 				renderEndY = arrow.end.y;
 			}
 			
-			renderCtx.strokeStyle = '#000000';
-			renderCtx.lineWidth = 2;
+			const strokeColor = arrow.stroke_color || '#000000';
+			const lineWidth = arrow.line_width || 2;
+			
+			renderCtx.strokeStyle = strokeColor;
+			renderCtx.lineWidth = lineWidth;
 			renderCtx.beginPath();
 			renderCtx.moveTo(renderStartX, renderStartY);
 			renderCtx.lineTo(renderEndX, renderEndY);
@@ -3035,7 +3073,8 @@ let resizeStartTextAscent = 0;
 
 			const baseFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 			const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
-			renderCtx.fillStyle = '#000000';
+			const textColor = text.text_color || '#000000';
+			renderCtx.fillStyle = textColor;
 			renderCtx.font = getFontForSize(fontSize);
 			
 			let layout;
@@ -3170,6 +3209,7 @@ let resizeStartTextAscent = 0;
 	<Toolbar />
 	<ZoomControls />
 	<UndoRedoControls />
+	<StylePanel />
 	{#if isTypingText && typingWorldPos}
 		<textarea
 			bind:this={textInputRef}
