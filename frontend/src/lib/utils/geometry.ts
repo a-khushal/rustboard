@@ -7,7 +7,7 @@ const DEFAULT_TEXT_ASCENT = 12;
 const DEFAULT_TEXT_DESCENT = 4;
 
 export function getFontForSize(fontSize: number = DEFAULT_FONT_SIZE): string {
-	return `${fontSize}px sans-serif`;
+	return `${fontSize}px 'Lucida Console', monospace`;
 }
 
 export function measureTextBounds(

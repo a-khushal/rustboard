@@ -1725,98 +1725,75 @@ let resizeStartTextAscent = 0;
 			const startBoxTop = startTextY - resizeStartTextAscent;
 			const startBoxBottom = startBoxTop + resizeStartPos.height;
 			
-			let newBoxLeft: number;
-			let newBoxRight: number;
-			let newTextX: number;
-			let top: number;
-			let bottom: number;
+			let boxLeft: number;
+			let boxRight: number;
+			let boxTop: number;
+			let boxBottom: number;
 			
 			if (isSideHandle) {
 				if (affectsLeft) {
-					newBoxLeft = Math.min(startBoxLeft + deltaX, startBoxRight - horizontalPadding * 2 - 10);
-					newBoxRight = startBoxRight;
-					newTextX = newBoxLeft + horizontalPadding;
+					boxLeft = Math.min(startBoxLeft + deltaX, startBoxRight - horizontalPadding * 2 - 10);
+					boxRight = startBoxRight;
 				} else if (affectsRight) {
-					newBoxLeft = startBoxLeft;
-					newBoxRight = Math.max(startBoxRight + deltaX, startBoxLeft + horizontalPadding * 2 + 10);
-					newTextX = startTextX;
+					boxLeft = startBoxLeft;
+					boxRight = Math.max(startBoxRight + deltaX, startBoxLeft + horizontalPadding * 2 + 10);
 				} else {
-					newBoxLeft = startBoxLeft;
-					newBoxRight = startBoxRight;
-					newTextX = startTextX;
+					boxLeft = startBoxLeft;
+					boxRight = startBoxRight;
 				}
-				top = startBoxTop;
-				bottom = startBoxBottom;
+				boxTop = startBoxTop;
+				boxBottom = startBoxBottom;
 			} else {
-				const startLeft = startTextX;
-				const startRight = startTextX + resizeStartPos.width;
+				const minWidth = horizontalPadding * 2 + 10;
+				const minHeight = 10;
 				
-				let left: number;
-				let right: number;
-				
-				if (affectsLeft && affectsRight) {
-					left = startLeft + deltaX;
-					right = startRight + deltaX;
-				} else if (affectsLeft) {
-					left = Math.min(startLeft + deltaX, startRight - 10);
-					right = startRight;
-				} else if (affectsRight) {
-					left = startLeft;
-					right = Math.max(startRight + deltaX, startLeft + 10);
+				if (resizeHandleIndex === 0) {
+					const newLeft = startBoxLeft + deltaX;
+					const newTop = startBoxTop + deltaY;
+					boxLeft = Math.min(newLeft, startBoxRight - minWidth);
+					boxRight = startBoxRight;
+					boxTop = Math.min(newTop, startBoxBottom - minHeight);
+					boxBottom = startBoxBottom;
+				} else if (resizeHandleIndex === 1) {
+					const newRight = startBoxRight + deltaX;
+					const newTop = startBoxTop + deltaY;
+					boxLeft = startBoxLeft;
+					boxRight = Math.max(newRight, startBoxLeft + minWidth);
+					boxTop = Math.min(newTop, startBoxBottom - minHeight);
+					boxBottom = startBoxBottom;
+				} else if (resizeHandleIndex === 2) {
+					const newRight = startBoxRight + deltaX;
+					const newBottom = startBoxBottom + deltaY;
+					boxLeft = startBoxLeft;
+					boxRight = Math.max(newRight, startBoxLeft + minWidth);
+					boxTop = startBoxTop;
+					boxBottom = Math.max(newBottom, startBoxTop + minHeight);
+				} else if (resizeHandleIndex === 3) {
+					const newLeft = startBoxLeft + deltaX;
+					const newBottom = startBoxBottom + deltaY;
+					boxLeft = Math.min(newLeft, startBoxRight - minWidth);
+					boxRight = startBoxRight;
+					boxTop = startBoxTop;
+					boxBottom = Math.max(newBottom, startBoxTop + minHeight);
 				} else {
-					left = startLeft;
-					right = startRight;
-				}
-				
-				newBoxLeft = left - horizontalPadding;
-				newBoxRight = right + horizontalPadding;
-				newTextX = left;
-				
-				if (affectsTop && affectsBottom) {
-					top = startBoxTop + deltaY;
-					bottom = startBoxBottom + deltaY;
-				} else if (affectsTop) {
-					top = Math.min(startBoxTop + deltaY, startBoxBottom - 10);
-					bottom = startBoxBottom;
-				} else if (affectsBottom) {
-					top = startBoxTop;
-					bottom = Math.max(startBoxBottom + deltaY, startBoxTop + 10);
-				} else {
-					top = startBoxTop;
-					bottom = startBoxBottom;
+					boxLeft = startBoxLeft;
+					boxRight = startBoxRight;
+					boxTop = startBoxTop;
+					boxBottom = startBoxBottom;
 				}
 			}
 			
-			if (isCornerHandle) {
-				const left = newTextX;
-				const right = newBoxRight - horizontalPadding;
-				if (left >= right) {
-					if (affectsLeft) {
-						newTextX = right - 10;
-						newBoxLeft = newTextX - horizontalPadding;
-					} else {
-						newBoxRight = left + 10 + horizontalPadding;
-					}
-				}
-				if (top >= bottom) {
-					if (affectsTop) {
-						top = bottom - 10;
-					} else {
-						bottom = top + 10;
-					}
-				}
-			}
-			
-			const newWidth = Math.max(10, newBoxRight - newBoxLeft);
-			const newHeight = Math.max(10, bottom - top);
+			const newWidth = Math.max(10, boxRight - boxLeft);
+			const newHeight = Math.max(10, boxBottom - boxTop);
+			const newTextX = boxLeft + horizontalPadding;
 			
 			if (isSideHandle) {
 				const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 				const textWidth = Math.max(10, newWidth - horizontalPadding * 2);
 				const previewLayout = measureMultilineText(text.text, fontSize, ctx ?? undefined, textWidth);
-				const newBaseline = top + previewLayout.ascent;
+				const newBaseline = boxTop + previewLayout.ascent;
 				
-				resizePreview = { x: newTextX, y: top, width: newWidth, height: previewLayout.height, type: 'text', id: text.id, fontSize: fontSize, baseline: newBaseline };
+				resizePreview = { x: newTextX, y: boxTop, width: newWidth, height: previewLayout.height, type: 'text', id: text.id, fontSize: fontSize, baseline: newBaseline };
 			} else {
 				const startWidth = Math.max(1, resizeStartPos.width);
 				const startHeight = Math.max(1, resizeStartPos.height);
@@ -1825,9 +1802,9 @@ let resizeStartTextAscent = 0;
 				const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
 				const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
 				const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
-				const newBaseline = top + previewLayout.ascent;
+				const newBaseline = boxTop + previewLayout.ascent;
 				
-				resizePreview = { x: newTextX, y: top, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
+				resizePreview = { x: newTextX, y: boxTop, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
 			}
 			scheduleRender();
 			}
@@ -3197,7 +3174,7 @@ let resizeStartTextAscent = 0;
 		<textarea
 			bind:this={textInputRef}
 			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre overflow-hidden appearance-none pointer-events-auto"
-			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:sans-serif; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px; contain: layout style paint;`}
+			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px; contain: layout style paint;`}
 			spellcheck="false"
 			autocomplete="off"
 			autocapitalize="off"
