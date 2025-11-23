@@ -24,14 +24,20 @@
 <div class="flex flex-col gap-2 w-full min-w-0">
 	<div class="flex items-center gap-2 min-w-0">
 		<label for="color-picker-{label}" class="sr-only">{label}</label>
-		<input
-			type="color"
-			bind:value
-			on:input={handleInput}
-			class="w-8 h-8 rounded-full border-2 border-stone-200 cursor-pointer overflow-hidden shrink-0"
-			title={value}
-			id="color-picker-{label}"
-		/>
+		<div class="relative shrink-0">
+			<input
+				type="color"
+				bind:value
+				on:input={handleInput}
+				class="w-7 h-7 rounded-full border-2 border-stone-200 cursor-pointer shrink-0 opacity-0 absolute inset-0"
+				title={value}
+				id="color-picker-{label}"
+			/>
+			<div
+				class="w-7 h-7 rounded-full border-2 border-stone-200 pointer-events-none"
+				style="background-color: {value};"
+			></div>
+		</div>
 		<input
 			type="text"
 			bind:value
