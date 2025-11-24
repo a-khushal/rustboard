@@ -3251,9 +3251,11 @@ let typingBoxWidth: number | null = null;
 
 	function initCanvas() {
 		if (!canvas) return;
+		const dpr = window.devicePixelRatio || 1;
+		canvas.width = window.innerWidth * dpr;
+		canvas.height = window.innerHeight * dpr;
 		ctx = canvas.getContext('2d');
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
+		if (ctx) ctx.scale(dpr, dpr);
 	}
 
 	$: if (isTypingText) {
@@ -3272,8 +3274,10 @@ let typingBoxWidth: number | null = null;
 		
 		const handleResize = () => {
 			if (canvas) {
-				canvas.width = window.innerWidth;
-				canvas.height = window.innerHeight;
+				const dpr = window.devicePixelRatio || 1;
+				canvas.width = window.innerWidth * dpr;
+				canvas.height = window.innerHeight * dpr;
+				if (ctx) ctx.scale(dpr, dpr);
 				scheduleRender();
 			}
 		};
