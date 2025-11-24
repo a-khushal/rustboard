@@ -6,16 +6,17 @@
 		diamonds, selectedDiamonds, texts, selectedTexts,
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text
 	} from '$lib/stores/editor';
-import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE } from '$lib/utils/geometry';
-	import { screenToWorld } from '$lib/utils/viewport';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
+		import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle,
 		addEllipse, moveEllipse, resizeEllipse,
 		addDiamond, moveDiamond, resizeDiamond,
 		addLine, moveLine,
 		addArrow, moveArrow,
-		addText, moveText, setTextFontSize, updateTextContent, deleteTextById
+		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById
 	} from '$lib/utils/canvas-operations/index';
+	import { updateTexts } from '$lib/utils/canvas-operations/texts';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 	import { copyToClipboard, getClipboard, hasClipboardData } from '$lib/utils/clipboard';
@@ -56,8 +57,10 @@ import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, 
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text'; id: number; fontSize?: number; baseline?: number } | null = null;
-let resizeStartTextAscent = 0;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text'; id: number; fontSize?: number; baseline?: number } | null = null;
+	let resizeStartTextAscent = 0;
+	let resizeStartOriginalText: string | null = null;
+	let resizeStartBoxWidth: number | null = null;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	let isSelectingBox = false;
 	let selectionBoxStart: { x: number; y: number } | null = null;
@@ -94,8 +97,16 @@ let resizeStartTextAscent = 0;
 	let typingScreenPos = { x: 0, y: 0 };
 	let typingDirty = false;
 	let typingFontSize = DEFAULT_TEXT_FONT_SIZE;
+	let typingTextColor: string | null = null;
+let typingBoxWidth: number | null = null;
 	let textInputRef: HTMLTextAreaElement | null = null;
 	let typingLayout = measureMultilineText('', DEFAULT_TEXT_FONT_SIZE);
+
+	function getTextContentWidthFromBoxWidth(boxWidth: number | null): number | undefined {
+		if (!boxWidth || !isFinite(boxWidth)) return undefined;
+		const contentWidth = boxWidth - TEXT_HORIZONTAL_PADDING * 2;
+		return contentWidth > 0 ? contentWidth : undefined;
+	}
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (isTypingText) {
@@ -149,7 +160,8 @@ let resizeStartTextAscent = 0;
 				const delta = isPlus ? 2 : -2;
 				const newSize = Math.max(4, typingFontSize + delta);
 				typingFontSize = newSize;
-				typingLayout = measureMultilineText(typingValue, typingFontSize, ctx ?? undefined);
+				const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
+				typingLayout = measureMultilineText(typingValue, typingFontSize, ctx ?? undefined, typingContentWidth);
 				setTextFontSize(typingTextId, newSize, false);
 				return;
 			}
@@ -253,7 +265,7 @@ let resizeStartTextAscent = 0;
 			return;
 		}
 
-		if (!$editorApi || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
+		if (!$editorApi || event.key !== 'Delete') return;
 
 		const hasSelectedRectangles = $selectedRectangles.length > 0;
 		const hasSelectedEllipses = $selectedEllipses.length > 0;
@@ -308,13 +320,21 @@ let resizeStartTextAscent = 0;
 			boxHeight = diamond.height + (padding + gap) * 2;
 		} else if (shapeType === 'text') {
 			const text = shape as Text;
-			const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
-			const horizontalPadding = 4 / zoom;
-			const verticalPadding = 4 / zoom;
+			const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
+			const layout = measureMultilineText(
+				text.text,
+				text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
+				ctx ?? undefined,
+				contentWidth
+			);
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+			const verticalPadding = TEXT_VERTICAL_PADDING;
+			const selectionWidth = text.boxWidth ?? (layout.width + horizontalPadding * 2);
+			const selectionHeight = layout.height + verticalPadding * 2;
 			boxX = text.position.x - horizontalPadding - gap;
 			boxY = text.position.y - layout.ascent - verticalPadding - gap;
-			boxWidth = layout.width + (horizontalPadding + gap) * 2;
-			boxHeight = layout.height + (verticalPadding + gap) * 2;
+			boxWidth = selectionWidth + gap * 2;
+			boxHeight = selectionHeight + gap * 2;
 		} else {
 			const ellipse = shape as Ellipse;
 			const x = ellipse.position.x - ellipse.radius_x;
@@ -341,7 +361,8 @@ let resizeStartTextAscent = 0;
 		originalValue: string,
 		worldPosition: { x: number; y: number },
 		selectAll: boolean,
-		fontSize: number
+		fontSize: number,
+		boxWidth: number | null = null
 	) {
 		const savedViewportOffset = { ...$viewportOffset };
 		const savedScrollX = window.scrollX;
@@ -358,7 +379,9 @@ let resizeStartTextAscent = 0;
 		typingWorldPos = { ...worldPosition };
 		typingDirty = initialValue !== originalValue;
 		typingFontSize = fontSize;
-		typingLayout = measureMultilineText(initialValue || '', typingFontSize, ctx ?? undefined);
+		typingBoxWidth = boxWidth;
+		const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
+		typingLayout = measureMultilineText(initialValue || '', typingFontSize, ctx ?? undefined, typingContentWidth);
 		isTypingText = true;
 		
 		restoreViewport();
@@ -405,6 +428,8 @@ let resizeStartTextAscent = 0;
 		typingWorldPos = null;
 		typingDirty = false;
 		typingFontSize = DEFAULT_TEXT_FONT_SIZE;
+		typingTextColor = null;
+		typingBoxWidth = null;
 		typingLayout = measureMultilineText('', typingFontSize, ctx ?? undefined);
 	}
 
@@ -415,6 +440,15 @@ let resizeStartTextAscent = 0;
 		typingValue = newValue;
 		typingDirty = newValue !== typingOriginalValue;
 		updateTextContent(typingTextId, newValue, false);
+		
+		if (typingTextColor && typingTextColor !== '#000000' && $editorApi) {
+			const updatedTexts = $texts;
+			const updatedText = updatedTexts.find(t => t.id === typingTextId);
+			if (updatedText && (!updatedText.text_color || updatedText.text_color === '#000000')) {
+				$editorApi.set_text_color(BigInt(typingTextId), typingTextColor, false);
+				updateTexts();
+			}
+		}
 	}
 
 	function insertTextAtCursor(value: string) {
@@ -487,7 +521,22 @@ let resizeStartTextAscent = 0;
 
 	function startTypingExistingText(text: Text) {
 		clearAllSelections();
-		startTypingSession(text.id, text.text, text.text, { x: text.position.x, y: text.position.y }, true, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE);
+		typingTextColor = text.text_color || '#000000';
+		
+		if (typingTextColor && typingTextColor !== '#000000' && $editorApi) {
+			$editorApi.set_text_color(BigInt(text.id), typingTextColor, false);
+			updateTexts();
+		}
+		
+		startTypingSession(
+			text.id,
+			text.text,
+			text.text,
+			{ x: text.position.x, y: text.position.y },
+			true,
+			text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
+			text.boxWidth ?? null
+		);
 	}
 
 	function getHandlePositions(box: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> {
@@ -1064,6 +1113,7 @@ let resizeStartTextAscent = 0;
 		}
 
 		const isShiftPressed = event.shiftKey;
+		resizeStartBoxWidth = null;
 		
 		if ($activeTool === 'select') {
 			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length;
@@ -1196,6 +1246,18 @@ let resizeStartTextAscent = 0;
 								height
 							};
 							resizeStartTextAscent = layout.ascent;
+							const isSideHandle = handleIndex === 5 || handleIndex === 7;
+							if (isSideHandle) {
+								const currentText = $selectedTexts[i].text;
+								const lines = currentText.split('\n');
+								resizeStartOriginalText = lines.join(' ');
+								const storedBoxWidth = $selectedTexts[i].boxWidth;
+								const currentBoxWidth = storedBoxWidth ?? (layout.width + TEXT_HORIZONTAL_PADDING * 2);
+								resizeStartBoxWidth = currentBoxWidth;
+							} else {
+								resizeStartOriginalText = null;
+								resizeStartBoxWidth = $selectedTexts[i].boxWidth ?? null;
+							}
 							resizeStartMousePos = { x, y };
 							isShiftPressedDuringResize = isShiftPressed;
 							return;
@@ -1396,7 +1458,7 @@ let resizeStartTextAscent = 0;
 			clearAllSelections();
 			const newId = addText(x, y, '', false);
 			if (newId !== null) {
-				startTypingSession(newId, '', '', { x, y }, false, DEFAULT_TEXT_FONT_SIZE);
+				startTypingSession(newId, '', '', { x, y }, false, DEFAULT_TEXT_FONT_SIZE, null);
 			}
 			activeTool.set('select');
 			scheduleRender();
@@ -1720,11 +1782,12 @@ let resizeStartTextAscent = 0;
 			const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
 			const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
 
-			const horizontalPadding = 4 / $zoom;
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
 			const startTextX = resizeStartPos.x;
 			const startTextY = resizeStartPos.y;
 			const startBoxLeft = startTextX - horizontalPadding;
-			const startBoxRight = startTextX + resizeStartPos.width + horizontalPadding;
+			const startBoxWidth = resizeStartBoxWidth ?? (resizeStartPos.width + horizontalPadding * 2);
+			const startBoxRight = startBoxLeft + startBoxWidth;
 			const startBoxTop = startTextY - resizeStartTextAscent;
 			const startBoxBottom = startBoxTop + resizeStartPos.height;
 			
@@ -1793,7 +1856,14 @@ let resizeStartTextAscent = 0;
 			if (isSideHandle) {
 				const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 				const textWidth = Math.max(10, newWidth - horizontalPadding * 2);
-				const previewLayout = measureMultilineText(text.text, fontSize, ctx ?? undefined, textWidth);
+				const textToWrap = resizeStartOriginalText ?? text.text;
+				
+				const unwrappedLayout = measureMultilineText(textToWrap, fontSize, ctx ?? undefined);
+				const needsWrapping = unwrappedLayout.width > textWidth;
+				
+				const previewLayout = needsWrapping 
+					? measureMultilineText(textToWrap, fontSize, ctx ?? undefined, textWidth)
+					: unwrappedLayout;
 				const newBaseline = boxTop + previewLayout.ascent;
 				
 				resizePreview = { x: newTextX, y: boxTop, width: newWidth, height: previewLayout.height, type: 'text', id: text.id, fontSize: fontSize, baseline: newBaseline };
@@ -2015,25 +2085,40 @@ let resizeStartTextAscent = 0;
 				const preview = resizePreview;
 				const targetY = preview.baseline ?? resizeStartPos.y;
 				const text = $texts.find(t => t.id === preview.id);
+				let shouldDeferSnapshot = false;
 				if (text && ctx) {
 					const originalFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 					const isSideResize = preview.fontSize === originalFontSize && preview.width !== undefined;
 					
 					if (isSideResize && preview.width) {
-						const horizontalPadding = 4 / $zoom;
+						const horizontalPadding = TEXT_HORIZONTAL_PADDING;
 						const textWidth = Math.max(10, preview.width - horizontalPadding * 2);
-						const wrappedLayout = measureMultilineText(text.text, originalFontSize, ctx, textWidth);
-						const wrappedText = wrappedLayout.lines.join('\n');
-						if (wrappedText !== text.text) {
-							updateTextContent(preview.id, wrappedText, false);
+						const textToWrap = resizeStartOriginalText ?? text.text;
+						
+						const unwrappedLayout = measureMultilineText(textToWrap, originalFontSize, ctx);
+						const needsWrapping = unwrappedLayout.width > textWidth;
+						
+						const finalText = needsWrapping 
+							? measureMultilineText(textToWrap, originalFontSize, ctx, textWidth).lines.join('\n')
+							: textToWrap;
+						
+						if (finalText !== text.text) {
+							updateTextContent(preview.id, finalText, false);
 						}
+						setTextBoxWidth(preview.id, preview.width, false);
+						resizeStartOriginalText = null;
+						shouldDeferSnapshot = true;
 					} else if (preview.fontSize && preview.fontSize !== originalFontSize) {
 						setTextFontSize(preview.id, preview.fontSize, false);
 					}
 				}
-				moveText(preview.id, preview.x, targetY, true);
+				moveText(preview.id, preview.x, targetY, !shouldDeferSnapshot);
+				if (shouldDeferSnapshot) {
+					$editorApi.save_snapshot();
+				}
 			}
 			resizePreview = null;
+			resizeStartBoxWidth = null;
 		}
 		
 		if (isSelectingBox && selectionBoxStart && selectionBoxEnd) {
@@ -2589,12 +2674,18 @@ let resizeStartTextAscent = 0;
 					x = text.position.x;
 					y = text.position.y;
 				}
-				const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined);
-				const horizontalPadding = 4 / $zoom;
-				const verticalPadding = 4 / $zoom;
+				const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
+				const layout = measureMultilineText(
+					text.text,
+					text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
+					ctx ?? undefined,
+					contentWidth
+				);
+				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+				const verticalPadding = TEXT_VERTICAL_PADDING;
 				const boxX = x - horizontalPadding;
 				const boxY = y - layout.ascent - verticalPadding;
-				const boxWidth = layout.width + horizontalPadding * 2;
+				const boxWidth = (text.boxWidth ?? (layout.width + horizontalPadding * 2));
 				const boxHeight = layout.height + verticalPadding * 2;
 				allSelectedShapes.push({
 					minX: boxX,
@@ -3078,12 +3169,24 @@ let resizeStartTextAscent = 0;
 			renderCtx.font = getFontForSize(fontSize);
 			
 			let layout;
+			let constrainedWidth: number | undefined = undefined;
+			const storedBoxWidth = text.boxWidth ?? null;
 			if (isResizedText && resizePreview!.width) {
-				const horizontalPadding = 4 / $zoom;
-				const textWidth = Math.max(10, resizePreview!.width - horizontalPadding * 2);
-				layout = measureMultilineText(text.text, fontSize, renderCtx, textWidth);
+				constrainedWidth = resizePreview!.width;
+				const textWidth = Math.max(10, resizePreview!.width - TEXT_HORIZONTAL_PADDING * 2);
+				const unwrappedLayout = measureMultilineText(text.text, fontSize, renderCtx);
+				const needsWrapping = unwrappedLayout.width > textWidth;
+				layout = needsWrapping 
+					? measureMultilineText(text.text, fontSize, renderCtx, textWidth)
+					: unwrappedLayout;
 			} else {
-				layout = measureMultilineText(text.text, fontSize, renderCtx);
+				const contentWidth = getTextContentWidthFromBoxWidth(storedBoxWidth);
+				if (contentWidth) {
+					constrainedWidth = storedBoxWidth ?? undefined;
+					layout = measureMultilineText(text.text, fontSize, renderCtx, contentWidth);
+				} else {
+					layout = measureMultilineText(text.text, fontSize, renderCtx);
+				}
 			}
 
 			layout.lines.forEach((line, index) => {
@@ -3092,13 +3195,13 @@ let resizeStartTextAscent = 0;
 			});
 			
 			if (isSelected) {
-				const horizontalPadding = 4 / $zoom;
-				const verticalPadding = 4 / $zoom;
+				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+				const verticalPadding = TEXT_VERTICAL_PADDING;
 				const textTop = renderY - layout.ascent;
 				const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
 				const boxX = renderX - horizontalPadding;
 				const boxY = textTop - verticalPadding;
-				const width = layout.width + horizontalPadding * 2;
+				const width = constrainedWidth ? constrainedWidth : (layout.width + horizontalPadding * 2);
 				const height = (textBottom - textTop) + verticalPadding * 2;
 
 				renderSelectionOutline(renderCtx, boxX, boxY, width, height, $zoom, false);
@@ -3154,7 +3257,8 @@ let resizeStartTextAscent = 0;
 	}
 
 	$: if (isTypingText) {
-		typingLayout = measureMultilineText(typingValue || '', typingFontSize, ctx ?? undefined);
+		const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
+		typingLayout = measureMultilineText(typingValue || '', typingFontSize, ctx ?? undefined, typingContentWidth);
 	}
 
 	$: if (isTypingText && typingWorldPos) {
@@ -3214,7 +3318,7 @@ let resizeStartTextAscent = 0;
 		<textarea
 			bind:this={textInputRef}
 			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre overflow-hidden appearance-none pointer-events-auto"
-			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px; contain: layout style paint;`}
+			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px; contain: layout style paint; color:${typingTextColor || '#000000'};`}
 			spellcheck="false"
 			autocomplete="off"
 			autocapitalize="off"

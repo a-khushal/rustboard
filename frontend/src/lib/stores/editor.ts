@@ -54,6 +54,7 @@ export interface Text {
 	text: string;
 	fontSize: number;
 	text_color?: string;
+	boxWidth?: number;
 }
 
 export const wasmLoaded = writable<boolean>(false);

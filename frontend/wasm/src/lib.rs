@@ -335,6 +335,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_text_box_width(&self, id: u64, width: Option<f64>, save_history: bool) {
+        self.document.borrow_mut().set_text_box_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn serialize(&self) -> String {
         self.document.borrow().serialize()
     }

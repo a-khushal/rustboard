@@ -34,12 +34,33 @@ export function setTextFontSize(id: number, fontSize: number, saveHistory: boole
     updateTexts();
 }
 
+export function setTextBoxWidth(id: number, boxWidth: number | null, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_text_box_width(BigInt(id), boxWidth, saveHistory);
+    updateTexts();
+}
+
 export function updateTextContent(id: number, value: string, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;
 
+    const currentTexts = get(texts);
+    const currentText = currentTexts.find((t: Text) => t.id === id);
+    const originalColor = currentText?.text_color;
+
     api.update_text(BigInt(id), value, saveHistory);
     updateTexts();
+
+    if (originalColor && originalColor !== '#000000') {
+        const updatedTexts = get(texts);
+        const updatedText = updatedTexts.find((t: Text) => t.id === id);
+        if (updatedText && (!updatedText.text_color || updatedText.text_color === '#000000')) {
+            api.set_text_color(BigInt(id), originalColor, false);
+            updateTexts();
+        }
+    }
 }
 
 export function deleteTextById(id: number, saveHistory: boolean = true): void {

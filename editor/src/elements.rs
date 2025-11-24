@@ -140,6 +140,8 @@ pub struct Text {
 	pub font_size: f64,
     #[serde(default = "default_stroke_color")]
     pub text_color: String,
+	#[serde(rename = "boxWidth", default)]
+	pub box_width: Option<f64>,
 }
 
 impl Text {
@@ -150,6 +152,7 @@ impl Text {
             text, 
             font_size,
             text_color: default_stroke_color(),
+			box_width: None,
         }
     }
 }

@@ -5,6 +5,8 @@ export const DEFAULT_TEXT_FONT_SIZE = DEFAULT_FONT_SIZE;
 export const TEXT_LINE_HEIGHT_RATIO = 1.25;
 const DEFAULT_TEXT_ASCENT = 12;
 const DEFAULT_TEXT_DESCENT = 4;
+export const TEXT_HORIZONTAL_PADDING = 4;
+export const TEXT_VERTICAL_PADDING = 4;
 
 export function getFontForSize(fontSize: number = DEFAULT_FONT_SIZE): string {
 	return `${fontSize}px 'Lucida Console', monospace`;
@@ -69,13 +71,39 @@ export function wrapTextToWidth(
 			const testLine = currentLine ? `${currentLine} ${word}` : word;
 			const metrics = ctx.measureText(testLine);
 
-			if (metrics.width <= maxWidth || currentLine === '') {
+			if (metrics.width <= maxWidth) {
 				currentLine = testLine;
 			} else {
 				if (currentLine) {
 					lines.push(currentLine);
 				}
-				currentLine = word;
+
+				const wordMetrics = ctx.measureText(word);
+				if (wordMetrics.width <= maxWidth) {
+					currentLine = word;
+				} else {
+					let remainingWord = word;
+					currentLine = '';
+					while (remainingWord.length > 0) {
+						let charIndex = 1;
+						while (charIndex <= remainingWord.length) {
+							const testChar = remainingWord.slice(0, charIndex);
+							const charMetrics = ctx.measureText(testChar);
+							if (charMetrics.width > maxWidth && charIndex > 1) {
+								lines.push(remainingWord.slice(0, charIndex - 1));
+								remainingWord = remainingWord.slice(charIndex - 1);
+								break;
+							}
+							charIndex++;
+						}
+						if (charIndex > remainingWord.length) {
+							if (remainingWord.length > 0) {
+								lines.push(remainingWord);
+							}
+							remainingWord = '';
+						}
+					}
+				}
 			}
 		}
 
@@ -250,23 +278,31 @@ export function arrowIntersectsBox(arrow: Arrow, box: { x: number; y: number; wi
 }
 
 export function isPointInText(x: number, y: number, text: Text, ctx?: CanvasRenderingContext2D): boolean {
-	const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_FONT_SIZE, ctx);
-	const top = text.position.y - layout.ascent;
+	const contentWidth = text.boxWidth ? Math.max(10, text.boxWidth - TEXT_HORIZONTAL_PADDING * 2) : undefined;
+	const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_FONT_SIZE, ctx, contentWidth);
+	const left = text.position.x - TEXT_HORIZONTAL_PADDING;
+	const right = left + (text.boxWidth ?? (layout.width + TEXT_HORIZONTAL_PADDING * 2));
+	const top = text.position.y - layout.ascent - TEXT_VERTICAL_PADDING;
+	const bottom = top + layout.height + TEXT_VERTICAL_PADDING * 2;
 	return (
-		x >= text.position.x &&
-		x <= text.position.x + layout.width &&
+		x >= left &&
+		x <= right &&
 		y >= top &&
-		y <= top + layout.height
+		y <= bottom
 	);
 }
 
 export function textIntersectsBox(text: Text, box: { x: number; y: number; width: number; height: number }, ctx?: CanvasRenderingContext2D): boolean {
-	const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx);
-	const top = text.position.y - layout.ascent;
+	const contentWidth = text.boxWidth ? Math.max(10, text.boxWidth - TEXT_HORIZONTAL_PADDING * 2) : undefined;
+	const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_FONT_SIZE, ctx, contentWidth);
+	const left = text.position.x - TEXT_HORIZONTAL_PADDING;
+	const top = text.position.y - layout.ascent - TEXT_VERTICAL_PADDING;
+	const textWidth = text.boxWidth ?? (layout.width + TEXT_HORIZONTAL_PADDING * 2);
+	const textHeight = layout.height + TEXT_VERTICAL_PADDING * 2;
 	return (
-		text.position.x >= box.x &&
+		left >= box.x &&
 		top >= box.y &&
-		text.position.x + layout.width <= box.x + box.width &&
-		top + layout.height <= box.y + box.height
+		left + textWidth <= box.x + box.width &&
+		top + textHeight <= box.y + box.height
 	);
 }

@@ -637,6 +637,24 @@ impl Document {
         }
     }
 
+    pub fn set_text_box_width(&mut self, id: u64, width: Option<f64>, save_history: bool) {
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            let normalized = width.and_then(|w| {
+                if w.is_finite() && w > 0.0 {
+                    Some(w)
+                } else {
+                    None
+                }
+            });
+            if text.box_width != normalized {
+                text.box_width = normalized;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
