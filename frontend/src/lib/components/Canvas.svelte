@@ -8,13 +8,13 @@
 	} from '$lib/stores/editor';
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
 		import { screenToWorld } from '$lib/utils/viewport';
-	import { 
-		addRectangle, moveRectangle, resizeRectangle,
-		addEllipse, moveEllipse, resizeEllipse,
-		addDiamond, moveDiamond, resizeDiamond,
+import { 
+		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
+		addEllipse, moveEllipse, resizeEllipse, setEllipseRotation,
+		addDiamond, moveDiamond, resizeDiamond, setDiamondRotation,
 		addLine, moveLine,
 		addArrow, moveArrow,
-		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById
+		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updateTexts } from '$lib/utils/canvas-operations/texts';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
@@ -66,20 +66,20 @@
 	let selectionBoxStart: { x: number; y: number } | null = null;
 	let selectionBoxEnd: { x: number; y: number } | null = null;
 	let selectedShapesStartPositions: {
-			rectangles: Map<number, { x: number; y: number; width: number; height: number }>;
-			ellipses: Map<number, { x: number; y: number; radius_x: number; radius_y: number }>;
-			diamonds: Map<number, { x: number; y: number; width: number; height: number }>;
-			lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number } }>;
-			arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number } }>;
-			texts: Map<number, { x: number; y: number; text: string; fontSize: number }>;
-		} = {
-			rectangles: new Map(),
-			ellipses: new Map(),
-			diamonds: new Map(),
-			lines: new Map(),
-			arrows: new Map(),
-			texts: new Map()
-		};
+		rectangles: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
+		ellipses: Map<number, { x: number; y: number; radius_x: number; radius_y: number; rotation: number }>;
+		diamonds: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
+		lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
+		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
+		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number }>;
+	} = {
+		rectangles: new Map(),
+		ellipses: new Map(),
+		diamonds: new Map(),
+		lines: new Map(),
+		arrows: new Map(),
+		texts: new Map()
+	};
 	let isGroupResizing = false;
 	let groupResizeHandleIndex: number | null = null;
 	let groupResizeStartBox: BoundingBox | null = null;
@@ -88,6 +88,13 @@
 	let groupResizeStartMousePos = { x: 0, y: 0 };
 	let renderDependencies: Record<string, unknown> | null = null;
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
+	const ROTATION_HANDLE_DISTANCE = 18;
+	const ROTATION_HANDLE_RADIUS = 7;
+	const ROTATION_STEP = Math.PI / 12;
+	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text';
+	let isRotating = false;
+	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
+	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
 
 	let isTypingText = false;
 	let typingTextId: number | null = null;
@@ -125,6 +132,13 @@ let typingBoxWidth: number | null = null;
 				insertTextAtCursor('\n');
 				return;
 			}
+			return;
+		}
+
+		if (event.key === 'Escape' && isRotating) {
+			event.preventDefault();
+			resetRotationState();
+			scheduleRender();
 			return;
 		}
 
@@ -265,6 +279,15 @@ let typingBoxWidth: number | null = null;
 			return;
 		}
 
+		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'r') {
+			if ($activeTool === 'select') {
+				event.preventDefault();
+				const delta = event.shiftKey ? -ROTATION_STEP : ROTATION_STEP;
+				rotateSelectedShapes(delta);
+			}
+			return;
+		}
+
 		if (!$editorApi || event.key !== 'Delete') return;
 
 		const hasSelectedRectangles = $selectedRectangles.length > 0;
@@ -299,7 +322,8 @@ let typingBoxWidth: number | null = null;
 		y: number,
 		shape: Rectangle | Ellipse | Diamond | Text,
 		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
-		zoom: number
+		zoom: number,
+		rotation: number = 0
 	): number | null {
 		const padding = getSelectionPaddingValue(zoom);
 		const gap = 4 / zoom;
@@ -347,10 +371,17 @@ let typingBoxWidth: number | null = null;
 			boxHeight = height + (padding + gap) * 2;
 		}
 		
+		const bounds = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
+		let testPoint = { x, y };
+		if (Math.abs(rotation) > 0.0001) {
+			const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+			testPoint = rotatePointAround({ x, y }, center, -rotation);
+		}
+		
 		return hitTestEdges(
-			x,
-			y,
-			{ x: boxX, y: boxY, width: boxWidth, height: boxHeight },
+			testPoint.x,
+			testPoint.y,
+			bounds,
 			zoom
 		);
 	}
@@ -520,6 +551,7 @@ let typingBoxWidth: number | null = null;
 	}
 
 	function startTypingExistingText(text: Text) {
+		resetRotationState();
 		clearAllSelections();
 		typingTextColor = text.text_color || '#000000';
 		
@@ -555,8 +587,225 @@ let typingBoxWidth: number | null = null;
 		];
 	}
 
+function getShapeBoundingBox(
+	shape: Rectangle | Ellipse | Diamond | Text,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
+	ctxOverride: CanvasRenderingContext2D | null = ctx
+): { x: number; y: number; width: number; height: number } | null {
+	if (shapeType === 'rectangle') {
+		const rect = shape as Rectangle;
+		return { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height };
+	}
+	if (shapeType === 'diamond') {
+		const diamond = shape as Diamond;
+		return { x: diamond.position.x, y: diamond.position.y, width: diamond.width, height: diamond.height };
+	}
+	if (shapeType === 'ellipse') {
+		const ellipse = shape as Ellipse;
+		return {
+			x: ellipse.position.x - ellipse.radius_x,
+			y: ellipse.position.y - ellipse.radius_y,
+			width: ellipse.radius_x * 2,
+			height: ellipse.radius_y * 2
+		};
+	}
+	const text = shape as Text;
+	const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+	const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
+	const layout = measureMultilineText(text.text, fontSize, ctxOverride ?? undefined, contentWidth);
+	const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+	const verticalPadding = TEXT_VERTICAL_PADDING;
+	const width = (text.boxWidth ?? layout.width + horizontalPadding * 2);
+	const height = layout.height + verticalPadding * 2;
+	const x = text.position.x - horizontalPadding;
+	const y = text.position.y - layout.ascent - verticalPadding;
+	return { x, y, width, height };
+}
+
+function getSelectionBoundsForShape(
+	shape: Rectangle | Ellipse | Diamond | Text,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
+	zoom: number,
+	ctxOverride: CanvasRenderingContext2D | null = ctx
+): { x: number; y: number; width: number; height: number } | null {
+	const base = getShapeBoundingBox(shape, shapeType, ctxOverride);
+	if (!base) return null;
+	const padding = getSelectionPaddingValue(zoom);
+	const gap = 4 / zoom;
+	return {
+		x: base.x - padding - gap,
+		y: base.y - padding - gap,
+		width: base.width + (padding + gap) * 2,
+		height: base.height + (padding + gap) * 2
+	};
+}
+
+function getShapeCenter(
+	shape: Rectangle | Ellipse | Diamond | Text,
+	shapeType: RotatableShapeType,
+	ctxOverride: CanvasRenderingContext2D | null = ctx
+): { x: number; y: number } | null {
+	const bounds = getShapeBoundingBox(shape, shapeType, ctxOverride);
+	if (!bounds) return null;
+	return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+}
+
+function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text, shapeType: RotatableShapeType): number {
+	if (shapeType === 'rectangle') {
+		return (shape as Rectangle).rotation_angle ?? 0;
+	}
+	if (shapeType === 'ellipse') {
+		return (shape as Ellipse).rotation_angle ?? 0;
+	}
+	if (shapeType === 'diamond') {
+		return (shape as Diamond).rotation_angle ?? 0;
+	}
+	return (shape as Text).rotation_angle ?? 0;
+}
+
+	function getRotationHandlePoints(
+		bounds: { x: number; y: number; width: number; height: number },
+		zoom: number,
+		rotation: number = 0
+	) {
+		const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+		const halfHeight = bounds.height / 2;
+		const offset = ROTATION_HANDLE_DISTANCE / zoom;
+		const basePoint = { x: center.x, y: center.y - halfHeight };
+		const handlePoint = { x: center.x, y: center.y - halfHeight - offset };
+		const rotatedBase = rotatePointAround(basePoint, center, rotation);
+		const rotatedHandle = rotatePointAround(handlePoint, center, rotation);
+		return { base: rotatedBase, handle: rotatedHandle };
+	}
+
+	function renderRotationHandleFromBounds(
+		ctx: CanvasRenderingContext2D,
+		bounds: { x: number; y: number; width: number; height: number },
+		zoom: number,
+		rotation: number = 0
+	) {
+		const { handle } = getRotationHandlePoints(bounds, zoom, rotation);
+		const radius = ROTATION_HANDLE_RADIUS / zoom;
+		ctx.save();
+		ctx.fillStyle = '#ffffff';
+		ctx.beginPath();
+		ctx.arc(handle.x, handle.y, radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.strokeStyle = '#1e88e5';
+		ctx.lineWidth = 1 / zoom;
+		ctx.stroke();
+		ctx.restore();
+	}
+
+	function isPointOnRotationHandle(
+		x: number,
+		y: number,
+		shape: Rectangle | Ellipse | Diamond | Text,
+		shapeType: RotatableShapeType,
+		zoom: number,
+		ctxOverride: CanvasRenderingContext2D | null = ctx
+	): boolean {
+		const bounds = getSelectionBoundsForShape(shape, shapeType, zoom, ctxOverride);
+		if (!bounds) return false;
+		const rotation = getRenderedRotation(shape, shapeType);
+		const { handle } = getRotationHandlePoints(bounds, zoom, rotation);
+		const radius = ROTATION_HANDLE_RADIUS / zoom;
+		return Math.hypot(x - handle.x, y - handle.y) <= radius;
+	}
+
+function normalizeAngle(angle: number): number {
+	const twoPi = Math.PI * 2;
+	let result = angle % twoPi;
+	if (result > Math.PI) result -= twoPi;
+	if (result < -Math.PI) result += twoPi;
+	return result;
+}
+
+function getRenderedRotation(
+	shape: Rectangle | Ellipse | Diamond | Text,
+	shapeType: RotatableShapeType
+): number {
+	if (rotationPreview && rotationPreview.type === shapeType && rotationPreview.id === shape.id) {
+		return rotationPreview.angle;
+	}
+	return getShapeRotation(shape, shapeType);
+}
+
+function applyRotationToShape(type: RotatableShapeType, id: number, angle: number, saveHistory: boolean) {
+	const normalized = normalizeAngle(angle);
+	if (type === 'rectangle') {
+		setRectangleRotation(id, normalized, saveHistory);
+		return;
+	}
+	if (type === 'ellipse') {
+		setEllipseRotation(id, normalized, saveHistory);
+		return;
+	}
+	if (type === 'diamond') {
+		setDiamondRotation(id, normalized, saveHistory);
+		return;
+	}
+	setTextRotation(id, normalized, saveHistory);
+}
+
+function beginRotation(
+	shape: Rectangle | Ellipse | Diamond | Text,
+	shapeType: RotatableShapeType,
+	x: number,
+	y: number
+): boolean {
+	if (isRotating || !canvas) return false;
+	const center = getShapeCenter(shape, shapeType, ctx);
+	if (!center) return false;
+	const startAngle = getShapeRotation(shape, shapeType);
+	const mouseAngle = Math.atan2(y - center.y, x - center.x);
+	isRotating = true;
+	rotationState = { type: shapeType, id: shape.id, center, startAngle, mouseStartAngle: mouseAngle };
+	rotationPreview = { type: shapeType, id: shape.id, angle: startAngle };
+	canvas.style.cursor = 'grabbing';
+	return true;
+}
+
+function resetRotationState() {
+	isRotating = false;
+	rotationState = null;
+	rotationPreview = null;
+}
+
+function rotateSelectedShapes(delta: number) {
+	const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text }> = [];
+	$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
+	$selectedEllipses.forEach(ellipse => targets.push({ type: 'ellipse', shape: ellipse }));
+	$selectedDiamonds.forEach(diamond => targets.push({ type: 'diamond', shape: diamond }));
+	$selectedTexts.forEach(text => targets.push({ type: 'text', shape: text }));
+	if (targets.length === 0) return;
+	targets.forEach((item, index) => {
+		const currentAngle = getShapeRotation(item.shape, item.type);
+		const newAngle = normalizeAngle(currentAngle + delta);
+		const isLast = index === targets.length - 1;
+		applyRotationToShape(item.type, item.shape.id, newAngle, isLast);
+	});
+	scheduleRender();
+}
+
 	function getSelectionPaddingValue(currentZoom: number): number {
 		return 2 / currentZoom;
+	}
+
+	function rotatePointAround(
+		point: { x: number; y: number },
+		center: { x: number; y: number },
+		angle: number
+	): { x: number; y: number } {
+		if (angle === 0) return { x: point.x, y: point.y };
+		const cos = Math.cos(angle);
+		const sin = Math.sin(angle);
+		const dx = point.x - center.x;
+		const dy = point.y - center.y;
+		return {
+			x: center.x + dx * cos - dy * sin,
+			y: center.y + dx * sin + dy * cos
+		};
 	}
 
 	function worldToScreen(
@@ -677,28 +926,28 @@ let typingBoxWidth: number | null = null;
 		selectedShapesStartPositions.arrows.clear();
 		selectedShapesStartPositions.texts.clear();
 		
-		$selectedRectangles.forEach(rect => {
-			selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height });
-		});
+	$selectedRectangles.forEach(rect => {
+		selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height, rotation: rect.rotation_angle ?? 0 });
+	});
 		
 		$selectedEllipses.forEach(ellipse => {
-			selectedShapesStartPositions.ellipses.set(ellipse.id, { x: ellipse.position.x, y: ellipse.position.y, radius_x: ellipse.radius_x, radius_y: ellipse.radius_y });
+		selectedShapesStartPositions.ellipses.set(ellipse.id, { x: ellipse.position.x, y: ellipse.position.y, radius_x: ellipse.radius_x, radius_y: ellipse.radius_y, rotation: ellipse.rotation_angle ?? 0 });
 		});
 		
 		$selectedDiamonds.forEach(diamond => {
-			selectedShapesStartPositions.diamonds.set(diamond.id, { x: diamond.position.x, y: diamond.position.y, width: diamond.width, height: diamond.height });
+		selectedShapesStartPositions.diamonds.set(diamond.id, { x: diamond.position.x, y: diamond.position.y, width: diamond.width, height: diamond.height, rotation: diamond.rotation_angle ?? 0 });
 		});
 		
 		$selectedLines.forEach(line => {
-			selectedShapesStartPositions.lines.set(line.id, { start: { x: line.start.x, y: line.start.y }, end: { x: line.end.x, y: line.end.y } });
+		selectedShapesStartPositions.lines.set(line.id, { start: { x: line.start.x, y: line.start.y }, end: { x: line.end.x, y: line.end.y }, rotation: line.rotation_angle ?? 0 });
 		});
 		
 		$selectedArrows.forEach(arrow => {
-			selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y } });
+		selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y }, rotation: arrow.rotation_angle ?? 0 });
 		});
 
 		$selectedTexts.forEach(text => {
-			selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE });
+		selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, rotation: text.rotation_angle ?? 0 });
 		});
 	}
 
@@ -1130,7 +1379,19 @@ let typingBoxWidth: number | null = null;
 
 			if (allowIndividualHandles) {
 				for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
-					const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
+					if (isPointOnRotationHandle(x, y, $selectedRectangles[i], 'rectangle', $zoom)) {
+						if (beginRotation($selectedRectangles[i], 'rectangle', x, y)) {
+							return;
+						}
+					}
+					const handleIndex = getResizeHandleAt(
+						x,
+						y,
+						$selectedRectangles[i],
+						'rectangle',
+						$zoom,
+						getRenderedRotation($selectedRectangles[i], 'rectangle')
+					);
 					if (handleIndex !== null) {
 						isResizing = true;
 						resizeHandleIndex = handleIndex;
@@ -1149,7 +1410,19 @@ let typingBoxWidth: number | null = null;
 				}
 
 				for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
-					const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
+					if (isPointOnRotationHandle(x, y, $selectedEllipses[i], 'ellipse', $zoom)) {
+						if (beginRotation($selectedEllipses[i], 'ellipse', x, y)) {
+							return;
+						}
+					}
+					const handleIndex = getResizeHandleAt(
+						x,
+						y,
+						$selectedEllipses[i],
+						'ellipse',
+						$zoom,
+						getRenderedRotation($selectedEllipses[i], 'ellipse')
+					);
 					if (handleIndex !== null) {
 						isResizing = true;
 						resizeHandleIndex = handleIndex;
@@ -1169,7 +1442,19 @@ let typingBoxWidth: number | null = null;
 				}
 
 				for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
-					const handleIndex = getResizeHandleAt(x, y, $selectedDiamonds[i], 'diamond', $zoom);
+					if (isPointOnRotationHandle(x, y, $selectedDiamonds[i], 'diamond', $zoom)) {
+						if (beginRotation($selectedDiamonds[i], 'diamond', x, y)) {
+							return;
+						}
+					}
+					const handleIndex = getResizeHandleAt(
+						x,
+						y,
+						$selectedDiamonds[i],
+						'diamond',
+						$zoom,
+						getRenderedRotation($selectedDiamonds[i], 'diamond')
+					);
 					if (handleIndex !== null) {
 						isResizing = true;
 						resizeHandleIndex = handleIndex;
@@ -1229,7 +1514,19 @@ let typingBoxWidth: number | null = null;
 
 				if (allowIndividualHandles && ctx) {
 					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(x, y, $selectedTexts[i], 'text', $zoom);
+						if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom, ctx)) {
+							if (beginRotation($selectedTexts[i], 'text', x, y)) {
+								return;
+							}
+						}
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedTexts[i],
+							'text',
+							$zoom,
+							getRenderedRotation($selectedTexts[i], 'text')
+						);
 						if (handleIndex !== null) {
 							isResizing = true;
 							resizeHandleIndex = handleIndex;
@@ -1246,18 +1543,12 @@ let typingBoxWidth: number | null = null;
 								height
 							};
 							resizeStartTextAscent = layout.ascent;
-							const isSideHandle = handleIndex === 5 || handleIndex === 7;
-							if (isSideHandle) {
-								const currentText = $selectedTexts[i].text;
-								const lines = currentText.split('\n');
-								resizeStartOriginalText = lines.join(' ');
-								const storedBoxWidth = $selectedTexts[i].boxWidth;
-								const currentBoxWidth = storedBoxWidth ?? (layout.width + TEXT_HORIZONTAL_PADDING * 2);
-								resizeStartBoxWidth = currentBoxWidth;
-							} else {
-								resizeStartOriginalText = null;
-								resizeStartBoxWidth = $selectedTexts[i].boxWidth ?? null;
-							}
+							const currentText = $selectedTexts[i].text;
+							const lines = currentText.split('\n');
+							resizeStartOriginalText = lines.join(' ');
+							const storedBoxWidth = $selectedTexts[i].boxWidth;
+							const currentBoxWidth = storedBoxWidth ?? (layout.width + TEXT_HORIZONTAL_PADDING * 2);
+							resizeStartBoxWidth = currentBoxWidth;
 							resizeStartMousePos = { x, y };
 							isShiftPressedDuringResize = isShiftPressed;
 							return;
@@ -1432,8 +1723,10 @@ let typingBoxWidth: number | null = null;
 			isSelectingBox = true;
 			selectionBoxStart = { x, y };
 			selectionBoxEnd = { x, y };
+			resetRotationState();
 			clearAllSelections();
 		} else if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond') {
+			resetRotationState();
 			clearAllSelections();
 			isCreatingShape = true;
 			isShiftPressedDuringCreation = isShiftPressed;
@@ -1441,6 +1734,7 @@ let typingBoxWidth: number | null = null;
 			createCurrentPos = { x, y };
 			scheduleRender();
 		} else if ($activeTool === 'line') {
+			resetRotationState();
 			clearAllSelections();
 			isCreatingShape = true;
 			isShiftPressedDuringCreation = isShiftPressed;
@@ -1448,6 +1742,7 @@ let typingBoxWidth: number | null = null;
 			lineEnd = { x, y };
 			scheduleRender();
 		} else if ($activeTool === 'arrow') {
+			resetRotationState();
 			clearAllSelections();
 			isCreatingShape = true;
 			isShiftPressedDuringCreation = isShiftPressed;
@@ -1455,6 +1750,7 @@ let typingBoxWidth: number | null = null;
 			arrowEnd = { x, y };
 			scheduleRender();
 		} else if ($activeTool === 'text') {
+			resetRotationState();
 			clearAllSelections();
 			const newId = addText(x, y, '', false);
 			if (newId !== null) {
@@ -1492,6 +1788,18 @@ let typingBoxWidth: number | null = null;
 		}
 
 		const { x, y } = worldPos;
+
+		if (isRotating && rotationState) {
+			const currentAngle = Math.atan2(y - rotationState.center.y, x - rotationState.center.x);
+			const delta = currentAngle - rotationState.mouseStartAngle;
+			const nextAngle = normalizeAngle(rotationState.startAngle + delta);
+			rotationPreview = { type: rotationState.type, id: rotationState.id, angle: nextAngle };
+			if (canvas) {
+				canvas.style.cursor = 'grabbing';
+			}
+			scheduleRender();
+			return;
+		}
 		
 		if (isDragging && draggedShape) {
 			canvas.style.cursor = 'move';
@@ -1610,7 +1918,7 @@ let typingBoxWidth: number | null = null;
 				if (affectsTop) top = resizeStartPos.y + deltaY;
 				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
 
-				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical) {
+				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
 					const width = right - left;
 					const height = bottom - top;
 					const maxSize = Math.max(Math.abs(width), Math.abs(height));
@@ -1781,6 +2089,8 @@ let typingBoxWidth: number | null = null;
 			const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
 			const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
 			const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+			const adjustsHorizontal = affectsLeft || affectsRight;
+			const adjustsVertical = affectsTop || affectsBottom;
 
 			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
 			const startTextX = resizeStartPos.x;
@@ -1789,84 +2099,117 @@ let typingBoxWidth: number | null = null;
 			const startBoxWidth = resizeStartBoxWidth ?? (resizeStartPos.width + horizontalPadding * 2);
 			const startBoxRight = startBoxLeft + startBoxWidth;
 			const startBoxTop = startTextY - resizeStartTextAscent;
-			const startBoxBottom = startBoxTop + resizeStartPos.height;
-			
-			let boxLeft: number;
-			let boxRight: number;
-			let boxTop: number;
-			let boxBottom: number;
-			
+			const startBoxHeight = resizeStartPos.height;
+			const startBoxBottom = startBoxTop + startBoxHeight;
+
+			const minWidth = horizontalPadding * 2 + 10;
+			const minHeight = 10;
+
+			let left = startBoxLeft;
+			let right = startBoxRight;
+			let top = startBoxTop;
+			let bottom = startBoxBottom;
+
 			if (isSideHandle) {
 				if (affectsLeft) {
-					boxLeft = Math.min(startBoxLeft + deltaX, startBoxRight - horizontalPadding * 2 - 10);
-					boxRight = startBoxRight;
+					left = Math.min(startBoxLeft + deltaX, startBoxRight - minWidth);
+					right = startBoxRight;
 				} else if (affectsRight) {
-					boxLeft = startBoxLeft;
-					boxRight = Math.max(startBoxRight + deltaX, startBoxLeft + horizontalPadding * 2 + 10);
-				} else {
-					boxLeft = startBoxLeft;
-					boxRight = startBoxRight;
+					left = startBoxLeft;
+					right = Math.max(startBoxRight + deltaX, startBoxLeft + minWidth);
 				}
-				boxTop = startBoxTop;
-				boxBottom = startBoxBottom;
+				top = startBoxTop;
+				bottom = startBoxBottom;
 			} else {
-				const minWidth = horizontalPadding * 2 + 10;
-				const minHeight = 10;
-				
-				if (resizeHandleIndex === 0) {
-					const newLeft = startBoxLeft + deltaX;
-					const newTop = startBoxTop + deltaY;
-					boxLeft = Math.min(newLeft, startBoxRight - minWidth);
-					boxRight = startBoxRight;
-					boxTop = Math.min(newTop, startBoxBottom - minHeight);
-					boxBottom = startBoxBottom;
-				} else if (resizeHandleIndex === 1) {
-					const newRight = startBoxRight + deltaX;
-					const newTop = startBoxTop + deltaY;
-					boxLeft = startBoxLeft;
-					boxRight = Math.max(newRight, startBoxLeft + minWidth);
-					boxTop = Math.min(newTop, startBoxBottom - minHeight);
-					boxBottom = startBoxBottom;
-				} else if (resizeHandleIndex === 2) {
-					const newRight = startBoxRight + deltaX;
-					const newBottom = startBoxBottom + deltaY;
-					boxLeft = startBoxLeft;
-					boxRight = Math.max(newRight, startBoxLeft + minWidth);
-					boxTop = startBoxTop;
-					boxBottom = Math.max(newBottom, startBoxTop + minHeight);
-				} else if (resizeHandleIndex === 3) {
-					const newLeft = startBoxLeft + deltaX;
-					const newBottom = startBoxBottom + deltaY;
-					boxLeft = Math.min(newLeft, startBoxRight - minWidth);
-					boxRight = startBoxRight;
-					boxTop = startBoxTop;
-					boxBottom = Math.max(newBottom, startBoxTop + minHeight);
-				} else {
-					boxLeft = startBoxLeft;
-					boxRight = startBoxRight;
-					boxTop = startBoxTop;
-					boxBottom = startBoxBottom;
+				if (affectsLeft) left = startBoxLeft + deltaX;
+				if (affectsRight) right = startBoxRight + deltaX;
+				if (affectsTop) top = startBoxTop + deltaY;
+				if (affectsBottom) bottom = startBoxBottom + deltaY;
+
+				if (isShiftPressedDuringResize && isCornerHandle && adjustsHorizontal && adjustsVertical && startBoxHeight !== 0) {
+					const aspectRatio = startBoxWidth / startBoxHeight;
+					const width = right - left;
+					const height = bottom - top;
+					const absWidth = Math.abs(width);
+					const absHeight = Math.abs(height);
+
+					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+						const targetHeight = absWidth / aspectRatio;
+						if (height >= 0) {
+							bottom = top + targetHeight;
+						} else {
+							top = bottom + targetHeight;
+						}
+					} else {
+						const targetWidth = absHeight * aspectRatio;
+						if (width >= 0) {
+							right = left + targetWidth;
+						} else {
+							left = right + targetWidth;
+						}
+					}
 				}
 			}
-			
-			const newWidth = Math.max(10, boxRight - boxLeft);
-			const newHeight = Math.max(10, boxBottom - boxTop);
-			const newTextX = boxLeft + horizontalPadding;
-			
+
+			let finalLeft = Math.min(left, right);
+			let finalRight = Math.max(left, right);
+			let finalTop = Math.min(top, bottom);
+			let finalBottom = Math.max(top, bottom);
+
+			const draggedLeft = affectsLeft && !affectsRight;
+			const draggedRight = affectsRight && !affectsLeft;
+			const draggedTop = affectsTop && !affectsBottom;
+			const draggedBottom = affectsBottom && !affectsTop;
+
+			let newWidth = finalRight - finalLeft;
+			if (newWidth < minWidth) {
+				if (draggedLeft) {
+					finalLeft = finalRight - minWidth;
+				} else if (draggedRight) {
+					finalRight = finalLeft + minWidth;
+				} else {
+					finalRight = finalLeft + minWidth;
+				}
+				newWidth = minWidth;
+			}
+
+			let newHeight = finalBottom - finalTop;
+			if (!isSideHandle && newHeight < minHeight) {
+				if (draggedTop) {
+					finalTop = finalBottom - minHeight;
+				} else if (draggedBottom) {
+					finalBottom = finalTop + minHeight;
+				} else {
+					finalBottom = finalTop + minHeight;
+				}
+				newHeight = minHeight;
+			}
+
+			const newTextX = finalLeft + horizontalPadding;
+
 			if (isSideHandle) {
 				const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 				const textWidth = Math.max(10, newWidth - horizontalPadding * 2);
 				const textToWrap = resizeStartOriginalText ?? text.text;
-				
+
 				const unwrappedLayout = measureMultilineText(textToWrap, fontSize, ctx ?? undefined);
 				const needsWrapping = unwrappedLayout.width > textWidth;
-				
-				const previewLayout = needsWrapping 
+
+				const previewLayout = needsWrapping
 					? measureMultilineText(textToWrap, fontSize, ctx ?? undefined, textWidth)
 					: unwrappedLayout;
-				const newBaseline = boxTop + previewLayout.ascent;
-				
-				resizePreview = { x: newTextX, y: boxTop, width: newWidth, height: previewLayout.height, type: 'text', id: text.id, fontSize: fontSize, baseline: newBaseline };
+				const newBaseline = finalTop + previewLayout.ascent;
+
+				resizePreview = {
+					x: newTextX,
+					y: finalTop,
+					width: newWidth,
+					height: previewLayout.height,
+					type: 'text',
+					id: text.id,
+					fontSize: fontSize,
+					baseline: newBaseline
+				};
 			} else {
 				const startWidth = Math.max(1, resizeStartPos.width);
 				const startHeight = Math.max(1, resizeStartPos.height);
@@ -1875,9 +2218,18 @@ let typingBoxWidth: number | null = null;
 				const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
 				const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
 				const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
-				const newBaseline = boxTop + previewLayout.ascent;
-				
-				resizePreview = { x: newTextX, y: boxTop, width: newWidth, height: newHeight, type: 'text', id: text.id, fontSize: newFontSize, baseline: newBaseline };
+				const newBaseline = finalTop + previewLayout.ascent;
+
+				resizePreview = {
+					x: newTextX,
+					y: finalTop,
+					width: newWidth,
+					height: newHeight,
+					type: 'text',
+					id: text.id,
+					fontSize: newFontSize,
+					baseline: newBaseline
+				};
 			}
 			scheduleRender();
 			}
@@ -1921,14 +2273,54 @@ let typingBoxWidth: number | null = null;
 
 				if (totalSelectedCount <= 1) {
 					for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(x, y, $selectedRectangles[i], 'rectangle', $zoom);
+						if (isPointOnRotationHandle(x, y, $selectedRectangles[i], 'rectangle', $zoom)) {
+							canvas.style.cursor = 'grab';
+							return;
+						}
+					}
+					for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
+						if (isPointOnRotationHandle(x, y, $selectedEllipses[i], 'ellipse', $zoom)) {
+							canvas.style.cursor = 'grab';
+							return;
+						}
+					}
+					for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
+						if (isPointOnRotationHandle(x, y, $selectedDiamonds[i], 'diamond', $zoom)) {
+							canvas.style.cursor = 'grab';
+							return;
+						}
+					}
+					if (ctx) {
+						for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+							if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom, ctx)) {
+								canvas.style.cursor = 'grab';
+								return;
+							}
+						}
+					}
+					for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedRectangles[i],
+							'rectangle',
+							$zoom,
+							getRenderedRotation($selectedRectangles[i], 'rectangle')
+						);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
 						}
 					}
 					for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(x, y, $selectedEllipses[i], 'ellipse', $zoom);
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedEllipses[i],
+							'ellipse',
+							$zoom,
+							getRenderedRotation($selectedEllipses[i], 'ellipse')
+						);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
@@ -1936,7 +2328,14 @@ let typingBoxWidth: number | null = null;
 					}
 					
 					for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(x, y, $selectedDiamonds[i], 'diamond', $zoom);
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedDiamonds[i],
+							'diamond',
+							$zoom,
+							getRenderedRotation($selectedDiamonds[i], 'diamond')
+						);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
@@ -1960,7 +2359,14 @@ let typingBoxWidth: number | null = null;
 					}
 					
 					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(x, y, $selectedTexts[i], 'text', $zoom);
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedTexts[i],
+							'text',
+							$zoom,
+							getRenderedRotation($selectedTexts[i], 'text')
+						);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
@@ -2053,6 +2459,14 @@ let typingBoxWidth: number | null = null;
 	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
+		}
+
+		if (isRotating) {
+			if (rotationState && rotationPreview) {
+				applyRotationToShape(rotationState.type, rotationState.id, rotationPreview.angle, true);
+			}
+			resetRotationState();
+			scheduleRender();
 		}
 		
 		if (isResizing && resizePreview && $editorApi) {
@@ -2420,8 +2834,7 @@ let typingBoxWidth: number | null = null;
 		});
 	}
 
-	function renderSelectionOutline(
-		ctx: CanvasRenderingContext2D,
+	function getSelectionOutlineBounds(
 		x: number,
 		y: number,
 		width: number,
@@ -2429,12 +2842,35 @@ let typingBoxWidth: number | null = null;
 		zoom: number,
 		includePadding: boolean = true
 	) {
+		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
+		const gap = 4 / zoom;
+		return {
+			x: x - padding - gap,
+			y: y - padding - gap,
+			width: width + (padding + gap) * 2,
+			height: height + (padding + gap) * 2
+		};
+	}
+
+	function renderSelectionOutline(
+		ctx: CanvasRenderingContext2D,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		zoom: number,
+		includePadding: boolean = true,
+		rotation: number = 0
+	) {
+		const bounds = getSelectionOutlineBounds(x, y, width, height, zoom, includePadding);
 		ctx.save();
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 1 / zoom;
-		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
-		const gap = 4 / zoom;
-		ctx.strokeRect(x - padding - gap, y - padding - gap, width + (padding + gap) * 2, height + (padding + gap) * 2);
+		const centerX = bounds.x + bounds.width / 2;
+		const centerY = bounds.y + bounds.height / 2;
+		ctx.translate(centerX, centerY);
+		ctx.rotate(rotation);
+		ctx.strokeRect(-bounds.width / 2, -bounds.height / 2, bounds.width, bounds.height);
 		ctx.restore();
 	}
 
@@ -2445,35 +2881,36 @@ let typingBoxWidth: number | null = null;
 		width: number,
 		height: number,
 		zoom: number,
-		includePadding: boolean = true
+		includePadding: boolean = true,
+		rotation: number = 0
 	) {
 		const handleSize = 8 / zoom;
 		const halfHandle = handleSize / 2;
-		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
-		const gap = 4 / zoom;
-		
-		const outlineX = x - padding - gap;
-		const outlineY = y - padding - gap;
-		const outlineWidth = width + (padding + gap) * 2;
-		const outlineHeight = height + (padding + gap) * 2;
+		const bounds = getSelectionOutlineBounds(x, y, width, height, zoom, includePadding);
+		const halfWidth = bounds.width / 2;
+		const halfHeight = bounds.height / 2;
 		
 		ctx.fillStyle = '#ffffff';
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 2 / zoom;
 		
 		const cornerHandles = [
-			{ x: outlineX, y: outlineY },
-			{ x: outlineX + outlineWidth, y: outlineY },
-			{ x: outlineX + outlineWidth, y: outlineY + outlineHeight },
-			{ x: outlineX, y: outlineY + outlineHeight }
+			{ x: -halfWidth, y: -halfHeight },
+			{ x: halfWidth, y: -halfHeight },
+			{ x: halfWidth, y: halfHeight },
+			{ x: -halfWidth, y: halfHeight }
 		];
 		
+		ctx.save();
+		ctx.translate(bounds.x + halfWidth, bounds.y + halfHeight);
+		ctx.rotate(rotation);
 		cornerHandles.forEach((handle) => {
 			ctx.beginPath();
 			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
 			ctx.fill();
 			ctx.stroke();
 		});
+		ctx.restore();
 	}
 
 	function renderTextHandles(
@@ -2483,35 +2920,36 @@ let typingBoxWidth: number | null = null;
 		width: number,
 		height: number,
 		zoom: number,
-		includePadding: boolean = true
+		includePadding: boolean = true,
+		rotation: number = 0
 	) {
 		const handleSize = 8 / zoom;
 		const halfHandle = handleSize / 2;
-		const padding = includePadding ? getSelectionPaddingValue(zoom) : 0;
-		const gap = 4 / zoom;
-		
-		const outlineX = x - padding - gap;
-		const outlineY = y - padding - gap;
-		const outlineWidth = width + (padding + gap) * 2;
-		const outlineHeight = height + (padding + gap) * 2;
+		const bounds = getSelectionOutlineBounds(x, y, width, height, zoom, includePadding);
+		const halfWidth = bounds.width / 2;
+		const halfHeight = bounds.height / 2;
 		
 		ctx.fillStyle = '#ffffff';
 		ctx.strokeStyle = '#1e88e5';
 		ctx.lineWidth = 2 / zoom;
 		
 		const cornerHandles = [
-			{ x: outlineX, y: outlineY },
-			{ x: outlineX + outlineWidth, y: outlineY },
-			{ x: outlineX + outlineWidth, y: outlineY + outlineHeight },
-			{ x: outlineX, y: outlineY + outlineHeight }
+			{ x: -halfWidth, y: -halfHeight },
+			{ x: halfWidth, y: -halfHeight },
+			{ x: halfWidth, y: halfHeight },
+			{ x: -halfWidth, y: halfHeight }
 		];
 		
+		ctx.save();
+		ctx.translate(bounds.x + halfWidth, bounds.y + halfHeight);
+		ctx.rotate(rotation);
 		cornerHandles.forEach((handle) => {
 			ctx.beginPath();
 			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
 			ctx.fill();
 			ctx.stroke();
 		});
+		ctx.restore();
 	}
 
 	function calculateGroupBoundingBox(): { x: number; y: number; width: number; height: number } | null {
@@ -2778,21 +3216,28 @@ let typingBoxWidth: number | null = null;
 			const strokeColor = rect.stroke_color || '#000000';
 			const fillColor = rect.fill_color;
 			const lineWidth = rect.line_width || 2;
+			const rotation = getRenderedRotation(rect, 'rectangle');
 			
 			renderCtx.lineWidth = lineWidth;
-			
+			renderCtx.save();
+			const centerX = renderX + renderWidth / 2;
+			const centerY = renderY + renderHeight / 2;
+			renderCtx.translate(centerX, centerY);
+			renderCtx.rotate(rotation);
 			if (fillColor) {
 				renderCtx.fillStyle = fillColor;
-				renderCtx.fillRect(renderX, renderY, renderWidth, renderHeight);
+				renderCtx.fillRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
 			}
-			
 			renderCtx.strokeStyle = strokeColor;
-			renderCtx.strokeRect(renderX, renderY, renderWidth, renderHeight);
+			renderCtx.strokeRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+			renderCtx.restore();
 			
 			if (isSelected) {
-				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
+				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
 				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
 				}
 			}
 		});
@@ -2834,10 +3279,14 @@ let typingBoxWidth: number | null = null;
 			const strokeColor = ellipse.stroke_color || '#000000';
 			const fillColor = ellipse.fill_color;
 			const lineWidth = ellipse.line_width || 2;
+			const rotation = getRenderedRotation(ellipse, 'ellipse');
 			
 			renderCtx.lineWidth = lineWidth;
+			renderCtx.save();
+			renderCtx.translate(renderX, renderY);
+			renderCtx.rotate(rotation);
 			renderCtx.beginPath();
-			renderCtx.ellipse(renderX, renderY, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
+			renderCtx.ellipse(0, 0, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
 			
 			if (fillColor) {
 				renderCtx.fillStyle = fillColor;
@@ -2846,15 +3295,18 @@ let typingBoxWidth: number | null = null;
 			
 			renderCtx.strokeStyle = strokeColor;
 			renderCtx.stroke();
+			renderCtx.restore();
 			
 			if (isSelected) {
 				const x = renderX - renderRadiusX;
 				const y = renderY - renderRadiusY;
 				const width = renderRadiusX * 2;
 				const height = renderRadiusY * 2;
-				renderSelectionOutline(renderCtx, x, y, width, height, $zoom);
+				const outlineBounds = getSelectionOutlineBounds(x, y, width, height, $zoom, true);
+				renderSelectionOutline(renderCtx, x, y, width, height, $zoom, true, rotation);
 				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, x, y, width, height, $zoom);
+					renderCornerHandles(renderCtx, x, y, width, height, $zoom, true, rotation);
+					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
 				}
 			}
 		});
@@ -2925,13 +3377,17 @@ let typingBoxWidth: number | null = null;
 			const strokeColor = diamond.stroke_color || '#000000';
 			const fillColor = diamond.fill_color;
 			const lineWidth = diamond.line_width || 2;
+			const rotation = getRenderedRotation(diamond, 'diamond');
 			
 			renderCtx.lineWidth = lineWidth;
+			renderCtx.save();
+			renderCtx.translate(centerX, centerY);
+			renderCtx.rotate(rotation);
 			renderCtx.beginPath();
-			renderCtx.moveTo(centerX, centerY - halfHeight);
-			renderCtx.lineTo(centerX + halfWidth, centerY);
-			renderCtx.lineTo(centerX, centerY + halfHeight);
-			renderCtx.lineTo(centerX - halfWidth, centerY);
+			renderCtx.moveTo(0, -halfHeight);
+			renderCtx.lineTo(halfWidth, 0);
+			renderCtx.lineTo(0, halfHeight);
+			renderCtx.lineTo(-halfWidth, 0);
 			renderCtx.closePath();
 			
 			if (fillColor) {
@@ -2941,11 +3397,14 @@ let typingBoxWidth: number | null = null;
 			
 			renderCtx.strokeStyle = strokeColor;
 			renderCtx.stroke();
+			renderCtx.restore();
 			
 			if (isSelected) {
-				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+				const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
+				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
 				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom);
+					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
 				}
 			}
 		});
@@ -3167,6 +3626,7 @@ let typingBoxWidth: number | null = null;
 			const textColor = text.text_color || '#000000';
 			renderCtx.fillStyle = textColor;
 			renderCtx.font = getFontForSize(fontSize);
+			const rotation = getRenderedRotation(text, 'text');
 			
 			let layout;
 			let constrainedWidth: number | undefined = undefined;
@@ -3189,24 +3649,34 @@ let typingBoxWidth: number | null = null;
 				}
 			}
 
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+			const verticalPadding = TEXT_VERTICAL_PADDING;
+			const textTop = renderY - layout.ascent;
+			const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
+			const boxX = renderX - horizontalPadding;
+			const boxY = textTop - verticalPadding;
+			const selectionWidth = constrainedWidth ? constrainedWidth : (layout.width + horizontalPadding * 2);
+			const selectionHeight = (textBottom - textTop) + verticalPadding * 2;
+			const originX = boxX + selectionWidth / 2;
+			const originY = boxY + selectionHeight / 2;
+
+			renderCtx.save();
+			renderCtx.translate(originX, originY);
+			renderCtx.rotate(rotation);
+			const textStartX = -selectionWidth / 2 + horizontalPadding;
+			const textStartY = -selectionHeight / 2 + verticalPadding + layout.ascent;
 			layout.lines.forEach((line, index) => {
-				const baselineY = renderY + index * layout.lineHeight;
-				renderCtx.fillText(line || ' ', renderX, baselineY);
+				const baselineY = textStartY + index * layout.lineHeight;
+				renderCtx.fillText(line || ' ', textStartX, baselineY);
 			});
+			renderCtx.restore();
 			
 			if (isSelected) {
-				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-				const verticalPadding = TEXT_VERTICAL_PADDING;
-				const textTop = renderY - layout.ascent;
-				const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
-				const boxX = renderX - horizontalPadding;
-				const boxY = textTop - verticalPadding;
-				const width = constrainedWidth ? constrainedWidth : (layout.width + horizontalPadding * 2);
-				const height = (textBottom - textTop) + verticalPadding * 2;
-
-				renderSelectionOutline(renderCtx, boxX, boxY, width, height, $zoom, false);
+				const outlineBounds = getSelectionOutlineBounds(boxX, boxY, selectionWidth, selectionHeight, $zoom, false);
+				renderSelectionOutline(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
 				if (showIndividualHandles) {
-					renderTextHandles(renderCtx, boxX, boxY, width, height, $zoom, false);
+					renderTextHandles(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
+					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
 				}
 			}
 		});

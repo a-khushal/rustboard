@@ -32,6 +32,14 @@ export function resizeRectangle(id: number, width: number, height: number, saveH
     updateRectangles();
 }
 
+export function setRectangleRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_rectangle_rotation(BigInt(id), angle, saveHistory);
+    updateRectangles();
+}
+
 export function updateRectangles(): void {
     const api = get(editorApi);
     if (!api) return;

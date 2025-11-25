@@ -24,6 +24,14 @@ export function moveArrow(id: number, startX: number, startY: number, endX: numb
     updateArrows();
 }
 
+export function setArrowRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_arrow_rotation(BigInt(id), angle, saveHistory);
+    updateArrows();
+}
+
 export function updateArrows(): void {
     const api = get(editorApi);
     if (!api) return;

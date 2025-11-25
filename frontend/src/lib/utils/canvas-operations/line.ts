@@ -24,6 +24,14 @@ export function moveLine(id: number, startX: number, startY: number, endX: numbe
     updateLines();
 }
 
+export function setLineRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_line_rotation(BigInt(id), angle, saveHistory);
+    updateLines();
+}
+
 export function updateLines(): void {
     const api = get(editorApi);
     if (!api) return;

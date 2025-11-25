@@ -13,6 +13,8 @@ pub struct Rectangle {
     pub fill_color: Option<String>,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
 }
 
 impl Rectangle {
@@ -25,6 +27,7 @@ impl Rectangle {
             stroke_color: default_stroke_color(),
             fill_color: default_fill_color(),
             line_width: default_line_width(),
+            rotation_angle: default_rotation(),
         }
     }
 }
@@ -41,6 +44,8 @@ pub struct Ellipse {
     pub fill_color: Option<String>,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
 }
 
 impl Ellipse {
@@ -53,6 +58,7 @@ impl Ellipse {
             stroke_color: default_stroke_color(),
             fill_color: default_fill_color(),
             line_width: default_line_width(),
+            rotation_angle: default_rotation(),
         }
     }
 }
@@ -66,6 +72,8 @@ pub struct Line {
     pub stroke_color: String,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
 }
 
 impl Line {
@@ -76,6 +84,7 @@ impl Line {
             end,
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
+            rotation_angle: default_rotation(),
         }
     }
 }
@@ -89,6 +98,8 @@ pub struct Arrow {
     pub stroke_color: String,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
 }
 
 impl Arrow {
@@ -99,6 +110,7 @@ impl Arrow {
             end,
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
+            rotation_angle: default_rotation(),
         }
     }
 }
@@ -115,6 +127,8 @@ pub struct Diamond {
     pub fill_color: Option<String>,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
 }
 
 impl Diamond {
@@ -127,6 +141,7 @@ impl Diamond {
             stroke_color: default_stroke_color(),
             fill_color: default_fill_color(),
             line_width: default_line_width(),
+            rotation_angle: default_rotation(),
         }
     }
 }
@@ -142,6 +157,8 @@ pub struct Text {
     pub text_color: String,
 	#[serde(rename = "boxWidth", default)]
 	pub box_width: Option<f64>,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
 }
 
 impl Text {
@@ -153,6 +170,7 @@ impl Text {
             font_size,
             text_color: default_stroke_color(),
 			box_width: None,
+            rotation_angle: default_rotation(),
         }
     }
 }
@@ -171,4 +189,8 @@ fn default_fill_color() -> Option<String> {
 
 fn default_line_width() -> f64 {
     2.0
+}
+
+fn default_rotation() -> f64 {
+    0.0
 }

@@ -42,6 +42,14 @@ export function setTextBoxWidth(id: number, boxWidth: number | null, saveHistory
     updateTexts();
 }
 
+export function setTextRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_text_rotation(BigInt(id), angle, saveHistory);
+    updateTexts();
+}
+
 export function updateTextContent(id: number, value: string, saveHistory: boolean = true): void {
     const api = get(editorApi);
     if (!api) return;

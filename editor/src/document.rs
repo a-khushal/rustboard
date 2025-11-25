@@ -220,6 +220,17 @@ impl Document {
         }
     }
 
+    pub fn set_rectangle_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if (rect.rotation_angle - angle).abs() > f64::EPSILON {
+                rect.rotation_angle = angle;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_diamond(&mut self, position: Point, width: f64, height: f64) -> u64 {
         let id = self.add_diamond_without_snapshot(position, width, height);
         self.save_snapshot();
@@ -309,6 +320,17 @@ impl Document {
         if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
             if (diamond.line_width - width).abs() > f64::EPSILON {
                 diamond.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_diamond_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if (diamond.rotation_angle - angle).abs() > f64::EPSILON {
+                diamond.rotation_angle = angle;
                 if save_history {
                     self.save_snapshot();
                 }
@@ -412,6 +434,17 @@ impl Document {
         }
     }
 
+    pub fn set_ellipse_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            if (ellipse.rotation_angle - angle).abs() > f64::EPSILON {
+                ellipse.rotation_angle = angle;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_line(&mut self, start: Point, end: Point) -> u64 {
         let id = self.add_line_without_snapshot(start, end);
         self.save_snapshot();
@@ -478,6 +511,17 @@ impl Document {
         }
     }
 
+    pub fn set_line_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            if (line.rotation_angle - angle).abs() > f64::EPSILON {
+                line.rotation_angle = angle;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_arrow(&mut self, start: Point, end: Point) -> u64 {
         let id = self.add_arrow_without_snapshot(start, end);
         self.save_snapshot();
@@ -537,6 +581,17 @@ impl Document {
         if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
             if (arrow.line_width - width).abs() > f64::EPSILON {
                 arrow.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_arrow_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            if (arrow.rotation_angle - angle).abs() > f64::EPSILON {
+                arrow.rotation_angle = angle;
                 if save_history {
                     self.save_snapshot();
                 }
@@ -648,6 +703,17 @@ impl Document {
             });
             if text.box_width != normalized {
                 text.box_width = normalized;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_text_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            if (text.rotation_angle - angle).abs() > f64::EPSILON {
+                text.rotation_angle = angle;
                 if save_history {
                     self.save_snapshot();
                 }

@@ -32,6 +32,14 @@ export function resizeEllipse(id: number, radius_x: number, radius_y: number, sa
     updateEllipses();
 }
 
+export function setEllipseRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_ellipse_rotation(BigInt(id), angle, saveHistory);
+    updateEllipses();
+}
+
 export function updateEllipses(): void {
     const api = get(editorApi);
     if (!api) return;

@@ -32,6 +32,14 @@ export function resizeDiamond(id: number, width: number, height: number, saveHis
     updateDiamonds();
 }
 
+export function setDiamondRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_diamond_rotation(BigInt(id), angle, saveHistory);
+    updateDiamonds();
+}
+
 export function updateDiamonds(): void {
     const api = get(editorApi);
     if (!api) return;
