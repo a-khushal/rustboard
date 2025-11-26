@@ -7,8 +7,8 @@
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text
 	} from '$lib/stores/editor';
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
-		import { screenToWorld } from '$lib/utils/viewport';
-import { 
+	import { screenToWorld } from '$lib/utils/viewport';
+	import { 
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
 		addEllipse, moveEllipse, resizeEllipse, setEllipseRotation,
 		addDiamond, moveDiamond, resizeDiamond, setDiamondRotation,
@@ -71,7 +71,7 @@ import {
 		diamonds: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 		lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
-		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number }>;
+		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number; boxWidth?: number }>;
 	} = {
 		rectangles: new Map(),
 		ellipses: new Map(),
@@ -80,16 +80,51 @@ import {
 		arrows: new Map(),
 		texts: new Map()
 	};
+
+	function storeSelectedShapesStartPositions() {
+		selectedShapesStartPositions.rectangles.clear();
+		selectedShapesStartPositions.ellipses.clear();
+		selectedShapesStartPositions.diamonds.clear();
+		selectedShapesStartPositions.lines.clear();
+		selectedShapesStartPositions.arrows.clear();
+		selectedShapesStartPositions.texts.clear();
+		
+	$selectedRectangles.forEach(rect => {
+		selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height, rotation: rect.rotation_angle ?? 0 });
+	});
+		
+		$selectedEllipses.forEach(ellipse => {
+		selectedShapesStartPositions.ellipses.set(ellipse.id, { x: ellipse.position.x, y: ellipse.position.y, radius_x: ellipse.radius_x, radius_y: ellipse.radius_y, rotation: ellipse.rotation_angle ?? 0 });
+		});
+		
+		$selectedDiamonds.forEach(diamond => {
+		selectedShapesStartPositions.diamonds.set(diamond.id, { x: diamond.position.x, y: diamond.position.y, width: diamond.width, height: diamond.height, rotation: diamond.rotation_angle ?? 0 });
+		});
+		
+		$selectedLines.forEach(line => {
+		selectedShapesStartPositions.lines.set(line.id, { start: { x: line.start.x, y: line.start.y }, end: { x: line.end.x, y: line.end.y }, rotation: line.rotation_angle ?? 0 });
+		});
+		
+		$selectedArrows.forEach(arrow => {
+		selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y }, rotation: arrow.rotation_angle ?? 0 });
+		});
+
+		$selectedTexts.forEach(text => {
+		selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, rotation: text.rotation_angle ?? 0, boxWidth: text.boxWidth });
+		});
+	}
 	let isGroupResizing = false;
 	let groupResizeHandleIndex: number | null = null;
 	let groupResizeStartBox: BoundingBox | null = null;
 	let groupResizeCurrentBox: BoundingBox | null = null;
 	let groupResizePadding = 0;
 	let groupResizeStartMousePos = { x: 0, y: 0 };
+	let isGroupRotating = false;
+	let groupRotationState: { center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let renderDependencies: Record<string, unknown> | null = null;
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 	const ROTATION_HANDLE_DISTANCE = 18;
-	const ROTATION_HANDLE_RADIUS = 7;
+	const ROTATION_HANDLE_RADIUS = 5;
 	const ROTATION_STEP = Math.PI / 12;
 	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text';
 	let isRotating = false;
@@ -105,7 +140,9 @@ import {
 	let typingDirty = false;
 	let typingFontSize = DEFAULT_TEXT_FONT_SIZE;
 	let typingTextColor: string | null = null;
-let typingBoxWidth: number | null = null;
+	let typingBoxWidth: number | null = null;
+	let typingRotation = 0;
+	let typingFixedCenter: { x: number; y: number } | null = null;
 	let textInputRef: HTMLTextAreaElement | null = null;
 	let typingLayout = measureMultilineText('', DEFAULT_TEXT_FONT_SIZE);
 
@@ -393,7 +430,8 @@ let typingBoxWidth: number | null = null;
 		worldPosition: { x: number; y: number },
 		selectAll: boolean,
 		fontSize: number,
-		boxWidth: number | null = null
+		boxWidth: number | null = null,
+		rotation: number = 0
 	) {
 		const savedViewportOffset = { ...$viewportOffset };
 		const savedScrollX = window.scrollX;
@@ -411,8 +449,25 @@ let typingBoxWidth: number | null = null;
 		typingDirty = initialValue !== originalValue;
 		typingFontSize = fontSize;
 		typingBoxWidth = boxWidth;
+		typingRotation = rotation;
 		const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
 		typingLayout = measureMultilineText(initialValue || '', typingFontSize, ctx ?? undefined, typingContentWidth);
+
+		if (initialValue.trim().length > 0) {
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+			const verticalPadding = TEXT_VERTICAL_PADDING;
+			const initialBoxX = worldPosition.x - horizontalPadding;
+			const initialBoxY = worldPosition.y - typingLayout.ascent - verticalPadding;
+			const initialBoxWidth = typingBoxWidth ?? (typingLayout.width + horizontalPadding * 2);
+			const initialBoxHeight = typingLayout.height + verticalPadding * 2;
+			typingFixedCenter = {
+				x: initialBoxX + initialBoxWidth / 2,
+				y: initialBoxY + initialBoxHeight / 2
+			};
+		} else {
+			typingFixedCenter = null;
+		}
+		
 		isTypingText = true;
 		
 		restoreViewport();
@@ -461,6 +516,8 @@ let typingBoxWidth: number | null = null;
 		typingFontSize = DEFAULT_TEXT_FONT_SIZE;
 		typingTextColor = null;
 		typingBoxWidth = null;
+		typingRotation = 0;
+		typingFixedCenter = null;
 		typingLayout = measureMultilineText('', typingFontSize, ctx ?? undefined);
 	}
 
@@ -531,6 +588,25 @@ let typingBoxWidth: number | null = null;
 
 		if (wasDirty) {
 			updateTextContent(currentId, finalValue, false);
+			
+			if (typingFixedCenter && typingWorldPos && ctx) {
+				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+				const verticalPadding = TEXT_VERTICAL_PADDING;
+				const contentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
+				const finalLayout = measureMultilineText(finalValue, typingFontSize, ctx, contentWidth);
+				
+				const newBoxWidth = typingBoxWidth ?? (finalLayout.width + horizontalPadding * 2);
+				const newBoxHeight = finalLayout.height + verticalPadding * 2;
+				
+				const newBoxX = typingFixedCenter.x - newBoxWidth / 2;
+				const newBoxY = typingFixedCenter.y - newBoxHeight / 2;
+
+				const newTextX = newBoxX + horizontalPadding;
+				const newTextY = newBoxY + verticalPadding + finalLayout.ascent;
+
+				moveText(currentId, newTextX, newTextY, false);
+			}
+			
 			if ($editorApi) {
 				$editorApi.save_snapshot();
 			}
@@ -567,7 +643,8 @@ let typingBoxWidth: number | null = null;
 			{ x: text.position.x, y: text.position.y },
 			true,
 			text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
-			text.boxWidth ?? null
+			text.boxWidth ?? null,
+			text.rotation_angle ?? 0
 		);
 	}
 
@@ -772,6 +849,42 @@ function resetRotationState() {
 	rotationPreview = null;
 }
 
+	function isPointOnGroupRotationHandle(
+		x: number,
+		y: number,
+		box: BoundingBox,
+		zoom: number
+	): boolean {
+		const gap = 4 / zoom;
+		const outlineX = box.x - gap;
+		const outlineY = box.y - gap;
+		const outlineWidth = box.width + gap * 2;
+		const outlineHeight = box.height + gap * 2;
+		const { handle } = getRotationHandlePoints({ x: outlineX, y: outlineY, width: outlineWidth, height: outlineHeight }, zoom, 0);
+		const radius = ROTATION_HANDLE_RADIUS / zoom;
+		return Math.hypot(x - handle.x, y - handle.y) <= radius;
+	}
+
+	function beginGroupRotation(
+		box: BoundingBox,
+		x: number,
+		y: number
+	): boolean {
+		if (isGroupRotating || !canvas) return false;
+		const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		const mouseAngle = Math.atan2(y - center.y, x - center.x);
+		isGroupRotating = true;
+		groupRotationState = { center, startAngle: 0, mouseStartAngle: mouseAngle };
+		storeSelectedShapesStartPositions();
+		canvas.style.cursor = 'grabbing';
+		return true;
+	}
+
+	function resetGroupRotationState() {
+		isGroupRotating = false;
+		groupRotationState = null;
+	}
+
 function rotateSelectedShapes(delta: number) {
 	const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text }> = [];
 	$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
@@ -918,38 +1031,7 @@ function rotateSelectedShapes(delta: number) {
 		return null;
 	}
 
-	function storeSelectedShapesStartPositions() {
-		selectedShapesStartPositions.rectangles.clear();
-		selectedShapesStartPositions.ellipses.clear();
-		selectedShapesStartPositions.diamonds.clear();
-		selectedShapesStartPositions.lines.clear();
-		selectedShapesStartPositions.arrows.clear();
-		selectedShapesStartPositions.texts.clear();
-		
-	$selectedRectangles.forEach(rect => {
-		selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height, rotation: rect.rotation_angle ?? 0 });
-	});
-		
-		$selectedEllipses.forEach(ellipse => {
-		selectedShapesStartPositions.ellipses.set(ellipse.id, { x: ellipse.position.x, y: ellipse.position.y, radius_x: ellipse.radius_x, radius_y: ellipse.radius_y, rotation: ellipse.rotation_angle ?? 0 });
-		});
-		
-		$selectedDiamonds.forEach(diamond => {
-		selectedShapesStartPositions.diamonds.set(diamond.id, { x: diamond.position.x, y: diamond.position.y, width: diamond.width, height: diamond.height, rotation: diamond.rotation_angle ?? 0 });
-		});
-		
-		$selectedLines.forEach(line => {
-		selectedShapesStartPositions.lines.set(line.id, { start: { x: line.start.x, y: line.start.y }, end: { x: line.end.x, y: line.end.y }, rotation: line.rotation_angle ?? 0 });
-		});
-		
-		$selectedArrows.forEach(arrow => {
-		selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y }, rotation: arrow.rotation_angle ?? 0 });
-		});
 
-		$selectedTexts.forEach(text => {
-		selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, rotation: text.rotation_angle ?? 0 });
-		});
-	}
 
 	function getGroupResizeHandleAt(x: number, y: number, box: BoundingBox, zoom: number): number | null {
 		const gap = 4 / zoom;
@@ -1377,6 +1459,12 @@ function rotateSelectedShapes(delta: number) {
 				}
 			}
 
+			if (visualGroupBox && isPointOnGroupRotationHandle(x, y, visualGroupBox, $zoom)) {
+				if (beginGroupRotation(visualGroupBox, x, y)) {
+					return;
+				}
+			}
+
 			if (allowIndividualHandles) {
 				for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
 					if (isPointOnRotationHandle(x, y, $selectedRectangles[i], 'rectangle', $zoom)) {
@@ -1752,13 +1840,83 @@ function rotateSelectedShapes(delta: number) {
 		} else if ($activeTool === 'text') {
 			resetRotationState();
 			clearAllSelections();
+			if (!$editorApi) {
+				return;
+			}
 			const newId = addText(x, y, '', false);
 			if (newId !== null) {
-				startTypingSession(newId, '', '', { x, y }, false, DEFAULT_TEXT_FONT_SIZE, null);
+				startTypingSession(newId, '', '', { x, y }, false, DEFAULT_TEXT_FONT_SIZE, null, 0);
+				activeTool.set('select');
 			}
-			activeTool.set('select');
 			scheduleRender();
 		}
+	}
+
+	function rotateGroup(delta: number, saveHistory: boolean) {
+		if (!groupRotationState) return;
+		const center = groupRotationState.center;
+
+		selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
+			const rotatedPos = rotatePointAround({ x: startPos.x + startPos.width / 2, y: startPos.y + startPos.height / 2 }, center, delta);
+			const newX = rotatedPos.x - startPos.width / 2;
+			const newY = rotatedPos.y - startPos.height / 2;
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			moveRectangle(id, newX, newY, saveHistory);
+			setRectangleRotation(id, newRotation, saveHistory);
+		});
+
+		selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
+			const rotatedPos = rotatePointAround({ x: startPos.x, y: startPos.y }, center, delta);
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			moveEllipse(id, rotatedPos.x, rotatedPos.y, saveHistory);
+			setEllipseRotation(id, newRotation, saveHistory);
+		});
+
+		selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
+			const rotatedPos = rotatePointAround({ x: startPos.x + startPos.width / 2, y: startPos.y + startPos.height / 2 }, center, delta);
+			const newX = rotatedPos.x - startPos.width / 2;
+			const newY = rotatedPos.y - startPos.height / 2;
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			moveDiamond(id, newX, newY, saveHistory);
+			setDiamondRotation(id, newRotation, saveHistory);
+		});
+
+		selectedShapesStartPositions.lines.forEach((startPos, id) => {
+			const newStart = rotatePointAround(startPos.start, center, delta);
+			const newEnd = rotatePointAround(startPos.end, center, delta);
+			moveLine(id, newStart.x, newStart.y, newEnd.x, newEnd.y, saveHistory);
+		});
+
+		selectedShapesStartPositions.arrows.forEach((startPos, id) => {
+			const newStart = rotatePointAround(startPos.start, center, delta);
+			const newEnd = rotatePointAround(startPos.end, center, delta);
+			moveArrow(id, newStart.x, newStart.y, newEnd.x, newEnd.y, saveHistory);
+		});
+
+		selectedShapesStartPositions.texts.forEach((startPos, id) => {
+			const contentWidth = getTextContentWidthFromBoxWidth(startPos.boxWidth ?? null);
+			const layout = measureMultilineText(startPos.text, startPos.fontSize, ctx ?? undefined, contentWidth);
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+			const verticalPadding = TEXT_VERTICAL_PADDING;
+			const width = (startPos.boxWidth ?? (layout.width + horizontalPadding * 2));
+			const height = layout.height + verticalPadding * 2;
+			
+			const boxX = startPos.x - horizontalPadding;
+			const boxY = startPos.y - layout.ascent - verticalPadding;
+			const centerX = boxX + width / 2;
+			const centerY = boxY + height / 2;
+			
+			const rotatedCenter = rotatePointAround({ x: centerX, y: centerY }, center, delta);
+			
+			const newBoxX = rotatedCenter.x - width / 2;
+			const newBoxY = rotatedCenter.y - height / 2;
+			const newX = newBoxX + horizontalPadding;
+			const newY = newBoxY + layout.ascent + verticalPadding;
+			
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			moveText(id, newX, newY, saveHistory);
+			setTextRotation(id, newRotation, saveHistory);
+		});
 	}
 
 	function handleMouseMove(event: MouseEvent) {
@@ -1788,6 +1946,17 @@ function rotateSelectedShapes(delta: number) {
 		}
 
 		const { x, y } = worldPos;
+
+		if (isGroupRotating && groupRotationState) {
+			const currentAngle = Math.atan2(y - groupRotationState.center.y, x - groupRotationState.center.x);
+			const delta = currentAngle - groupRotationState.mouseStartAngle;
+			rotateGroup(delta, false);
+			if (canvas) {
+				canvas.style.cursor = 'grabbing';
+			}
+			scheduleRender();
+			return;
+		}
 
 		if (isRotating && rotationState) {
 			const currentAngle = Math.atan2(y - rotationState.center.y, x - rotationState.center.x);
@@ -2271,6 +2440,11 @@ function rotateSelectedShapes(delta: number) {
 					? expandBoundingBox(rawGroupBoxForCursor, selectionPaddingValue)
 					: null;
 
+				if (visualGroupBoxForCursor && isPointOnGroupRotationHandle(x, y, visualGroupBoxForCursor, $zoom)) {
+					canvas.style.cursor = 'grab';
+					return;
+				}
+
 				if (totalSelectedCount <= 1) {
 					for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
 						if (isPointOnRotationHandle(x, y, $selectedRectangles[i], 'rectangle', $zoom)) {
@@ -2459,6 +2633,16 @@ function rotateSelectedShapes(delta: number) {
 	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
+		}
+
+		if (isGroupRotating) {
+			if (groupRotationState && lastMouseWorldPos) {
+				const currentAngle = Math.atan2(lastMouseWorldPos.y - groupRotationState.center.y, lastMouseWorldPos.x - groupRotationState.center.x);
+				const delta = currentAngle - groupRotationState.mouseStartAngle;
+				rotateGroup(delta, true);
+			}
+			resetGroupRotationState();
+			scheduleRender();
 		}
 
 		if (isRotating) {
@@ -2824,8 +3008,7 @@ function rotateSelectedShapes(delta: number) {
 		ctx.lineWidth = 2 / zoom;
 		
 		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight });
-		
-		// Only render corner handles (indices 0-3), but keep all handles for hit-testing
+
 		handles.slice(0, 4).forEach((handle) => {
 			ctx.beginPath();
 			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
@@ -3160,6 +3343,12 @@ function rotateSelectedShapes(delta: number) {
 		ctx.setLineDash([]);
 		ctx.restore();
 		renderGroupResizeHandles(ctx, box, zoom);
+		
+		const outlineX = box.x - gap;
+		const outlineY = box.y - gap;
+		const outlineWidth = box.width + gap * 2;
+		const outlineHeight = box.height + gap * 2;
+		renderRotationHandleFromBounds(ctx, { x: outlineX, y: outlineY, width: outlineWidth, height: outlineHeight }, zoom, 0);
 	}
 
 	function render() {
@@ -3689,7 +3878,7 @@ function rotateSelectedShapes(delta: number) {
 			groupBoundingBoxRaw && totalSelectionCount > 1
 				? expandBoundingBox(groupBoundingBoxRaw, getSelectionPaddingValue($zoom))
 				: null;
-		if (groupBoundingBox) {
+		if (groupBoundingBox && !isGroupRotating) {
 			renderGroupBoundingBox(renderCtx, groupBoundingBox, $zoom);
 		}
 		
@@ -3734,7 +3923,29 @@ function rotateSelectedShapes(delta: number) {
 	}
 
 	$: if (isTypingText && typingWorldPos) {
-		typingScreenPos = worldToScreen(typingWorldPos.x, typingWorldPos.y, $viewportOffset, $zoom);
+		const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+		const verticalPadding = TEXT_VERTICAL_PADDING;
+		const boxWidth = typingBoxWidth ? typingBoxWidth * $zoom : (typingLayout.width + horizontalPadding * 2) * $zoom;
+		const boxHeight = (typingLayout.height + verticalPadding * 2) * $zoom;
+		
+		if (typingFixedCenter) {
+			const screenCenter = worldToScreen(typingFixedCenter.x, typingFixedCenter.y, $viewportOffset, $zoom);
+			typingScreenPos = {
+				x: screenCenter.x - boxWidth / 2,
+				y: screenCenter.y - boxHeight / 2
+			};
+		} else {
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+			const verticalPadding = TEXT_VERTICAL_PADDING;
+			const ascent = typingLayout.ascent || typingFontSize * 0.8;
+			const textTop = typingWorldPos.y - ascent;
+			const boxY = textTop - verticalPadding;
+			const screenPos = worldToScreen(typingWorldPos.x - horizontalPadding, boxY, $viewportOffset, $zoom);
+			typingScreenPos = {
+				x: screenPos.x,
+				y: screenPos.y
+			};
+		}
 	}
 
 	onMount(() => {
@@ -3791,12 +4002,12 @@ function rotateSelectedShapes(delta: number) {
 	{#if isTypingText && typingWorldPos}
 		<textarea
 			bind:this={textInputRef}
-			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre overflow-hidden appearance-none pointer-events-auto"
-			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y - typingLayout.ascent * $zoom}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${typingLayout.height * $zoom}px; contain: layout style paint; color:${typingTextColor || '#000000'};`}
+			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre-wrap overflow-hidden appearance-none pointer-events-auto"
+			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${Math.max(typingLayout.height, typingFontSize * 1.2) * $zoom}px; contain: layout style paint; color:${typingTextColor || '#000000'}; transform: rotate(${typingRotation}rad); transform-origin: center center;`}
 			spellcheck="false"
 			autocomplete="off"
 			autocapitalize="off"
-			tabindex="-1"
+			tabindex="0"
 			rows="1"
 			bind:value={typingValue}
 			on:input={handleTextInputInput}
