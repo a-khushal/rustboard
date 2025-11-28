@@ -171,7 +171,6 @@
         groups.set(updatedGroups);
 
         clearAllSelections();
-        // Select the new group
         const newGroup = updatedGroups.find(g => g.id === Number(groupId));
         if (newGroup) {
             selectGroup(newGroup, false);
@@ -189,7 +188,6 @@
         groups.set(updatedGroups);
         selectedGroups.set([]);
         
-        // We should select the ungrouped elements, but for now clearing selection is safe.
         clearAllSelections();
     }
 
@@ -251,34 +249,13 @@
 
 		selectedGroups.set(newSelectedGroups);
 
-		// Select all children of all selected groups
 		const allShapeIds = new Set<number>();
 		newSelectedGroups.forEach(g => {
 			getAllShapeIdsInGroup(g).forEach(id => allShapeIds.add(id));
 		});
 
-        // Also keep existing selection if shift is pressed and we are NOT deselecting?
-        // Actually standard behavior is: shift-click adds to selection.
-        // If we add a group, we add its children.
-        // If we remove a group, we remove its children.
-        
-        // But wait, if I have individual shapes selected and I shift-click a group, 
-        // I should keep the individual shapes selected + the group's shapes.
-        
         if (isShiftPressed) {
-             // Add existing selected shapes that are NOT part of the toggled group?
-             // This gets complicated. 
-             // Let's simplify: Re-calculate selection based on `selectedGroups` AND `selectedRectangles` etc.
-             // But `selectedRectangles` is derived from `selectedGroups`?
-             // No, I can select individual shapes too.
-             
-             // If I click a group, I select the group.
-             // If I click a shape not in a group, I select the shape.
-             
-             // If I shift-click a group, I add/remove it from `selectedGroups`.
-             // Then I should ensure all its children are added/removed from `selectedRectangles`.
         } else {
-             // Clear all selections first
              selectedRectangles.set([]);
              selectedEllipses.set([]);
              selectedDiamonds.set([]);
@@ -287,7 +264,6 @@
              selectedTexts.set([]);
         }
 
-        // Now populate based on newSelectedGroups
         const rects: Rectangle[] = [];
         const ells: Ellipse[] = [];
         const diams: Diamond[] = [];
@@ -295,13 +271,6 @@
         const arrs: Arrow[] = [];
         const txts: Text[] = [];
 
-        // We need to iterate all shapes to find them by ID.
-        // This is inefficient but safe.
-        // Or we can use maps.
-        
-        // Optimization: iterate all shapes once?
-        
-        // Let's just iterate stores.
         $rectangles.forEach(r => { if (allShapeIds.has(r.id)) rects.push(r); });
         $ellipses.forEach(e => { if (allShapeIds.has(e.id)) ells.push(e); });
         $diamonds.forEach(d => { if (allShapeIds.has(d.id)) diams.push(d); });
@@ -310,55 +279,11 @@
         $texts.forEach(t => { if (allShapeIds.has(t.id)) txts.push(t); });
 
         if (isShiftPressed) {
-            // Merge with existing selection
-            // This is tricky because we might have just deselected a group.
-            // If we deselected a group, we want its children gone.
-            // If we selected a group, we want its children added.
-            
-            // If we use the `allShapeIds` from `newSelectedGroups`, that covers the groups.
-            // But what about individual shapes that were selected?
-            // They are NOT in `newSelectedGroups`.
-            
-            // So we need to track "independent" selections vs "group" selections?
-            // That's too complex.
-            
-            // Simplified approach:
-            // If you interact with groups, we prioritize groups.
-            // If you shift-click a group, we add/remove it.
-            // Any previously selected individual shapes remain selected?
-            // If I shift-click a group, I expect it to be added to selection.
-            
-            // Let's just set the selection to the group's children for now.
-            // If the user wants to mix groups and individuals, they can shift-click individuals.
-            
-            // Wait, if I shift-click a group, I want to add it.
-            // `newSelectedGroups` contains the groups.
-            // `allShapeIds` contains their children.
-            
-            // We should ADD these to the current selection stores, avoiding duplicates.
-            
-            // But if we DESELECTED a group (it was in `selectedGroups` and now isn't),
-            // we should REMOVE its children.
-            
-            // So:
-            // 1. Determine which shapes are "implied" by `selectedGroups`.
-            // 2. Determine which shapes were explicitly selected individually.
-            // This requires knowing which are which.
-            
-            // Maybe just:
-            // When selecting a group, we ADD its children to the selection.
-            // When deselecting a group, we REMOVE its children.
         }
         
-        // For now, let's just replace selection with group children to be safe and simple.
-        // If isShiftPressed is true, we should probably try to preserve other selections.
-        
         if (isShiftPressed) {
-             // Add to existing
              selectedRectangles.update(s => [...s, ...rects].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedEllipses.update(s => [...s, ...ells].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
-             // ... others
-             // But this doesn't handle deselecting.
         } else {
              selectedRectangles.set(rects);
              selectedEllipses.set(ells);
@@ -3619,7 +3544,15 @@ function rotateSelectedShapes(delta: number) {
 			$selectedLines.length +
 			$selectedArrows.length +
 			$selectedTexts.length;
-		const showIndividualHandles = totalSelectionCount <= 1;
+		
+		const selectedGroupChildIds = new Set<number>();
+		if ($selectedGroups.length > 0) {
+			$selectedGroups.forEach(g => {
+				getAllShapeIdsInGroup(g).forEach(id => selectedGroupChildIds.add(id));
+			});
+		}
+
+		const showIndividualHandles = totalSelectionCount <= 1 && selectedGroupChildIds.size === 0;
 		
 		renderCtx.save();
 		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
@@ -3664,7 +3597,7 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.strokeRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
 			renderCtx.restore();
 			
-			if (isSelected) {
+			if (isSelected && !selectedGroupChildIds.has(rect.id)) {
 				const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
 				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
 				if (showIndividualHandles) {
@@ -3729,7 +3662,7 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.stroke();
 			renderCtx.restore();
 			
-			if (isSelected) {
+			if (isSelected && !selectedGroupChildIds.has(ellipse.id)) {
 				const x = renderX - renderRadiusX;
 				const y = renderY - renderRadiusY;
 				const width = renderRadiusX * 2;
@@ -3831,7 +3764,7 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.stroke();
 			renderCtx.restore();
 			
-			if (isSelected) {
+			if (isSelected && !selectedGroupChildIds.has(diamond.id)) {
 				const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
 				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
 				if (showIndividualHandles) {
@@ -3901,7 +3834,7 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.lineTo(renderEndX, renderEndY);
 			renderCtx.stroke();
 			
-			if (isSelected && showIndividualHandles) {
+			if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(line.id)) {
 				const handleSize = 8 / $zoom;
 				const halfHandle = handleSize / 2;
 				
@@ -3985,7 +3918,7 @@ function rotateSelectedShapes(delta: number) {
 			);
 			renderCtx.stroke();
 			
-			if (isSelected && showIndividualHandles) {
+			if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(arrow.id)) {
 				const handleSize = 8 / $zoom;
 				const halfHandle = handleSize / 2;
 				
@@ -4103,7 +4036,7 @@ function rotateSelectedShapes(delta: number) {
 			});
 			renderCtx.restore();
 			
-			if (isSelected) {
+			if (isSelected && !selectedGroupChildIds.has(text.id)) {
 				const outlineBounds = getSelectionOutlineBounds(boxX, boxY, selectionWidth, selectionHeight, $zoom, false);
 				renderSelectionOutline(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
 				if (showIndividualHandles) {
