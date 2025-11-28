@@ -1,6 +1,6 @@
 const DEFAULT_TEXT_FONT_SIZE: f64 = 16.0;
 
-use crate::elements::{Arrow, Diamond, Ellipse, Line, Rectangle};
+use crate::elements::{Arrow, Diamond, Ellipse, Group, Line, Rectangle};
 use crate::geometry::Point;
 use crate::Text;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ struct DocumentSnapshot {
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
     texts: Vec<Text>,
+    groups: Vec<Group>,
     next_id: u64,
 }
 
@@ -23,6 +24,7 @@ pub struct Document {
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
     texts: Vec<Text>,
+    groups: Vec<Group>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
     history_index: usize,
@@ -38,6 +40,7 @@ impl Document {
             arrows: Vec::new(),
             diamonds: Vec::new(),
             texts: Vec::new(),
+            groups: Vec::new(),
             next_id: 0,
             history: Vec::new(),
             history_index: 0,
@@ -55,6 +58,7 @@ impl Document {
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
             texts: self.texts.clone(),
+            groups: self.groups.clone(),
             next_id: self.next_id,
         };
 
@@ -66,6 +70,7 @@ impl Document {
                 && last_snapshot.arrows == snapshot.arrows
                 && last_snapshot.diamonds == snapshot.diamonds
                 && last_snapshot.texts == snapshot.texts
+                && last_snapshot.groups == snapshot.groups
                 && last_snapshot.next_id == snapshot.next_id
             {
                 return;
@@ -89,6 +94,7 @@ impl Document {
         self.arrows = snapshot.arrows.clone();
         self.diamonds = snapshot.diamonds.clone();
         self.texts = snapshot.texts.clone();
+        self.groups = snapshot.groups.clone();
         self.next_id = snapshot.next_id;
     }
 
@@ -721,6 +727,28 @@ impl Document {
         }
     }
 
+    pub fn group_elements(&mut self, element_ids: Vec<u64>) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        let group = Group::new(id, element_ids);
+        self.groups.push(group);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn ungroup_elements(&mut self, group_id: u64) -> Vec<u64> {
+        if let Some(index) = self.groups.iter().position(|g| g.id == group_id) {
+            let group = self.groups.remove(index);
+            self.save_snapshot();
+            return group.element_ids;
+        }
+        Vec::new()
+    }
+
+    pub fn get_groups(&self) -> &[Group] {
+        &self.groups
+    }
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),
@@ -729,6 +757,7 @@ impl Document {
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
             texts: self.texts.clone(),
+            groups: self.groups.clone(),
             next_id: self.next_id,
         };
         serde_json::to_string(&snapshot).unwrap_or_default()

@@ -63,9 +63,15 @@ export interface Text {
 	rotation_angle?: number;
 }
 
+export interface Group {
+	id: number;
+	element_ids: number[];
+	rotation_angle?: number;
+}
+
 export const wasmLoaded = writable<boolean>(false);
 export const editorApi = writable<EditorApi | null>(null);
-export const viewportOffset = writable({ x: 0, y: 0});
+export const viewportOffset = writable({ x: 0, y: 0 });
 export const zoom = writable<number>(1);
 
 // shapes
@@ -81,3 +87,5 @@ export const diamonds = writable<Diamond[]>([]);
 export const selectedDiamonds = writable<Diamond[]>([]);
 export const texts = writable<Text[]>([]);
 export const selectedTexts = writable<Text[]>([]);
+export const groups = writable<Group[]>([]);
+export const selectedGroups = writable<Group[]>([]);

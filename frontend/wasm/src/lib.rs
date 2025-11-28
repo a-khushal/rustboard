@@ -370,6 +370,24 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn group_elements(&self, ids: JsValue) -> u64 {
+        let ids: Vec<u64> = serde_wasm_bindgen::from_value(ids).unwrap();
+        self.document.borrow_mut().group_elements(ids)
+    }
+
+    #[wasm_bindgen]
+    pub fn ungroup_elements(&self, group_id: u64) -> JsValue {
+        let ids = self.document.borrow_mut().ungroup_elements(group_id);
+        to_value(&ids).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_groups(&self) -> JsValue {
+        let groups = self.document.borrow().get_groups().to_vec();
+        to_value(&groups).unwrap()
+    }
+
+    #[wasm_bindgen]
     pub fn serialize(&self) -> String {
         self.document.borrow().serialize()
     }

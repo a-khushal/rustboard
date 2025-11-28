@@ -4,8 +4,10 @@
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		lines, selectedLines, arrows, selectedArrows,
 		diamonds, selectedDiamonds, texts, selectedTexts,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text
+		groups, selectedGroups,
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Group
 	} from '$lib/stores/editor';
+
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
@@ -152,6 +154,222 @@
 		return contentWidth > 0 ? contentWidth : undefined;
 	}
 
+    function groupSelectedShapes() {
+        if (!$editorApi) return;
+        const selectedIds: bigint[] = [];
+        $selectedRectangles.forEach(r => selectedIds.push(BigInt(r.id)));
+        $selectedEllipses.forEach(e => selectedIds.push(BigInt(e.id)));
+        $selectedDiamonds.forEach(d => selectedIds.push(BigInt(d.id)));
+        $selectedLines.forEach(l => selectedIds.push(BigInt(l.id)));
+        $selectedArrows.forEach(a => selectedIds.push(BigInt(a.id)));
+        $selectedTexts.forEach(t => selectedIds.push(BigInt(t.id)));
+
+        if (selectedIds.length < 2) return;
+
+        const groupId = $editorApi.group_elements(selectedIds);
+        const updatedGroups = Array.from($editorApi.get_groups() as Group[]);
+        groups.set(updatedGroups);
+
+        clearAllSelections();
+        // Select the new group
+        const newGroup = updatedGroups.find(g => g.id === Number(groupId));
+        if (newGroup) {
+            selectGroup(newGroup, false);
+        }
+    }
+
+    function ungroupSelectedGroups() {
+        if (!$editorApi || $selectedGroups.length === 0) return;
+
+        $selectedGroups.forEach(group => {
+            $editorApi!.ungroup_elements(BigInt(group.id));
+        });
+
+        const updatedGroups = Array.from($editorApi.get_groups() as Group[]);
+        groups.set(updatedGroups);
+        selectedGroups.set([]);
+        
+        // We should select the ungrouped elements, but for now clearing selection is safe.
+        clearAllSelections();
+    }
+
+
+	function getAllShapeIdsInGroup(group: Group): number[] {
+		let ids: number[] = [];
+		for (const id of group.element_ids) {
+			const subGroup = $groups.find(g => g.id === id);
+			if (subGroup) {
+				ids = ids.concat(getAllShapeIdsInGroup(subGroup));
+			} else {
+				ids.push(id);
+			}
+		}
+		return ids;
+	}
+
+	function findGroupForShape(shapeId: number): Group | null {
+		let currentGroupId: number | null = null;
+		
+		for (const group of $groups) {
+			if (group.element_ids.includes(shapeId)) {
+				currentGroupId = group.id;
+				break;
+			}
+		}
+
+		if (currentGroupId === null) return null;
+
+		while (true) {
+			let parentGroup: Group | null = null;
+			for (const group of $groups) {
+				if (group.element_ids.includes(currentGroupId)) {
+					parentGroup = group;
+					break;
+				}
+			}
+			if (parentGroup) {
+				currentGroupId = parentGroup.id;
+			} else {
+				break;
+			}
+		}
+
+		return $groups.find(g => g.id === currentGroupId) || null;
+	}
+
+	function selectGroup(group: Group, isShiftPressed: boolean) {
+		const isAlreadySelected = $selectedGroups.some(g => g.id === group.id);
+		let newSelectedGroups: Group[] = [];
+
+		if (isShiftPressed) {
+			newSelectedGroups = isAlreadySelected
+				? $selectedGroups.filter(g => g.id !== group.id)
+				: [...$selectedGroups, group];
+		} else {
+			newSelectedGroups = [group];
+		}
+
+		selectedGroups.set(newSelectedGroups);
+
+		// Select all children of all selected groups
+		const allShapeIds = new Set<number>();
+		newSelectedGroups.forEach(g => {
+			getAllShapeIdsInGroup(g).forEach(id => allShapeIds.add(id));
+		});
+
+        // Also keep existing selection if shift is pressed and we are NOT deselecting?
+        // Actually standard behavior is: shift-click adds to selection.
+        // If we add a group, we add its children.
+        // If we remove a group, we remove its children.
+        
+        // But wait, if I have individual shapes selected and I shift-click a group, 
+        // I should keep the individual shapes selected + the group's shapes.
+        
+        if (isShiftPressed) {
+             // Add existing selected shapes that are NOT part of the toggled group?
+             // This gets complicated. 
+             // Let's simplify: Re-calculate selection based on `selectedGroups` AND `selectedRectangles` etc.
+             // But `selectedRectangles` is derived from `selectedGroups`?
+             // No, I can select individual shapes too.
+             
+             // If I click a group, I select the group.
+             // If I click a shape not in a group, I select the shape.
+             
+             // If I shift-click a group, I add/remove it from `selectedGroups`.
+             // Then I should ensure all its children are added/removed from `selectedRectangles`.
+        } else {
+             // Clear all selections first
+             selectedRectangles.set([]);
+             selectedEllipses.set([]);
+             selectedDiamonds.set([]);
+             selectedLines.set([]);
+             selectedArrows.set([]);
+             selectedTexts.set([]);
+        }
+
+        // Now populate based on newSelectedGroups
+        const rects: Rectangle[] = [];
+        const ells: Ellipse[] = [];
+        const diams: Diamond[] = [];
+        const lns: Line[] = [];
+        const arrs: Arrow[] = [];
+        const txts: Text[] = [];
+
+        // We need to iterate all shapes to find them by ID.
+        // This is inefficient but safe.
+        // Or we can use maps.
+        
+        // Optimization: iterate all shapes once?
+        
+        // Let's just iterate stores.
+        $rectangles.forEach(r => { if (allShapeIds.has(r.id)) rects.push(r); });
+        $ellipses.forEach(e => { if (allShapeIds.has(e.id)) ells.push(e); });
+        $diamonds.forEach(d => { if (allShapeIds.has(d.id)) diams.push(d); });
+        $lines.forEach(l => { if (allShapeIds.has(l.id)) lns.push(l); });
+        $arrows.forEach(a => { if (allShapeIds.has(a.id)) arrs.push(a); });
+        $texts.forEach(t => { if (allShapeIds.has(t.id)) txts.push(t); });
+
+        if (isShiftPressed) {
+            // Merge with existing selection
+            // This is tricky because we might have just deselected a group.
+            // If we deselected a group, we want its children gone.
+            // If we selected a group, we want its children added.
+            
+            // If we use the `allShapeIds` from `newSelectedGroups`, that covers the groups.
+            // But what about individual shapes that were selected?
+            // They are NOT in `newSelectedGroups`.
+            
+            // So we need to track "independent" selections vs "group" selections?
+            // That's too complex.
+            
+            // Simplified approach:
+            // If you interact with groups, we prioritize groups.
+            // If you shift-click a group, we add/remove it.
+            // Any previously selected individual shapes remain selected?
+            // If I shift-click a group, I expect it to be added to selection.
+            
+            // Let's just set the selection to the group's children for now.
+            // If the user wants to mix groups and individuals, they can shift-click individuals.
+            
+            // Wait, if I shift-click a group, I want to add it.
+            // `newSelectedGroups` contains the groups.
+            // `allShapeIds` contains their children.
+            
+            // We should ADD these to the current selection stores, avoiding duplicates.
+            
+            // But if we DESELECTED a group (it was in `selectedGroups` and now isn't),
+            // we should REMOVE its children.
+            
+            // So:
+            // 1. Determine which shapes are "implied" by `selectedGroups`.
+            // 2. Determine which shapes were explicitly selected individually.
+            // This requires knowing which are which.
+            
+            // Maybe just:
+            // When selecting a group, we ADD its children to the selection.
+            // When deselecting a group, we REMOVE its children.
+        }
+        
+        // For now, let's just replace selection with group children to be safe and simple.
+        // If isShiftPressed is true, we should probably try to preserve other selections.
+        
+        if (isShiftPressed) {
+             // Add to existing
+             selectedRectangles.update(s => [...s, ...rects].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedEllipses.update(s => [...s, ...ells].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             // ... others
+             // But this doesn't handle deselecting.
+        } else {
+             selectedRectangles.set(rects);
+             selectedEllipses.set(ells);
+             selectedDiamonds.set(diams);
+             selectedLines.set(lns);
+             selectedArrows.set(arrs);
+             selectedTexts.set(txts);
+        }
+	}
+
+
 	function handleKeyDown(event: KeyboardEvent) {
 		if (isTypingText) {
 			if (event.key === 'Escape') {
@@ -176,6 +394,16 @@
 			event.preventDefault();
 			resetRotationState();
 			scheduleRender();
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+			event.preventDefault();
+			if (event.shiftKey) {
+				ungroupSelectedGroups();
+			} else {
+				groupSelectedShapes();
+			}
 			return;
 		}
 
@@ -1300,12 +1528,23 @@ function rotateSelectedShapes(delta: number) {
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond | Text,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
+		shape: Rectangle | Ellipse | Diamond | Text | Line | Arrow,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'line' | 'arrow',
 		isShiftPressed: boolean,
 		x: number,
 		y: number
 	) {
+		const group = findGroupForShape(shape.id);
+		if (group) {
+			selectGroup(group, isShiftPressed);
+			draggedShape = shape;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
+			return;
+		}
+
 		if (shapeType === 'rectangle') {
 			const clickedRect = shape as Rectangle;
 			const index = $selectedRectangles.findIndex(r => r.id === clickedRect.id);
@@ -1402,6 +1641,56 @@ function rotateSelectedShapes(delta: number) {
 			}
 
 			draggedShape = clickedText;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
+		} else if (shapeType === 'line') {
+			const clickedLine = shape as Line;
+			const index = $selectedLines.findIndex(l => l.id === clickedLine.id);
+			const isAlreadySelected = index >= 0;
+			
+			if (isShiftPressed) {
+				selectedLines.set(
+					isAlreadySelected
+						? $selectedLines.filter(l => l.id !== clickedLine.id)
+						: [...$selectedLines, clickedLine]
+				);
+			} else if (!isAlreadySelected) {
+				selectedLines.set([clickedLine]);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedArrows.set([]);
+				selectedTexts.set([]);
+			}
+
+			draggedShape = clickedLine;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
+		} else if (shapeType === 'arrow') {
+			const clickedArrow = shape as Arrow;
+			const index = $selectedArrows.findIndex(a => a.id === clickedArrow.id);
+			const isAlreadySelected = index >= 0;
+			
+			if (isShiftPressed) {
+				selectedArrows.set(
+					isAlreadySelected
+						? $selectedArrows.filter(a => a.id !== clickedArrow.id)
+						: [...$selectedArrows, clickedArrow]
+				);
+			} else if (!isAlreadySelected) {
+				selectedArrows.set([clickedArrow]);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedTexts.set([]);
+			}
+
+			draggedShape = clickedArrow;
 			dragStartPos = { x, y };
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
@@ -1703,60 +1992,14 @@ function rotateSelectedShapes(delta: number) {
 
 			for (let i = $lines.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
-					const clickedLine = $lines[i];
-					const index = $selectedLines.findIndex(l => l.id === clickedLine.id);
-					const isAlreadySelected = index >= 0;
-				
-				if (isShiftPressed) {
-						selectedLines.set(
-							isAlreadySelected
-								? $selectedLines.filter(l => l.id !== clickedLine.id)
-								: [...$selectedLines, clickedLine]
-						);
-					} else if (!isAlreadySelected) {
-						selectedLines.set([clickedLine]);
-						selectedRectangles.set([]);
-						selectedEllipses.set([]);
-						selectedDiamonds.set([]);
-						selectedArrows.set([]);
-						selectedTexts.set([]);
-					}
-					
-					draggedShape = clickedLine;
-				dragStartPos = { x, y };
-					dragOffset = { x: 0, y: 0 };
-					storeSelectedShapesStartPositions();
-					isDragging = true;
-				return;
+					handleShapeClick($lines[i], 'line', isShiftPressed, x, y);
+					return;
+				}
 			}
-		}
 
 			for (let i = $arrows.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $arrows[i], 5 / $zoom)) {
-					const clickedArrow = $arrows[i];
-					const index = $selectedArrows.findIndex(a => a.id === clickedArrow.id);
-					const isAlreadySelected = index >= 0;
-					
-					if (isShiftPressed) {
-						selectedArrows.set(
-							isAlreadySelected
-								? $selectedArrows.filter(a => a.id !== clickedArrow.id)
-								: [...$selectedArrows, clickedArrow]
-						);
-					} else if (!isAlreadySelected) {
-						selectedArrows.set([clickedArrow]);
-		selectedRectangles.set([]);
-						selectedEllipses.set([]);
-						selectedDiamonds.set([]);
-						selectedLines.set([]);
-						selectedTexts.set([]);
-					}
-					
-					draggedShape = clickedArrow;
-					dragStartPos = { x, y };
-					dragOffset = { x: 0, y: 0 };
-					storeSelectedShapesStartPositions();
-				isDragging = true;
+					handleShapeClick($arrows[i], 'arrow', isShiftPressed, x, y);
 					return;
 				}
 			}

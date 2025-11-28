@@ -194,3 +194,21 @@ fn default_line_width() -> f64 {
 fn default_rotation() -> f64 {
     0.0
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Group {
+    pub id: u64,
+    pub element_ids: Vec<u64>,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
+}
+
+impl Group {
+    pub fn new(id: u64, element_ids: Vec<u64>) -> Self {
+        Self {
+            id,
+            element_ids,
+            rotation_angle: default_rotation(),
+        }
+    }
+}
