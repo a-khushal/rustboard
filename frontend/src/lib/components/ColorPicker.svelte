@@ -29,12 +29,12 @@
 				type="color"
 				bind:value
 				on:input={handleInput}
-				class="w-7 h-7 rounded-full border-2 border-stone-200 cursor-pointer shrink-0 opacity-0 absolute inset-0"
+				class="w-7 h-7 rounded-full border-2 border-stone-200 dark:border-stone-600 cursor-pointer shrink-0 opacity-0 absolute inset-0"
 				title={value}
 				id="color-picker-{label}"
 			/>
 			<div
-				class="w-7 h-7 rounded-full border-2 border-stone-200 pointer-events-none"
+				class="w-7 h-7 rounded-full border-2 border-stone-200 dark:border-stone-600 pointer-events-none"
 				style="background-color: {value};"
 			></div>
 		</div>
@@ -42,7 +42,7 @@
 			type="text"
 			bind:value
 			on:input={handleInput}
-			class="flex-1 min-w-0 px-2 py-1 text-xs font-mono border border-stone-200 rounded focus:outline-none focus:ring-1 focus:ring-stone-400 bg-stone-50 h-8"
+			class="flex-1 min-w-0 px-2 py-1 text-xs font-mono border border-stone-200 dark:border-stone-600 rounded focus:outline-none focus:ring-1 focus:ring-stone-400 bg-stone-50 dark:bg-stone-700 dark:text-stone-200 h-8"
 			placeholder="#000000"
 			maxlength="7"
 			aria-label="{label} hex value"
@@ -53,7 +53,7 @@
 			<button
 				type="button"
 				on:click={() => selectColor(color)}
-				class="w-6 h-6 rounded-full border-2 transition-all hover:scale-110 hover:border-stone-400 {value === color ? 'border-stone-600 ring-2 ring-stone-300' : 'border-stone-200'}"
+				class="w-6 h-6 rounded-full border-2 transition-all hover:scale-110 hover:border-stone-400 {value === color ? 'border-stone-600 dark:border-stone-400 ring-2 ring-stone-300 dark:ring-stone-500' : 'border-stone-200 dark:border-stone-600'}"
 				style="background-color: {color};"
 				title={color}
 			>

@@ -31,6 +31,7 @@
 	import UndoRedoControls from './UndoRedoControls.svelte';
 	import StylePanel from './StylePanel.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
+	import { theme } from '$lib/stores/theme';
 
 	type BoundingBox = { x: number; y: number; width: number; height: number; rawWidth?: number; rawHeight?: number; scaleX?: number; scaleY?: number };
 	let canvas: HTMLCanvasElement | undefined;
@@ -3524,7 +3525,7 @@ function rotateSelectedShapes(delta: number) {
 		const renderCtx = ctx;
 		
 		renderCtx.clearRect(0, 0, canvas.width, canvas.height);
-		renderCtx.fillStyle = '#fafaf9';
+		renderCtx.fillStyle = $theme === 'dark' ? '#1c1917' : '#fafaf9';
 		renderCtx.fillRect(0, 0, canvas.width, canvas.height);
 		
 		const previewRect = isCreatingShape ? {
@@ -4168,9 +4169,11 @@ function rotateSelectedShapes(delta: number) {
 	$: if (ctx && canvas && !isCreatingShape && renderDependencies) {
 		scheduleRender();
 	}
+
+	$: $theme, scheduleRender();
 </script>
 
-<div class="relative w-full h-full bg-stone-50">
+<div class="relative w-full h-full bg-stone-50 dark:bg-stone-900">
 	<Toolbar />
 	<ZoomControls />
 	<UndoRedoControls />
@@ -4178,7 +4181,7 @@ function rotateSelectedShapes(delta: number) {
 	{#if isTypingText && typingWorldPos}
 		<textarea
 			bind:this={textInputRef}
-			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black whitespace-pre-wrap overflow-hidden appearance-none pointer-events-auto"
+			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black dark:caret-white whitespace-pre-wrap overflow-hidden appearance-none pointer-events-auto"
 			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${Math.max(typingLayout.height, typingFontSize * 1.2) * $zoom}px; contain: layout style paint; color:${typingTextColor || '#000000'}; transform: rotate(${typingRotation}rad); transform-origin: center center;`}
 			spellcheck="false"
 			autocomplete="off"
@@ -4198,7 +4201,7 @@ function rotateSelectedShapes(delta: number) {
 	on:dblclick={handleCanvasDoubleClick}
 		on:wheel={(e) => handleViewportScroll(e, canvas!)}
 	bind:this={canvas}
-		class="w-full h-full bg-stone-50"
+		class="w-full h-full bg-stone-50 dark:bg-stone-900"
 	tabindex="0"
 ></canvas>
 </div>

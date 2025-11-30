@@ -14,17 +14,22 @@
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
 		{ id: 'text' as Tool, label: 'Text', icon: 'text' }
 	];
+	import { theme } from '$lib/stores/theme';
+
+	function toggleTheme() {
+		theme.update(t => t === 'light' ? 'dark' : 'light');
+	}
 </script>
 
-<div class="absolute top-2 left-2 z-50 flex gap-1 bg-white border border-stone-200 shadow-sm rounded-sm p-1">
+<div class="absolute top-2 left-2 z-50 flex gap-1 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-sm rounded-sm p-1">
 	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
-			class="flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans text-stone-700
-				transition-colors duration-150
+			class="flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans text-stone-700 dark:text-stone-200
+				transition-colors duration-150 rounded-sm
 				{ $activeTool === tool.id
-					? 'bg-stone-100 border border-stone-400' 
-					: 'bg-white hover:bg-stone-50 border border-stone-200'}"
+					? 'bg-stone-100 dark:bg-stone-700 border border-stone-400 dark:border-stone-500' 
+					: 'bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700'}"
 			title={tool.label}
 		>
 			{#if tool.icon === 'cursor'}
@@ -60,4 +65,24 @@
 			{/if}
 		</button>
 	{/each}
+	
+	<div class="w-px bg-stone-200 dark:bg-stone-700 mx-1"></div>
+
+	<button
+		on:click={toggleTheme}
+		class="flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans text-stone-700 dark:text-stone-200
+			transition-colors duration-150 rounded-sm
+			bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700"
+		title={$theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+	>
+		{#if $theme === 'light'}
+			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M8 3v1m0 8v1m-3.5-6.5h-1m8 0h-1m-1.5 3.5l-.7.7m-5.6-5.6l.7.7m5.6 0l-.7.7m-5.6 5.6l.7.7M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+			</svg>
+		{:else}
+			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M13 9.5a5 5 0 1 1-6-6 3.5 3.5 0 0 0 6 6z" />
+			</svg>
+		{/if}
+	</button>
 </div>

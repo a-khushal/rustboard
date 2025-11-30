@@ -19,14 +19,14 @@
 	}
 </script>
 
-<div class="absolute bottom-4 left-4 z-50 flex flex-row gap-1 bg-white border border-stone-200 shadow-sm rounded-sm p-1">
+<div class="absolute bottom-4 left-4 z-50 flex flex-row gap-1 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-sm rounded-sm p-1">
 	<button
 		type="button"
 		on:click={undo}
-		class="flex items-center justify-center w-8 h-8 text-sm font-sans text-stone-700
+		class="flex items-center justify-center w-8 h-8 text-sm font-sans text-stone-700 dark:text-stone-200
 			transition-colors duration-150
-			bg-white hover:bg-stone-50 border border-stone-200
-			active:bg-stone-100 disabled:opacity-50 disabled:cursor-not-allowed"
+			bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700
+			active:bg-stone-100 dark:active:bg-stone-600 disabled:opacity-50 disabled:cursor-not-allowed"
 		title="Undo (Ctrl + Z)"
 	>
 		<svg width="16" height="16" viewBox="0 0 8 8" fill="currentColor">
