@@ -33,6 +33,38 @@
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
 
+	function getDefaultStrokeColor(): string {
+		return $theme === 'dark' ? '#ffffff' : '#000000';
+	}
+
+	function getDefaultTextColor(): string {
+		return $theme === 'dark' ? '#ffffff' : '#000000';
+	}
+
+	function getHandleFillColor(): string {
+		return $theme === 'dark' ? '#1c1917' : '#ffffff';
+	}
+
+	function getHandleStrokeColor(): string {
+		return '#1e88e5';
+	}
+
+	function getSelectionOutlineColor(): string {
+		return '#1e88e5';
+	}
+
+	function adaptColorToTheme(color: string | null | undefined, defaultColor: string): string {
+		if (!color) return defaultColor;
+		const normalizedColor = color.toLowerCase().trim();
+		if (normalizedColor === '#000000' || normalizedColor === 'black' || normalizedColor === 'rgb(0, 0, 0)') {
+			return $theme === 'dark' ? '#ffffff' : '#000000';
+		}
+		if (normalizedColor === '#ffffff' || normalizedColor === 'white' || normalizedColor === 'rgb(255, 255, 255)') {
+			return $theme === 'dark' ? '#ffffff' : '#000000';
+		}
+		return color;
+	}
+
 	type BoundingBox = { x: number; y: number; width: number; height: number; rawWidth?: number; rawHeight?: number; scaleX?: number; scaleY?: number };
 	let canvas: HTMLCanvasElement | undefined;
 	let ctx: CanvasRenderingContext2D | null = null;
@@ -683,10 +715,11 @@
 		typingDirty = newValue !== typingOriginalValue;
 		updateTextContent(typingTextId, newValue, false);
 		
-		if (typingTextColor && typingTextColor !== '#000000' && $editorApi) {
+		const defaultTextColor = getDefaultTextColor();
+		if (typingTextColor && typingTextColor !== defaultTextColor && $editorApi) {
 			const updatedTexts = $texts;
 			const updatedText = updatedTexts.find(t => t.id === typingTextId);
-			if (updatedText && (!updatedText.text_color || updatedText.text_color === '#000000')) {
+			if (updatedText && (!updatedText.text_color || updatedText.text_color === defaultTextColor)) {
 				$editorApi.set_text_color(BigInt(typingTextId), typingTextColor, false);
 				updateTexts();
 			}
@@ -783,9 +816,10 @@
 	function startTypingExistingText(text: Text) {
 		resetRotationState();
 		clearAllSelections();
-		typingTextColor = text.text_color || '#000000';
+		typingTextColor = adaptColorToTheme(text.text_color, getDefaultTextColor());
 		
-		if (typingTextColor && typingTextColor !== '#000000' && $editorApi) {
+		const defaultTextColor = getDefaultTextColor();
+		if (typingTextColor && typingTextColor !== defaultTextColor && $editorApi) {
 			$editorApi.set_text_color(BigInt(text.id), typingTextColor, false);
 			updateTexts();
 		}
@@ -918,11 +952,11 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text, shapeType
 		const { handle } = getRotationHandlePoints(bounds, zoom, rotation);
 		const radius = ROTATION_HANDLE_RADIUS / zoom;
 		ctx.save();
-		ctx.fillStyle = '#ffffff';
+		ctx.fillStyle = getHandleFillColor();
 		ctx.beginPath();
 		ctx.arc(handle.x, handle.y, radius, 0, Math.PI * 2);
 		ctx.fill();
-		ctx.strokeStyle = '#1e88e5';
+		ctx.strokeStyle = getHandleStrokeColor();
 		ctx.lineWidth = 1 / zoom;
 		ctx.stroke();
 		ctx.restore();
@@ -1206,8 +1240,8 @@ function rotateSelectedShapes(delta: number) {
 		const outlineWidth = box.width + gap * 2;
 		const outlineHeight = box.height + gap * 2;
 
-		ctx.fillStyle = '#ffffff';
-		ctx.strokeStyle = '#1e88e5';
+		ctx.fillStyle = getHandleFillColor();
+		ctx.strokeStyle = getHandleStrokeColor();
 		ctx.lineWidth = 2 / zoom;
 
 		const cornerHandles = [
@@ -3166,14 +3200,14 @@ function rotateSelectedShapes(delta: number) {
 		const boxWidth = width + gap * 2;
 		const boxHeight = height + gap * 2;
 		
-		ctx.strokeStyle = '#1e88e5';
+		ctx.strokeStyle = getSelectionOutlineColor();
 		ctx.lineWidth = 1 / zoom;
 		ctx.beginPath();
 		ctx.rect(boxX, boxY, boxWidth, boxHeight);
 		ctx.stroke();
 		
-		ctx.fillStyle = '#ffffff';
-		ctx.strokeStyle = '#1e88e5';
+		ctx.fillStyle = getHandleFillColor();
+		ctx.strokeStyle = getHandleStrokeColor();
 		ctx.lineWidth = 2 / zoom;
 		
 		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight });
@@ -3216,7 +3250,7 @@ function rotateSelectedShapes(delta: number) {
 	) {
 		const bounds = getSelectionOutlineBounds(x, y, width, height, zoom, includePadding);
 		ctx.save();
-		ctx.strokeStyle = '#1e88e5';
+		ctx.strokeStyle = getSelectionOutlineColor();
 		ctx.lineWidth = 1 / zoom;
 		const centerX = bounds.x + bounds.width / 2;
 		const centerY = bounds.y + bounds.height / 2;
@@ -3242,8 +3276,8 @@ function rotateSelectedShapes(delta: number) {
 		const halfWidth = bounds.width / 2;
 		const halfHeight = bounds.height / 2;
 		
-		ctx.fillStyle = '#ffffff';
-		ctx.strokeStyle = '#1e88e5';
+		ctx.fillStyle = getHandleFillColor();
+		ctx.strokeStyle = getHandleStrokeColor();
 		ctx.lineWidth = 2 / zoom;
 		
 		const cornerHandles = [
@@ -3281,8 +3315,8 @@ function rotateSelectedShapes(delta: number) {
 		const halfWidth = bounds.width / 2;
 		const halfHeight = bounds.height / 2;
 		
-		ctx.fillStyle = '#ffffff';
-		ctx.strokeStyle = '#1e88e5';
+		ctx.fillStyle = getHandleFillColor();
+		ctx.strokeStyle = getHandleStrokeColor();
 		ctx.lineWidth = 2 / zoom;
 		
 		const cornerHandles = [
@@ -3504,7 +3538,7 @@ function rotateSelectedShapes(delta: number) {
 
 	function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
 		ctx.save();
-		ctx.strokeStyle = '#1e88e5';
+		ctx.strokeStyle = getSelectionOutlineColor();
 		ctx.lineWidth = 1 / zoom;
 		const gap = 4 / zoom;
 		ctx.setLineDash([2.5 / zoom, 2.5 / zoom]);
@@ -3579,8 +3613,8 @@ function rotateSelectedShapes(delta: number) {
 			const renderWidth = isResized && resizePreview ? resizePreview.width : rect.width;
 			const renderHeight = isResized && resizePreview ? resizePreview.height : rect.height;
 			
-			const strokeColor = rect.stroke_color || '#000000';
-			const fillColor = rect.fill_color;
+			const strokeColor = adaptColorToTheme(rect.stroke_color, getDefaultStrokeColor());
+			const fillColor = rect.fill_color ? adaptColorToTheme(rect.fill_color, rect.fill_color) : null;
 			const lineWidth = rect.line_width || 2;
 			const rotation = getRenderedRotation(rect, 'rectangle');
 			
@@ -3609,7 +3643,7 @@ function rotateSelectedShapes(delta: number) {
 		});
 		
 		if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
-			renderCtx.strokeStyle = '#000000';
+			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.strokeRect(previewRect.x, previewRect.y, previewRect.width, previewRect.height);
@@ -3642,8 +3676,8 @@ function rotateSelectedShapes(delta: number) {
 			const renderRadiusX = isResized && resizePreview ? resizePreview.width / 2 : ellipse.radius_x;
 			const renderRadiusY = isResized && resizePreview ? resizePreview.height / 2 : ellipse.radius_y;
 			
-			const strokeColor = ellipse.stroke_color || '#000000';
-			const fillColor = ellipse.fill_color;
+			const strokeColor = adaptColorToTheme(ellipse.stroke_color, getDefaultStrokeColor());
+			const fillColor = ellipse.fill_color ? adaptColorToTheme(ellipse.fill_color, ellipse.fill_color) : null;
 			const lineWidth = ellipse.line_width || 2;
 			const rotation = getRenderedRotation(ellipse, 'ellipse');
 			
@@ -3699,7 +3733,7 @@ function rotateSelectedShapes(delta: number) {
 			}
 			
 			if (radius_x > 0 && radius_y > 0) {
-				renderCtx.strokeStyle = '#000000';
+				renderCtx.strokeStyle = getDefaultStrokeColor();
 				renderCtx.lineWidth = 2;
 				renderCtx.globalAlpha = 0.5;
 				renderCtx.beginPath();
@@ -3740,8 +3774,8 @@ function rotateSelectedShapes(delta: number) {
 			const halfWidth = renderWidth / 2;
 			const halfHeight = renderHeight / 2;
 			
-			const strokeColor = diamond.stroke_color || '#000000';
-			const fillColor = diamond.fill_color;
+			const strokeColor = adaptColorToTheme(diamond.stroke_color, getDefaultStrokeColor());
+			const fillColor = diamond.fill_color ? adaptColorToTheme(diamond.fill_color, diamond.fill_color) : null;
 			const lineWidth = diamond.line_width || 2;
 			const rotation = getRenderedRotation(diamond, 'diamond');
 			
@@ -3781,7 +3815,7 @@ function rotateSelectedShapes(delta: number) {
 			const halfWidth = previewRect.width / 2;
 			const halfHeight = previewRect.height / 2;
 			
-			renderCtx.strokeStyle = '#000000';
+			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
@@ -3825,7 +3859,7 @@ function rotateSelectedShapes(delta: number) {
 				renderEndY = line.end.y;
 			}
 			
-			const strokeColor = line.stroke_color || '#000000';
+			const strokeColor = adaptColorToTheme(line.stroke_color, getDefaultStrokeColor());
 			const lineWidth = line.line_width || 2;
 			
 			renderCtx.strokeStyle = strokeColor;
@@ -3839,8 +3873,8 @@ function rotateSelectedShapes(delta: number) {
 				const handleSize = 8 / $zoom;
 				const halfHandle = handleSize / 2;
 				
-				renderCtx.fillStyle = '#ffffff';
-				renderCtx.strokeStyle = '#1e88e5';
+				renderCtx.fillStyle = getHandleFillColor();
+				renderCtx.strokeStyle = getHandleStrokeColor();
 				renderCtx.lineWidth = 2 / $zoom;
 				
 				renderCtx.beginPath();
@@ -3856,7 +3890,7 @@ function rotateSelectedShapes(delta: number) {
 		});
 		
 		if (isCreatingShape && $activeTool === 'line' && lineStart && lineEnd) {
-			renderCtx.strokeStyle = '#000000';
+			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
@@ -3891,7 +3925,7 @@ function rotateSelectedShapes(delta: number) {
 				renderEndY = arrow.end.y;
 			}
 			
-			const strokeColor = arrow.stroke_color || '#000000';
+			const strokeColor = adaptColorToTheme(arrow.stroke_color, getDefaultStrokeColor());
 			const lineWidth = arrow.line_width || 2;
 			
 			renderCtx.strokeStyle = strokeColor;
@@ -3923,8 +3957,8 @@ function rotateSelectedShapes(delta: number) {
 				const handleSize = 8 / $zoom;
 				const halfHandle = handleSize / 2;
 				
-				renderCtx.fillStyle = '#ffffff';
-				renderCtx.strokeStyle = '#1e88e5';
+				renderCtx.fillStyle = getHandleFillColor();
+				renderCtx.strokeStyle = getHandleStrokeColor();
 				renderCtx.lineWidth = 2 / $zoom;
 				
 				renderCtx.beginPath();
@@ -3940,7 +3974,7 @@ function rotateSelectedShapes(delta: number) {
 		});
 		
 		if (isCreatingShape && $activeTool === 'arrow' && arrowStart && arrowEnd) {
-			renderCtx.strokeStyle = '#000000';
+			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
@@ -3989,7 +4023,7 @@ function rotateSelectedShapes(delta: number) {
 
 			const baseFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 			const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
-			const textColor = text.text_color || '#000000';
+			const textColor = adaptColorToTheme(text.text_color, getDefaultTextColor());
 			renderCtx.fillStyle = textColor;
 			renderCtx.font = getFontForSize(fontSize);
 			const rotation = getRenderedRotation(text, 'text');
@@ -4065,7 +4099,7 @@ function rotateSelectedShapes(delta: number) {
 			const boxWidth = Math.abs(selectionBoxEnd.x - selectionBoxStart.x);
 			const boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
 			
-			renderCtx.strokeStyle = '#1e88e5';
+			renderCtx.strokeStyle = getSelectionOutlineColor();
 			renderCtx.lineWidth = 1 / $zoom;
 			renderCtx.setLineDash([5 / $zoom, 5 / $zoom]);
 			renderCtx.strokeRect(boxX, boxY, boxWidth, boxHeight);
@@ -4181,8 +4215,8 @@ function rotateSelectedShapes(delta: number) {
 	{#if isTypingText && typingWorldPos}
 		<textarea
 			bind:this={textInputRef}
-			class="absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none caret-black dark:caret-white whitespace-pre-wrap overflow-hidden appearance-none pointer-events-auto"
-			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${Math.max(typingLayout.height, typingFontSize * 1.2) * $zoom}px; contain: layout style paint; color:${typingTextColor || '#000000'}; transform: rotate(${typingRotation}rad); transform-origin: center center;`}
+			class={`absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none whitespace-pre-wrap overflow-hidden appearance-none pointer-events-auto ${$theme === 'dark' ? 'caret-white' : 'caret-black'}`}
+			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${Math.max(typingLayout.height, typingFontSize * 1.2) * $zoom}px; contain: layout style paint; color:${typingTextColor || getDefaultTextColor()}; transform: rotate(${typingRotation}rad); transform-origin: center center;`}
 			spellcheck="false"
 			autocomplete="off"
 			autocapitalize="off"
@@ -4194,14 +4228,14 @@ function rotateSelectedShapes(delta: number) {
 			on:blur={commitTypingText}
 		></textarea>
 	{/if}
-<canvas
-	on:mousedown={handleMouseDown}
-	on:mousemove={handleMouseMove}
-	on:mouseup={handleMouseUp}
-	on:dblclick={handleCanvasDoubleClick}
-		on:wheel={(e) => handleViewportScroll(e, canvas!)}
-	bind:this={canvas}
-		class="w-full h-full bg-stone-50 dark:bg-stone-900"
-	tabindex="0"
-></canvas>
+	<canvas
+		on:mousedown={handleMouseDown}
+		on:mousemove={handleMouseMove}
+		on:mouseup={handleMouseUp}
+		on:dblclick={handleCanvasDoubleClick}
+			on:wheel={(e) => handleViewportScroll(e, canvas!)}
+		bind:this={canvas}
+			class="w-full h-full bg-stone-50 dark:bg-stone-900"
+		tabindex="0"
+	></canvas>
 </div>

@@ -21,6 +21,7 @@
 		type Diamond,
 		type Text
 	} from '$lib/stores/editor';
+	import { theme } from '$lib/stores/theme';
 	import ColorPicker from './ColorPicker.svelte';
 	import { saveStateToLocalStorage } from '$lib/utils/storage';
 	import { tick } from 'svelte';
@@ -278,7 +279,7 @@
 </script>
 
 {#if hasSelection}
-	<div class="absolute top-2 right-2 z-50 bg-white/95 dark:bg-stone-800/95 backdrop-blur-sm border border-stone-200/50 dark:border-stone-700/50 shadow-lg rounded-lg p-3 w-[200px] overflow-hidden">
+	<div class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[200px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
 		<div class="space-y-2.5 min-w-0">
 			{#if hasShapes && hasText}
 				<ColorPicker label="Color" bind:value={unifiedColor} onInput={(val: string) => updateUnifiedColor(val)} />
@@ -298,7 +299,7 @@
 						step="0.5"
 						bind:value={lineWidth}
 						on:input={(e) => updateLineWidth(parseFloat((e.target as HTMLInputElement).value))}
-						class="flex-1 min-w-0 h-1 bg-stone-200 dark:bg-stone-600 rounded-lg appearance-none cursor-pointer accent-stone-600 dark:accent-stone-400"
+						class={`flex-1 min-w-0 h-1 rounded-lg appearance-none cursor-pointer ${$theme === 'dark' ? 'bg-stone-600 accent-stone-400' : 'bg-stone-200 accent-stone-600'}`}
 						id="line-width"
 					/>
 					<input
@@ -308,7 +309,7 @@
 						min="0.5"
 						max="20"
 						step="0.5"
-						class="w-12 px-1.5 py-1 text-xs border border-stone-200 dark:border-stone-600 rounded bg-stone-50 dark:bg-stone-700 dark:text-stone-200 focus:outline-none focus:ring-1 focus:ring-stone-400 shrink-0"
+						class={`w-12 px-1.5 py-1 text-xs border rounded focus:outline-none focus:ring-1 shrink-0 ${$theme === 'dark' ? 'border-stone-600 bg-stone-700 text-stone-200 focus:ring-stone-500' : 'border-stone-200 bg-stone-50 focus:ring-stone-400'}`}
 						aria-label="Line width value"
 					/>
 				</div>
@@ -316,4 +317,3 @@
 		</div>
 	</div>
 {/if}
-

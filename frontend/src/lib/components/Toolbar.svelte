@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { activeTool, type Tool } from '$lib/stores/tools';
+	import { theme } from '$lib/stores/theme';
 
 	function setTool(tool: Tool) {
 		activeTool.set(tool);
@@ -14,22 +15,26 @@
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
 		{ id: 'text' as Tool, label: 'Text', icon: 'text' }
 	];
-	import { theme } from '$lib/stores/theme';
 
 	function toggleTheme() {
 		theme.update(t => t === 'light' ? 'dark' : 'light');
+		console.log('theme', $theme);
 	}
 </script>
 
-<div class="absolute top-2 left-2 z-50 flex gap-1 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-sm rounded-sm p-1">
+<div class={`absolute top-2 left-2 z-50 flex gap-1 shadow-sm rounded-sm p-1 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
-			class="flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans text-stone-700 dark:text-stone-200
+			class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
 				transition-colors duration-150 rounded-sm
-				{ $activeTool === tool.id
-					? 'bg-stone-100 dark:bg-stone-700 border border-stone-400 dark:border-stone-500' 
-					: 'bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700'}"
+				${$activeTool === tool.id
+					? $theme === 'dark'
+						? 'bg-stone-700 border border-stone-500'
+						: 'bg-stone-100 border border-stone-400'
+					: $theme === 'dark'
+						? 'bg-stone-800 hover:bg-stone-700 border border-stone-500'
+						: 'bg-white hover:bg-stone-50 border border-stone-200'}`}
 			title={tool.label}
 		>
 			{#if tool.icon === 'cursor'}
@@ -66,18 +71,27 @@
 		</button>
 	{/each}
 	
-	<div class="w-px bg-stone-200 dark:bg-stone-700 mx-1"></div>
+	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<button
 		on:click={toggleTheme}
-		class="flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans text-stone-700 dark:text-stone-200
-			transition-colors duration-150 rounded-sm
-			bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700"
+		class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			${$theme === 'dark'
+				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
 		title={$theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
 	>
 		{#if $theme === 'light'}
-			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M8 3v1m0 8v1m-3.5-6.5h-1m8 0h-1m-1.5 3.5l-.7.7m-5.6-5.6l.7.7m5.6 0l-.7.7m-5.6 5.6l.7.7M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="12" r="4" />
+				<line x1="12" y1="2" x2="12" y2="6" />
+				<line x1="12" y1="18" x2="12" y2="22" />
+				<line x1="2" y1="12" x2="6" y2="12" />
+				<line x1="18" y1="12" x2="22" y2="12" />
+				<line x1="4.2" y1="4.2" x2="6.8" y2="6.8" />
+				<line x1="17.2" y1="17.2" x2="19.8" y2="19.8" />
+				<line x1="17.2" y1="6.8" x2="19.8" y2="4.2" />
+				<line x1="4.2" y1="19.8" x2="6.8" y2="17.2" />
 			</svg>
 		{:else}
 			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
