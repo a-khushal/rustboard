@@ -15,6 +15,8 @@ pub struct Rectangle {
     pub line_width: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
 }
 
 impl Rectangle {
@@ -28,6 +30,7 @@ impl Rectangle {
             fill_color: default_fill_color(),
             line_width: default_line_width(),
             rotation_angle: default_rotation(),
+            z_index: default_z_index(),
         }
     }
 }
@@ -46,6 +49,8 @@ pub struct Ellipse {
     pub line_width: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
 }
 
 impl Ellipse {
@@ -59,6 +64,7 @@ impl Ellipse {
             fill_color: default_fill_color(),
             line_width: default_line_width(),
             rotation_angle: default_rotation(),
+            z_index: default_z_index(),
         }
     }
 }
@@ -74,6 +80,8 @@ pub struct Line {
     pub line_width: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
 }
 
 impl Line {
@@ -85,6 +93,7 @@ impl Line {
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
             rotation_angle: default_rotation(),
+            z_index: default_z_index(),
         }
     }
 }
@@ -100,6 +109,8 @@ pub struct Arrow {
     pub line_width: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
 }
 
 impl Arrow {
@@ -111,6 +122,7 @@ impl Arrow {
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
             rotation_angle: default_rotation(),
+            z_index: default_z_index(),
         }
     }
 }
@@ -129,6 +141,8 @@ pub struct Diamond {
     pub line_width: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
 }
 
 impl Diamond {
@@ -142,6 +156,7 @@ impl Diamond {
             fill_color: default_fill_color(),
             line_width: default_line_width(),
             rotation_angle: default_rotation(),
+            z_index: default_z_index(),
         }
     }
 }
@@ -159,6 +174,8 @@ pub struct Text {
 	pub box_width: Option<f64>,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
 }
 
 impl Text {
@@ -171,6 +188,7 @@ impl Text {
             text_color: default_stroke_color(),
 			box_width: None,
             rotation_angle: default_rotation(),
+            z_index: default_z_index(),
         }
     }
 }
@@ -193,6 +211,10 @@ fn default_line_width() -> f64 {
 
 fn default_rotation() -> f64 {
     0.0
+}
+
+fn default_z_index() -> i32 {
+    0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

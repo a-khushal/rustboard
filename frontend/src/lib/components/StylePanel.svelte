@@ -168,6 +168,54 @@
 		saveStateToLocalStorage();
 	}
 
+	function bringToFront() {
+		if (!$editorApi) return;
+		$selectedRectangles.forEach(r => $editorApi!.bring_shape_to_front(BigInt(r.id)));
+		$selectedEllipses.forEach(e => $editorApi!.bring_shape_to_front(BigInt(e.id)));
+		$selectedDiamonds.forEach(d => $editorApi!.bring_shape_to_front(BigInt(d.id)));
+		$selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
+		$selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
+		$selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function bringForward() {
+		if (!$editorApi) return;
+		$selectedRectangles.forEach(r => $editorApi!.bring_shape_forward(BigInt(r.id)));
+		$selectedEllipses.forEach(e => $editorApi!.bring_shape_forward(BigInt(e.id)));
+		$selectedDiamonds.forEach(d => $editorApi!.bring_shape_forward(BigInt(d.id)));
+		$selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
+		$selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
+		$selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function sendBackward() {
+		if (!$editorApi) return;
+		$selectedRectangles.forEach(r => $editorApi!.send_shape_backward(BigInt(r.id)));
+		$selectedEllipses.forEach(e => $editorApi!.send_shape_backward(BigInt(e.id)));
+		$selectedDiamonds.forEach(d => $editorApi!.send_shape_backward(BigInt(d.id)));
+		$selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
+		$selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
+		$selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function sendToBack() {
+		if (!$editorApi) return;
+		$selectedRectangles.forEach(r => $editorApi!.send_shape_to_back(BigInt(r.id)));
+		$selectedEllipses.forEach(e => $editorApi!.send_shape_to_back(BigInt(e.id)));
+		$selectedDiamonds.forEach(d => $editorApi!.send_shape_to_back(BigInt(d.id)));
+		$selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
+		$selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
+		$selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
 	function updateStores() {
 		if (!$editorApi) return;
 		const api = get(editorApi);
@@ -314,6 +362,56 @@
 					/>
 				</div>
 			{/if}
+
+			<div class="space-y-1.5">
+				<fieldset class="space-y-1.5">
+					<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Layers</legend>
+					<div class="flex items-center gap-1">
+						<button
+							on:click={sendToBack}
+							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+							title="Send to Back (Ctrl+Shift+[)"
+							aria-label="Send to Back"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<line x1="12" y1="5" x2="12" y2="19"></line>
+								<polyline points="19 12 12 19 5 12"></polyline>
+							</svg>
+						</button>
+						<button
+							on:click={sendBackward}
+							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+							title="Send Backward (Ctrl+[)"
+							aria-label="Send Backward"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="19 12 12 19 5 12"></polyline>
+							</svg>
+						</button>
+						<button
+							on:click={bringForward}
+							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+							title="Bring Forward (Ctrl+])"
+							aria-label="Bring Forward"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="5 12 12 5 19 12"></polyline>
+							</svg>
+						</button>
+						<button
+							on:click={bringToFront}
+							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+							title="Bring to Front (Ctrl+Shift+])"
+							aria-label="Bring to Front"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<line x1="12" y1="19" x2="12" y2="5"></line>
+								<polyline points="5 12 12 5 19 12"></polyline>
+							</svg>
+						</button>
+					</div>
+				</fieldset>
+			</div>
 		</div>
 	</div>
 {/if}

@@ -224,6 +224,63 @@
         clearAllSelections();
     }
 
+    function bringToFront() {
+        if (!$editorApi) return;
+        
+        $selectedRectangles.forEach(r => $editorApi!.bring_shape_to_front(BigInt(r.id)));
+        $selectedEllipses.forEach(e => $editorApi!.bring_shape_to_front(BigInt(e.id)));
+        $selectedDiamonds.forEach(d => $editorApi!.bring_shape_to_front(BigInt(d.id)));
+        $selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
+        $selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
+        $selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
+        
+        updateAllStoresAfterUndoRedo();
+        scheduleRender();
+    }
+
+    function bringForward() {
+        if (!$editorApi) return;
+        
+        $selectedRectangles.forEach(r => $editorApi!.bring_shape_forward(BigInt(r.id)));
+        $selectedEllipses.forEach(e => $editorApi!.bring_shape_forward(BigInt(e.id)));
+        $selectedDiamonds.forEach(d => $editorApi!.bring_shape_forward(BigInt(d.id)));
+        $selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
+        $selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
+        $selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
+        
+        updateAllStoresAfterUndoRedo();
+        scheduleRender();
+    }
+
+    function sendBackward() {
+        if (!$editorApi) return;
+        
+        $selectedRectangles.forEach(r => $editorApi!.send_shape_backward(BigInt(r.id)));
+        $selectedEllipses.forEach(e => $editorApi!.send_shape_backward(BigInt(e.id)));
+        $selectedDiamonds.forEach(d => $editorApi!.send_shape_backward(BigInt(d.id)));
+        $selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
+        $selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
+        $selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
+        
+        updateAllStoresAfterUndoRedo();
+        scheduleRender();
+    }
+
+    function sendToBack() {
+        if (!$editorApi) return;
+        
+        $selectedRectangles.forEach(r => $editorApi!.send_shape_to_back(BigInt(r.id)));
+        $selectedEllipses.forEach(e => $editorApi!.send_shape_to_back(BigInt(e.id)));
+        $selectedDiamonds.forEach(d => $editorApi!.send_shape_to_back(BigInt(d.id)));
+        $selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
+        $selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
+        $selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
+        
+        updateAllStoresAfterUndoRedo();
+        scheduleRender();
+    }
+
+
 
 	function getAllShapeIdsInGroup(group: Group): number[] {
 		let ids: number[] = [];
@@ -361,6 +418,26 @@
 				ungroupSelectedGroups();
 			} else {
 				groupSelectedShapes();
+			}
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && (event.key === ']' || event.key === '}')) {
+			event.preventDefault();
+			if (event.shiftKey) {
+				bringToFront();
+			} else {
+				bringForward();
+			}
+			return;
+		}
+
+		if ((event.ctrlKey || event.metaKey) && (event.key === '[' || event.key === '{')) {
+			event.preventDefault();
+			if (event.shiftKey) {
+				sendToBack();
+			} else {
+				sendBackward();
 			}
 			return;
 		}
@@ -3588,60 +3665,393 @@ function rotateSelectedShapes(delta: number) {
 		}
 
 		const showIndividualHandles = totalSelectionCount <= 1 && selectedGroupChildIds.size === 0;
+
+		const allShapes = [
+			...$rectangles.map(r => ({ type: 'rectangle', data: r })),
+			...$ellipses.map(e => ({ type: 'ellipse', data: e })),
+			...$diamonds.map(d => ({ type: 'diamond', data: d })),
+			...$lines.map(l => ({ type: 'line', data: l })),
+			...$arrows.map(a => ({ type: 'arrow', data: a })),
+			...$texts.map(t => ({ type: 'text', data: t }))
+		];
+
+		allShapes.sort((a, b) => (a.data.z_index || 0) - (b.data.z_index || 0));
 		
 		renderCtx.save();
 		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
 		renderCtx.scale($zoom, $zoom);
 		
-		$rectangles.forEach((rect) => {
-			const isSelected = $selectedRectangles.some(selected => selected.id === rect.id);
-			const isDragged = isDragging && isSelected && selectedShapesStartPositions.rectangles.has(rect.id);
-			const isResized = isResizing && resizePreview && resizePreview.type === 'rectangle' && resizePreview.id === rect.id;
-			
-			let renderX: number, renderY: number;
-			if (isResized && resizePreview) {
-				renderX = resizePreview.x;
-				renderY = resizePreview.y;
-			} else if (isDragged) {
-				const startPos = selectedShapesStartPositions.rectangles.get(rect.id)!;
-				renderX = startPos.x + dragOffset.x;
-				renderY = startPos.y + dragOffset.y;
-			} else {
-				renderX = rect.position.x;
-				renderY = rect.position.y;
-			}
-			const renderWidth = isResized && resizePreview ? resizePreview.width : rect.width;
-			const renderHeight = isResized && resizePreview ? resizePreview.height : rect.height;
-			
-			const strokeColor = adaptColorToTheme(rect.stroke_color, getDefaultStrokeColor());
-			const fillColor = rect.fill_color ? adaptColorToTheme(rect.fill_color, rect.fill_color) : null;
-			const lineWidth = rect.line_width || 2;
-			const rotation = getRenderedRotation(rect, 'rectangle');
-			
-			renderCtx.lineWidth = lineWidth;
-			renderCtx.save();
-			const centerX = renderX + renderWidth / 2;
-			const centerY = renderY + renderHeight / 2;
-			renderCtx.translate(centerX, centerY);
-			renderCtx.rotate(rotation);
-			if (fillColor) {
-				renderCtx.fillStyle = fillColor;
-				renderCtx.fillRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
-			}
-			renderCtx.strokeStyle = strokeColor;
-			renderCtx.strokeRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
-			renderCtx.restore();
-			
-			if (isSelected && !selectedGroupChildIds.has(rect.id)) {
-				const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
-				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
-				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
-					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+		allShapes.forEach(item => {
+			if (item.type === 'rectangle') {
+				const rect = item.data as Rectangle;
+				const isSelected = $selectedRectangles.some(selected => selected.id === rect.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.rectangles.has(rect.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'rectangle' && resizePreview.id === rect.id;
+				
+				let renderX: number, renderY: number;
+				if (isResized && resizePreview) {
+					renderX = resizePreview.x;
+					renderY = resizePreview.y;
+				} else if (isDragged) {
+					const startPos = selectedShapesStartPositions.rectangles.get(rect.id)!;
+					renderX = startPos.x + dragOffset.x;
+					renderY = startPos.y + dragOffset.y;
+				} else {
+					renderX = rect.position.x;
+					renderY = rect.position.y;
+				}
+				const renderWidth = isResized && resizePreview ? resizePreview.width : rect.width;
+				const renderHeight = isResized && resizePreview ? resizePreview.height : rect.height;
+				
+				const strokeColor = adaptColorToTheme(rect.stroke_color, getDefaultStrokeColor());
+				const fillColor = rect.fill_color ? adaptColorToTheme(rect.fill_color, rect.fill_color) : null;
+				const lineWidth = rect.line_width || 2;
+				const rotation = getRenderedRotation(rect, 'rectangle');
+				
+				renderCtx.lineWidth = lineWidth;
+				renderCtx.save();
+				const centerX = renderX + renderWidth / 2;
+				const centerY = renderY + renderHeight / 2;
+				renderCtx.translate(centerX, centerY);
+				renderCtx.rotate(rotation);
+				if (fillColor) {
+					renderCtx.fillStyle = fillColor;
+					renderCtx.fillRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+				}
+				renderCtx.strokeStyle = strokeColor;
+				renderCtx.strokeRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+				renderCtx.restore();
+				
+				if (isSelected && !selectedGroupChildIds.has(rect.id)) {
+					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
+					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+					if (showIndividualHandles) {
+						renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+					}
+				}
+			} else if (item.type === 'ellipse') {
+				const ellipse = item.data as Ellipse;
+				const isSelected = $selectedEllipses.some(selected => selected.id === ellipse.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.ellipses.has(ellipse.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'ellipse' && resizePreview.id === ellipse.id;
+				
+				let renderX: number, renderY: number;
+				if (isResized && resizePreview) {
+					renderX = resizePreview.x;
+					renderY = resizePreview.y;
+				} else if (isDragged) {
+					const startPos = selectedShapesStartPositions.ellipses.get(ellipse.id)!;
+					renderX = startPos.x + dragOffset.x;
+					renderY = startPos.y + dragOffset.y;
+				} else {
+					renderX = ellipse.position.x;
+					renderY = ellipse.position.y;
+				}
+				const renderRadiusX = isResized && resizePreview ? resizePreview.width / 2 : ellipse.radius_x;
+				const renderRadiusY = isResized && resizePreview ? resizePreview.height / 2 : ellipse.radius_y;
+				
+				const strokeColor = adaptColorToTheme(ellipse.stroke_color, getDefaultStrokeColor());
+				const fillColor = ellipse.fill_color ? adaptColorToTheme(ellipse.fill_color, ellipse.fill_color) : null;
+				const lineWidth = ellipse.line_width || 2;
+				const rotation = getRenderedRotation(ellipse, 'ellipse');
+				
+				renderCtx.lineWidth = lineWidth;
+				renderCtx.save();
+				renderCtx.translate(renderX, renderY);
+				renderCtx.rotate(rotation);
+				renderCtx.beginPath();
+				renderCtx.ellipse(0, 0, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
+				
+				if (fillColor) {
+					renderCtx.fillStyle = fillColor;
+					renderCtx.fill();
+				}
+				
+				renderCtx.strokeStyle = strokeColor;
+				renderCtx.stroke();
+				renderCtx.restore();
+				
+				if (isSelected && !selectedGroupChildIds.has(ellipse.id)) {
+					const x = renderX - renderRadiusX;
+					const y = renderY - renderRadiusY;
+					const width = renderRadiusX * 2;
+					const height = renderRadiusY * 2;
+					const outlineBounds = getSelectionOutlineBounds(x, y, width, height, $zoom, true);
+					renderSelectionOutline(renderCtx, x, y, width, height, $zoom, true, rotation);
+					if (showIndividualHandles) {
+						renderCornerHandles(renderCtx, x, y, width, height, $zoom, true, rotation);
+						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+					}
+				}
+			} else if (item.type === 'diamond') {
+				const diamond = item.data as Diamond;
+				const isSelected = $selectedDiamonds.some(selected => selected.id === diamond.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.diamonds.has(diamond.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'diamond' && resizePreview.id === diamond.id;
+				
+				let renderX: number, renderY: number;
+				if (isResized && resizePreview) {
+					renderX = resizePreview.x;
+					renderY = resizePreview.y;
+				} else if (isDragged) {
+					const startPos = selectedShapesStartPositions.diamonds.get(diamond.id)!;
+					renderX = startPos.x + dragOffset.x;
+					renderY = startPos.y + dragOffset.y;
+				} else {
+					renderX = diamond.position.x;
+					renderY = diamond.position.y;
+				}
+				const renderWidth = isResized && resizePreview ? resizePreview.width : diamond.width;
+				const renderHeight = isResized && resizePreview ? resizePreview.height : diamond.height;
+				
+				const centerX = renderX + renderWidth / 2;
+				const centerY = renderY + renderHeight / 2;
+				const halfWidth = renderWidth / 2;
+				const halfHeight = renderHeight / 2;
+				
+				const strokeColor = adaptColorToTheme(diamond.stroke_color, getDefaultStrokeColor());
+				const fillColor = diamond.fill_color ? adaptColorToTheme(diamond.fill_color, diamond.fill_color) : null;
+				const lineWidth = diamond.line_width || 2;
+				const rotation = getRenderedRotation(diamond, 'diamond');
+				
+				renderCtx.lineWidth = lineWidth;
+				renderCtx.save();
+				renderCtx.translate(centerX, centerY);
+				renderCtx.rotate(rotation);
+				renderCtx.beginPath();
+				renderCtx.moveTo(0, -halfHeight);
+				renderCtx.lineTo(halfWidth, 0);
+				renderCtx.lineTo(0, halfHeight);
+				renderCtx.lineTo(-halfWidth, 0);
+				renderCtx.closePath();
+				
+				if (fillColor) {
+					renderCtx.fillStyle = fillColor;
+					renderCtx.fill();
+				}
+				
+				renderCtx.strokeStyle = strokeColor;
+				renderCtx.stroke();
+				renderCtx.restore();
+				
+				if (isSelected && !selectedGroupChildIds.has(diamond.id)) {
+					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
+					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+					if (showIndividualHandles) {
+						renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+					}
+				}
+			} else if (item.type === 'line') {
+				const line = item.data as Line;
+				const isSelected = $selectedLines.some(selected => selected.id === line.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.lines.has(line.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'line' && resizePreview.id === line.id;
+				
+				let renderStartX: number, renderStartY: number, renderEndX: number, renderEndY: number;
+				
+				if (isResized && resizePreview) {
+					renderStartX = resizePreview.x;
+					renderStartY = resizePreview.y;
+					renderEndX = resizePreview.x + resizePreview.width;
+					renderEndY = resizePreview.y + resizePreview.height;
+				} else if (isDragged) {
+					const startPos = selectedShapesStartPositions.lines.get(line.id)!;
+					renderStartX = startPos.start.x + dragOffset.x;
+					renderStartY = startPos.start.y + dragOffset.y;
+					renderEndX = startPos.end.x + dragOffset.x;
+					renderEndY = startPos.end.y + dragOffset.y;
+				} else {
+					renderStartX = line.start.x;
+					renderStartY = line.start.y;
+					renderEndX = line.end.x;
+					renderEndY = line.end.y;
+				}
+				
+				const strokeColor = adaptColorToTheme(line.stroke_color, getDefaultStrokeColor());
+				const lineWidth = line.line_width || 2;
+				
+				renderCtx.strokeStyle = strokeColor;
+				renderCtx.lineWidth = lineWidth;
+				renderCtx.beginPath();
+				renderCtx.moveTo(renderStartX, renderStartY);
+				renderCtx.lineTo(renderEndX, renderEndY);
+				renderCtx.stroke();
+				
+				if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(line.id)) {
+					const handleSize = 8 / $zoom;
+					const halfHandle = handleSize / 2;
+					
+					renderCtx.fillStyle = getHandleFillColor();
+					renderCtx.strokeStyle = getHandleStrokeColor();
+					renderCtx.lineWidth = 2 / $zoom;
+					
+					renderCtx.beginPath();
+					renderCtx.arc(renderStartX, renderStartY, halfHandle, 0, 2 * Math.PI);
+					renderCtx.fill();
+					renderCtx.stroke();
+					
+					renderCtx.beginPath();
+					renderCtx.arc(renderEndX, renderEndY, halfHandle, 0, 2 * Math.PI);
+					renderCtx.fill();
+					renderCtx.stroke();
+				}
+			} else if (item.type === 'arrow') {
+				const arrow = item.data as Arrow;
+				const isSelected = $selectedArrows.some(selected => selected.id === arrow.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.arrows.has(arrow.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'arrow' && resizePreview.id === arrow.id;
+				
+				let renderStartX: number, renderStartY: number, renderEndX: number, renderEndY: number;
+				
+				if (isResized && resizePreview) {
+					renderStartX = resizePreview.x;
+					renderStartY = resizePreview.y;
+					renderEndX = resizePreview.x + resizePreview.width;
+					renderEndY = resizePreview.y + resizePreview.height;
+				} else if (isDragged) {
+					const startPos = selectedShapesStartPositions.arrows.get(arrow.id)!;
+					renderStartX = startPos.start.x + dragOffset.x;
+					renderStartY = startPos.start.y + dragOffset.y;
+					renderEndX = startPos.end.x + dragOffset.x;
+					renderEndY = startPos.end.y + dragOffset.y;
+				} else {
+					renderStartX = arrow.start.x;
+					renderStartY = arrow.start.y;
+					renderEndX = arrow.end.x;
+					renderEndY = arrow.end.y;
+				}
+				
+				const strokeColor = adaptColorToTheme(arrow.stroke_color, getDefaultStrokeColor());
+				const lineWidth = arrow.line_width || 2;
+				
+				renderCtx.strokeStyle = strokeColor;
+				renderCtx.lineWidth = lineWidth;
+				renderCtx.beginPath();
+				renderCtx.moveTo(renderStartX, renderStartY);
+				renderCtx.lineTo(renderEndX, renderEndY);
+				renderCtx.stroke();
+				
+				const dx = renderEndX - renderStartX;
+				const dy = renderEndY - renderStartY;
+				const angle = Math.atan2(dy, dx);
+				const arrowLength = 15;
+				const arrowAngle = Math.PI / 6;
+				
+				renderCtx.beginPath();
+				renderCtx.moveTo(
+					renderEndX - arrowLength * Math.cos(angle - arrowAngle),
+					renderEndY - arrowLength * Math.sin(angle - arrowAngle)
+				);
+				renderCtx.lineTo(renderEndX, renderEndY);
+				renderCtx.lineTo(
+					renderEndX - arrowLength * Math.cos(angle + arrowAngle),
+					renderEndY - arrowLength * Math.sin(angle + arrowAngle)
+				);
+				renderCtx.stroke();
+				
+				if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(arrow.id)) {
+					const handleSize = 8 / $zoom;
+					const halfHandle = handleSize / 2;
+					
+					renderCtx.fillStyle = getHandleFillColor();
+					renderCtx.strokeStyle = getHandleStrokeColor();
+					renderCtx.lineWidth = 2 / $zoom;
+					
+					renderCtx.beginPath();
+					renderCtx.arc(renderStartX, renderStartY, halfHandle, 0, 2 * Math.PI);
+					renderCtx.fill();
+					renderCtx.stroke();
+					
+					renderCtx.beginPath();
+					renderCtx.arc(renderEndX, renderEndY, halfHandle, 0, 2 * Math.PI);
+					renderCtx.fill();
+					renderCtx.stroke();
+				}
+			} else if (item.type === 'text') {
+				const text = item.data as Text;
+				if (isTypingText && text.id === typingTextId) return;
+				const isSelected = $selectedTexts.some(selected => selected.id === text.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts.has(text.id);
+				const isResizedText = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id && resizePreview.fontSize;
+				
+				let renderX: number, renderY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.texts.get(text.id)!;
+					renderX = startPos.x + dragOffset.x;
+					renderY = startPos.y + dragOffset.y;
+				} else {
+					renderX = text.position.x;
+					renderY = text.position.y;
+				}
+				if (isResizedText) {
+					renderX = resizePreview!.x;
+					renderY = resizePreview!.baseline ?? renderY;
+				}
+
+				const baseFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
+				const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
+				const textColor = adaptColorToTheme(text.text_color, getDefaultTextColor());
+				renderCtx.fillStyle = textColor;
+				renderCtx.font = getFontForSize(fontSize);
+				const rotation = getRenderedRotation(text, 'text');
+				
+				let layout;
+				let constrainedWidth: number | undefined = undefined;
+				const storedBoxWidth = text.boxWidth ?? null;
+				if (isResizedText && resizePreview!.width) {
+					constrainedWidth = resizePreview!.width;
+					const textWidth = Math.max(10, resizePreview!.width - TEXT_HORIZONTAL_PADDING * 2);
+					const unwrappedLayout = measureMultilineText(text.text, fontSize, renderCtx);
+					const needsWrapping = unwrappedLayout.width > textWidth;
+					layout = needsWrapping 
+						? measureMultilineText(text.text, fontSize, renderCtx, textWidth)
+						: unwrappedLayout;
+				} else {
+					const contentWidth = getTextContentWidthFromBoxWidth(storedBoxWidth);
+					if (contentWidth) {
+						constrainedWidth = storedBoxWidth ?? undefined;
+						layout = measureMultilineText(text.text, fontSize, renderCtx, contentWidth);
+					} else {
+						layout = measureMultilineText(text.text, fontSize, renderCtx);
+					}
+				}
+
+				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+				const verticalPadding = TEXT_VERTICAL_PADDING;
+				const textTop = renderY - layout.ascent;
+				const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
+				const boxX = renderX - horizontalPadding;
+				const boxY = textTop - verticalPadding;
+				const selectionWidth = constrainedWidth ? constrainedWidth : (layout.width + horizontalPadding * 2);
+				const selectionHeight = (textBottom - textTop) + verticalPadding * 2;
+				const originX = boxX + selectionWidth / 2;
+				const originY = boxY + selectionHeight / 2;
+
+				renderCtx.save();
+				renderCtx.translate(originX, originY);
+				renderCtx.rotate(rotation);
+				const textStartX = -selectionWidth / 2 + horizontalPadding;
+				const textStartY = -selectionHeight / 2 + verticalPadding + layout.ascent;
+				layout.lines.forEach((line, index) => {
+					const baselineY = textStartY + index * layout.lineHeight;
+					renderCtx.fillText(line || ' ', textStartX, baselineY);
+				});
+				renderCtx.restore();
+				
+				if (isSelected && !selectedGroupChildIds.has(text.id)) {
+					const outlineBounds = getSelectionOutlineBounds(boxX, boxY, selectionWidth, selectionHeight, $zoom, false);
+					renderSelectionOutline(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
+					if (showIndividualHandles) {
+						renderTextHandles(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
+						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+					}
 				}
 			}
 		});
 		
+		// Render creation previews on top
 		if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
 			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
@@ -3649,67 +4059,6 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.strokeRect(previewRect.x, previewRect.y, previewRect.width, previewRect.height);
 			renderCtx.globalAlpha = 1.0;
 		}
-		
-		renderCtx.restore();
-		
-		renderCtx.save();
-		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
-		renderCtx.scale($zoom, $zoom);
-		
-		$ellipses.forEach((ellipse) => {
-			const isSelected = $selectedEllipses.some(selected => selected.id === ellipse.id);
-			const isDragged = isDragging && isSelected && selectedShapesStartPositions.ellipses.has(ellipse.id);
-			const isResized = isResizing && resizePreview && resizePreview.type === 'ellipse' && resizePreview.id === ellipse.id;
-			
-			let renderX: number, renderY: number;
-			if (isResized && resizePreview) {
-				renderX = resizePreview.x;
-				renderY = resizePreview.y;
-			} else if (isDragged) {
-				const startPos = selectedShapesStartPositions.ellipses.get(ellipse.id)!;
-				renderX = startPos.x + dragOffset.x;
-				renderY = startPos.y + dragOffset.y;
-			} else {
-				renderX = ellipse.position.x;
-				renderY = ellipse.position.y;
-			}
-			const renderRadiusX = isResized && resizePreview ? resizePreview.width / 2 : ellipse.radius_x;
-			const renderRadiusY = isResized && resizePreview ? resizePreview.height / 2 : ellipse.radius_y;
-			
-			const strokeColor = adaptColorToTheme(ellipse.stroke_color, getDefaultStrokeColor());
-			const fillColor = ellipse.fill_color ? adaptColorToTheme(ellipse.fill_color, ellipse.fill_color) : null;
-			const lineWidth = ellipse.line_width || 2;
-			const rotation = getRenderedRotation(ellipse, 'ellipse');
-			
-			renderCtx.lineWidth = lineWidth;
-			renderCtx.save();
-			renderCtx.translate(renderX, renderY);
-			renderCtx.rotate(rotation);
-			renderCtx.beginPath();
-			renderCtx.ellipse(0, 0, renderRadiusX, renderRadiusY, 0, 0, 2 * Math.PI);
-			
-			if (fillColor) {
-				renderCtx.fillStyle = fillColor;
-				renderCtx.fill();
-			}
-			
-			renderCtx.strokeStyle = strokeColor;
-			renderCtx.stroke();
-			renderCtx.restore();
-			
-			if (isSelected && !selectedGroupChildIds.has(ellipse.id)) {
-				const x = renderX - renderRadiusX;
-				const y = renderY - renderRadiusY;
-				const width = renderRadiusX * 2;
-				const height = renderRadiusY * 2;
-				const outlineBounds = getSelectionOutlineBounds(x, y, width, height, $zoom, true);
-				renderSelectionOutline(renderCtx, x, y, width, height, $zoom, true, rotation);
-				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, x, y, width, height, $zoom, true, rotation);
-					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
-				}
-			}
-		});
 		
 		if (isCreatingEllipse) {
 			const minX = Math.min(createStartPos.x, createCurrentPos.x);
@@ -3743,72 +4092,6 @@ function rotateSelectedShapes(delta: number) {
 			}
 		}
 		
-		renderCtx.restore();
-		
-		renderCtx.save();
-		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
-		renderCtx.scale($zoom, $zoom);
-		
-		$diamonds.forEach((diamond) => {
-			const isSelected = $selectedDiamonds.some(selected => selected.id === diamond.id);
-			const isDragged = isDragging && isSelected && selectedShapesStartPositions.diamonds.has(diamond.id);
-			const isResized = isResizing && resizePreview && resizePreview.type === 'diamond' && resizePreview.id === diamond.id;
-			
-			let renderX: number, renderY: number;
-			if (isResized && resizePreview) {
-				renderX = resizePreview.x;
-				renderY = resizePreview.y;
-			} else if (isDragged) {
-				const startPos = selectedShapesStartPositions.diamonds.get(diamond.id)!;
-				renderX = startPos.x + dragOffset.x;
-				renderY = startPos.y + dragOffset.y;
-			} else {
-				renderX = diamond.position.x;
-				renderY = diamond.position.y;
-			}
-			const renderWidth = isResized && resizePreview ? resizePreview.width : diamond.width;
-			const renderHeight = isResized && resizePreview ? resizePreview.height : diamond.height;
-			
-			const centerX = renderX + renderWidth / 2;
-			const centerY = renderY + renderHeight / 2;
-			const halfWidth = renderWidth / 2;
-			const halfHeight = renderHeight / 2;
-			
-			const strokeColor = adaptColorToTheme(diamond.stroke_color, getDefaultStrokeColor());
-			const fillColor = diamond.fill_color ? adaptColorToTheme(diamond.fill_color, diamond.fill_color) : null;
-			const lineWidth = diamond.line_width || 2;
-			const rotation = getRenderedRotation(diamond, 'diamond');
-			
-			renderCtx.lineWidth = lineWidth;
-			renderCtx.save();
-			renderCtx.translate(centerX, centerY);
-			renderCtx.rotate(rotation);
-			renderCtx.beginPath();
-			renderCtx.moveTo(0, -halfHeight);
-			renderCtx.lineTo(halfWidth, 0);
-			renderCtx.lineTo(0, halfHeight);
-			renderCtx.lineTo(-halfWidth, 0);
-			renderCtx.closePath();
-			
-			if (fillColor) {
-				renderCtx.fillStyle = fillColor;
-				renderCtx.fill();
-			}
-			
-			renderCtx.strokeStyle = strokeColor;
-			renderCtx.stroke();
-			renderCtx.restore();
-			
-			if (isSelected && !selectedGroupChildIds.has(diamond.id)) {
-				const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
-				renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
-				if (showIndividualHandles) {
-					renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
-					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
-				}
-			}
-		});
-		
 		if (isCreatingDiamond && previewRect && previewRect.width > 0 && previewRect.height > 0) {
 			const centerX = previewRect.x + previewRect.width / 2;
 			const centerY = previewRect.y + previewRect.height / 2;
@@ -3828,67 +4111,6 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.globalAlpha = 1.0;
 		}
 		
-		renderCtx.restore();
-		
-		renderCtx.save();
-		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
-		renderCtx.scale($zoom, $zoom);
-		
-		$lines.forEach((line: Line) => {
-			const isSelected = $selectedLines.some(selected => selected.id === line.id);
-			const isDragged = isDragging && isSelected && selectedShapesStartPositions.lines.has(line.id);
-			const isResized = isResizing && resizePreview && resizePreview.type === 'line' && resizePreview.id === line.id;
-			
-			let renderStartX: number, renderStartY: number, renderEndX: number, renderEndY: number;
-			
-			if (isResized && resizePreview) {
-				renderStartX = resizePreview.x;
-				renderStartY = resizePreview.y;
-				renderEndX = resizePreview.x + resizePreview.width;
-				renderEndY = resizePreview.y + resizePreview.height;
-			} else if (isDragged) {
-				const startPos = selectedShapesStartPositions.lines.get(line.id)!;
-				renderStartX = startPos.start.x + dragOffset.x;
-				renderStartY = startPos.start.y + dragOffset.y;
-				renderEndX = startPos.end.x + dragOffset.x;
-				renderEndY = startPos.end.y + dragOffset.y;
-			} else {
-				renderStartX = line.start.x;
-				renderStartY = line.start.y;
-				renderEndX = line.end.x;
-				renderEndY = line.end.y;
-			}
-			
-			const strokeColor = adaptColorToTheme(line.stroke_color, getDefaultStrokeColor());
-			const lineWidth = line.line_width || 2;
-			
-			renderCtx.strokeStyle = strokeColor;
-			renderCtx.lineWidth = lineWidth;
-			renderCtx.beginPath();
-			renderCtx.moveTo(renderStartX, renderStartY);
-			renderCtx.lineTo(renderEndX, renderEndY);
-			renderCtx.stroke();
-			
-			if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(line.id)) {
-				const handleSize = 8 / $zoom;
-				const halfHandle = handleSize / 2;
-				
-				renderCtx.fillStyle = getHandleFillColor();
-				renderCtx.strokeStyle = getHandleStrokeColor();
-				renderCtx.lineWidth = 2 / $zoom;
-				
-				renderCtx.beginPath();
-				renderCtx.arc(renderStartX, renderStartY, halfHandle, 0, 2 * Math.PI);
-				renderCtx.fill();
-				renderCtx.stroke();
-				
-				renderCtx.beginPath();
-				renderCtx.arc(renderEndX, renderEndY, halfHandle, 0, 2 * Math.PI);
-				renderCtx.fill();
-				renderCtx.stroke();
-			}
-		});
-		
 		if (isCreatingShape && $activeTool === 'line' && lineStart && lineEnd) {
 			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
@@ -3899,79 +4121,6 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.stroke();
 			renderCtx.globalAlpha = 1.0;
 		}
-		
-		$arrows.forEach((arrow: Arrow) => {
-			const isSelected = $selectedArrows.some(selected => selected.id === arrow.id);
-			const isDragged = isDragging && isSelected && selectedShapesStartPositions.arrows.has(arrow.id);
-			const isResized = isResizing && resizePreview && resizePreview.type === 'arrow' && resizePreview.id === arrow.id;
-			
-			let renderStartX: number, renderStartY: number, renderEndX: number, renderEndY: number;
-			
-			if (isResized && resizePreview) {
-				renderStartX = resizePreview.x;
-				renderStartY = resizePreview.y;
-				renderEndX = resizePreview.x + resizePreview.width;
-				renderEndY = resizePreview.y + resizePreview.height;
-			} else if (isDragged) {
-				const startPos = selectedShapesStartPositions.arrows.get(arrow.id)!;
-				renderStartX = startPos.start.x + dragOffset.x;
-				renderStartY = startPos.start.y + dragOffset.y;
-				renderEndX = startPos.end.x + dragOffset.x;
-				renderEndY = startPos.end.y + dragOffset.y;
-			} else {
-				renderStartX = arrow.start.x;
-				renderStartY = arrow.start.y;
-				renderEndX = arrow.end.x;
-				renderEndY = arrow.end.y;
-			}
-			
-			const strokeColor = adaptColorToTheme(arrow.stroke_color, getDefaultStrokeColor());
-			const lineWidth = arrow.line_width || 2;
-			
-			renderCtx.strokeStyle = strokeColor;
-			renderCtx.lineWidth = lineWidth;
-			renderCtx.beginPath();
-			renderCtx.moveTo(renderStartX, renderStartY);
-			renderCtx.lineTo(renderEndX, renderEndY);
-			renderCtx.stroke();
-			
-			const dx = renderEndX - renderStartX;
-			const dy = renderEndY - renderStartY;
-			const angle = Math.atan2(dy, dx);
-			const arrowLength = 15;
-			const arrowAngle = Math.PI / 6;
-			
-			renderCtx.beginPath();
-			renderCtx.moveTo(
-				renderEndX - arrowLength * Math.cos(angle - arrowAngle),
-				renderEndY - arrowLength * Math.sin(angle - arrowAngle)
-			);
-			renderCtx.lineTo(renderEndX, renderEndY);
-			renderCtx.lineTo(
-				renderEndX - arrowLength * Math.cos(angle + arrowAngle),
-				renderEndY - arrowLength * Math.sin(angle + arrowAngle)
-			);
-			renderCtx.stroke();
-			
-			if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(arrow.id)) {
-				const handleSize = 8 / $zoom;
-				const halfHandle = handleSize / 2;
-				
-				renderCtx.fillStyle = getHandleFillColor();
-				renderCtx.strokeStyle = getHandleStrokeColor();
-				renderCtx.lineWidth = 2 / $zoom;
-				
-				renderCtx.beginPath();
-				renderCtx.arc(renderStartX, renderStartY, halfHandle, 0, 2 * Math.PI);
-				renderCtx.fill();
-				renderCtx.stroke();
-				
-				renderCtx.beginPath();
-				renderCtx.arc(renderEndX, renderEndY, halfHandle, 0, 2 * Math.PI);
-				renderCtx.fill();
-				renderCtx.stroke();
-			}
-		});
 		
 		if (isCreatingShape && $activeTool === 'arrow' && arrowStart && arrowEnd) {
 			renderCtx.strokeStyle = getDefaultStrokeColor();
@@ -4001,85 +4150,11 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.stroke();
 		}
 		
-		$texts.forEach((text: Text) => {
-			if (isTypingText && text.id === typingTextId) return;
-			const isSelected = $selectedTexts.some(selected => selected.id === text.id);
-			const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts.has(text.id);
-			const isResizedText = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id && resizePreview.fontSize;
-			
-			let renderX: number, renderY: number;
-			if (isDragged) {
-				const startPos = selectedShapesStartPositions.texts.get(text.id)!;
-				renderX = startPos.x + dragOffset.x;
-				renderY = startPos.y + dragOffset.y;
-			} else {
-				renderX = text.position.x;
-				renderY = text.position.y;
-			}
-			if (isResizedText) {
-				renderX = resizePreview!.x;
-				renderY = resizePreview!.baseline ?? renderY;
-			}
-
-			const baseFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-			const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
-			const textColor = adaptColorToTheme(text.text_color, getDefaultTextColor());
-			renderCtx.fillStyle = textColor;
-			renderCtx.font = getFontForSize(fontSize);
-			const rotation = getRenderedRotation(text, 'text');
-			
-			let layout;
-			let constrainedWidth: number | undefined = undefined;
-			const storedBoxWidth = text.boxWidth ?? null;
-			if (isResizedText && resizePreview!.width) {
-				constrainedWidth = resizePreview!.width;
-				const textWidth = Math.max(10, resizePreview!.width - TEXT_HORIZONTAL_PADDING * 2);
-				const unwrappedLayout = measureMultilineText(text.text, fontSize, renderCtx);
-				const needsWrapping = unwrappedLayout.width > textWidth;
-				layout = needsWrapping 
-					? measureMultilineText(text.text, fontSize, renderCtx, textWidth)
-					: unwrappedLayout;
-			} else {
-				const contentWidth = getTextContentWidthFromBoxWidth(storedBoxWidth);
-				if (contentWidth) {
-					constrainedWidth = storedBoxWidth ?? undefined;
-					layout = measureMultilineText(text.text, fontSize, renderCtx, contentWidth);
-				} else {
-					layout = measureMultilineText(text.text, fontSize, renderCtx);
-				}
-			}
-
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const textTop = renderY - layout.ascent;
-			const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
-			const boxX = renderX - horizontalPadding;
-			const boxY = textTop - verticalPadding;
-			const selectionWidth = constrainedWidth ? constrainedWidth : (layout.width + horizontalPadding * 2);
-			const selectionHeight = (textBottom - textTop) + verticalPadding * 2;
-			const originX = boxX + selectionWidth / 2;
-			const originY = boxY + selectionHeight / 2;
-
-			renderCtx.save();
-			renderCtx.translate(originX, originY);
-			renderCtx.rotate(rotation);
-			const textStartX = -selectionWidth / 2 + horizontalPadding;
-			const textStartY = -selectionHeight / 2 + verticalPadding + layout.ascent;
-			layout.lines.forEach((line, index) => {
-				const baselineY = textStartY + index * layout.lineHeight;
-				renderCtx.fillText(line || ' ', textStartX, baselineY);
-			});
-			renderCtx.restore();
-			
-			if (isSelected && !selectedGroupChildIds.has(text.id)) {
-				const outlineBounds = getSelectionOutlineBounds(boxX, boxY, selectionWidth, selectionHeight, $zoom, false);
-				renderSelectionOutline(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
-				if (showIndividualHandles) {
-					renderTextHandles(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
-					renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
-				}
-			}
-		});
+		renderCtx.restore();
+		
+		renderCtx.save();
+		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
+		renderCtx.scale($zoom, $zoom);
 
 		const groupBoundingBoxRaw =
 			totalSelectionCount > 1 

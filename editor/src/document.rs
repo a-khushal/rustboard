@@ -749,6 +749,187 @@ impl Document {
         &self.groups
     }
 
+    pub fn bring_shape_to_front(&mut self, id: u64) {
+        let max_z = self.get_max_z_index();
+        let new_z = max_z + 1;
+        
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            rect.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            ellipse.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            diamond.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            line.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            arrow.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index = new_z;
+            self.save_snapshot();
+        }
+    }
+
+    pub fn bring_shape_forward(&mut self, id: u64) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            rect.z_index += 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            ellipse.z_index += 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            diamond.z_index += 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            line.z_index += 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            arrow.z_index += 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index += 1;
+            self.save_snapshot();
+        }
+    }
+
+    pub fn send_shape_backward(&mut self, id: u64) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            rect.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            ellipse.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            diamond.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            line.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            arrow.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index -= 1;
+            self.save_snapshot();
+        }
+    }
+
+    pub fn send_shape_to_back(&mut self, id: u64) {
+        let min_z = self.get_min_z_index();
+        let new_z = min_z - 1;
+        
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            rect.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            ellipse.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            diamond.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            line.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            arrow.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index = new_z;
+            self.save_snapshot();
+        }
+    }
+
+    fn get_max_z_index(&self) -> i32 {
+        let mut max_z = 0i32;
+        for rect in &self.rectangles {
+            max_z = max_z.max(rect.z_index);
+        }
+        for ellipse in &self.ellipses {
+            max_z = max_z.max(ellipse.z_index);
+        }
+        for diamond in &self.diamonds {
+            max_z = max_z.max(diamond.z_index);
+        }
+        for line in &self.lines {
+            max_z = max_z.max(line.z_index);
+        }
+        for arrow in &self.arrows {
+            max_z = max_z.max(arrow.z_index);
+        }
+        for text in &self.texts {
+            max_z = max_z.max(text.z_index);
+        }
+        max_z
+    }
+
+    fn get_min_z_index(&self) -> i32 {
+        let mut min_z = 0i32;
+        for rect in &self.rectangles {
+            min_z = min_z.min(rect.z_index);
+        }
+        for ellipse in &self.ellipses {
+            min_z = min_z.min(ellipse.z_index);
+        }
+        for diamond in &self.diamonds {
+            min_z = min_z.min(diamond.z_index);
+        }
+        for line in &self.lines {
+            min_z = min_z.min(line.z_index);
+        }
+        for arrow in &self.arrows {
+            min_z = min_z.min(arrow.z_index);
+        }
+        for text in &self.texts {
+            min_z = min_z.min(text.z_index);
+        }
+        min_z
+    }
+
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),

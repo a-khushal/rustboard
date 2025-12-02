@@ -11,6 +11,7 @@ export interface Rectangle {
 	fill_color?: string | null;
 	line_width?: number;
 	rotation_angle?: number;
+	z_index?: number;
 }
 
 export interface Ellipse {
@@ -22,6 +23,7 @@ export interface Ellipse {
 	fill_color?: string | null;
 	line_width?: number;
 	rotation_angle?: number;
+	z_index?: number;
 }
 
 export interface Line {
@@ -31,6 +33,7 @@ export interface Line {
 	stroke_color?: string;
 	line_width?: number;
 	rotation_angle?: number;
+	z_index?: number;
 }
 
 export interface Arrow {
@@ -40,6 +43,7 @@ export interface Arrow {
 	stroke_color?: string;
 	line_width?: number;
 	rotation_angle?: number;
+	z_index?: number;
 }
 
 export interface Diamond {
@@ -51,6 +55,7 @@ export interface Diamond {
 	fill_color?: string | null;
 	line_width?: number;
 	rotation_angle?: number;
+	z_index?: number;
 }
 
 export interface Text {
@@ -61,6 +66,7 @@ export interface Text {
 	text_color?: string;
 	boxWidth?: number;
 	rotation_angle?: number;
+	z_index?: number;
 }
 
 export interface Group {
