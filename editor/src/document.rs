@@ -1,6 +1,6 @@
 const DEFAULT_TEXT_FONT_SIZE: f64 = 16.0;
 
-use crate::elements::{Arrow, Diamond, Ellipse, Group, Line, Rectangle};
+use crate::elements::{Arrow, Diamond, Ellipse, Group, Line, Rectangle, Path};
 use crate::geometry::Point;
 use crate::Text;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ struct DocumentSnapshot {
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
     texts: Vec<Text>,
+    paths: Vec<Path>,
     groups: Vec<Group>,
     next_id: u64,
 }
@@ -24,6 +25,7 @@ pub struct Document {
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
     texts: Vec<Text>,
+    paths: Vec<Path>,
     groups: Vec<Group>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
@@ -40,6 +42,7 @@ impl Document {
             arrows: Vec::new(),
             diamonds: Vec::new(),
             texts: Vec::new(),
+            paths: Vec::new(),
             groups: Vec::new(),
             next_id: 0,
             history: Vec::new(),
@@ -58,6 +61,7 @@ impl Document {
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
             texts: self.texts.clone(),
+            paths: self.paths.clone(),
             groups: self.groups.clone(),
             next_id: self.next_id,
         };
@@ -70,6 +74,7 @@ impl Document {
                 && last_snapshot.arrows == snapshot.arrows
                 && last_snapshot.diamonds == snapshot.diamonds
                 && last_snapshot.texts == snapshot.texts
+                && last_snapshot.paths == snapshot.paths
                 && last_snapshot.groups == snapshot.groups
                 && last_snapshot.next_id == snapshot.next_id
             {
@@ -94,6 +99,7 @@ impl Document {
         self.arrows = snapshot.arrows.clone();
         self.diamonds = snapshot.diamonds.clone();
         self.texts = snapshot.texts.clone();
+        self.paths = snapshot.paths.clone();
         self.groups = snapshot.groups.clone();
         self.next_id = snapshot.next_id;
     }
@@ -727,6 +733,70 @@ impl Document {
         }
     }
 
+    pub fn add_path(&mut self, points: Vec<Point>) -> u64 {
+        let id = self.add_path_without_snapshot(points);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_path_without_snapshot(&mut self, points: Vec<Point>) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.paths.push(Path::new(id, points));
+        id
+    }
+
+    pub fn get_paths(&self) -> &[Path] {
+        &self.paths
+    }
+
+    pub fn delete_path(&mut self, id: u64) {
+        let existed = self.delete_path_without_snapshot(id);
+        if existed {
+            self.save_snapshot();
+        }
+    }
+
+    pub fn delete_path_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.paths.iter().any(|p| p.id == id);
+        self.paths.retain(|p| p.id != id);
+        existed
+    }
+
+    pub fn set_path_stroke_color(&mut self, id: u64, color: String, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if path.stroke_color != color {
+                path.stroke_color = color;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_path_line_width(&mut self, id: u64, width: f64, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if (path.line_width - width).abs() > f64::EPSILON {
+                path.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn move_path(&mut self, id: u64, delta_x: f64, delta_y: f64, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            for point in &mut path.points {
+                point.x += delta_x;
+                point.y += delta_y;
+            }
+            if save_history {
+                self.save_snapshot();
+            }
+        }
+    }
+
     pub fn group_elements(&mut self, element_ids: Vec<u64>) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
@@ -781,6 +851,11 @@ impl Document {
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
             text.z_index = new_z;
             self.save_snapshot();
+            return;
+        }
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            path.z_index = new_z;
+            self.save_snapshot();
         }
     }
 
@@ -813,6 +888,11 @@ impl Document {
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
             text.z_index += 1;
             self.save_snapshot();
+            return;
+        }
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            path.z_index += 1;
+            self.save_snapshot();
         }
     }
 
@@ -844,6 +924,11 @@ impl Document {
         }
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
             text.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            path.z_index -= 1;
             self.save_snapshot();
         }
     }
@@ -880,6 +965,11 @@ impl Document {
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
             text.z_index = new_z;
             self.save_snapshot();
+            return;
+        }
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            path.z_index = new_z;
+            self.save_snapshot();
         }
     }
 
@@ -902,6 +992,9 @@ impl Document {
         }
         for text in &self.texts {
             max_z = max_z.max(text.z_index);
+        }
+        for path in &self.paths {
+            max_z = max_z.max(path.z_index);
         }
         max_z
     }
@@ -926,6 +1019,9 @@ impl Document {
         for text in &self.texts {
             min_z = min_z.min(text.z_index);
         }
+        for path in &self.paths {
+            min_z = min_z.min(path.z_index);
+        }
         min_z
     }
 
@@ -938,6 +1034,7 @@ impl Document {
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
             texts: self.texts.clone(),
+            paths: self.paths.clone(),
             groups: self.groups.clone(),
             next_id: self.next_id,
         };

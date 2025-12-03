@@ -189,6 +189,29 @@ export function isPointOnLine(x: number, y: number, line: Line | Arrow, threshol
 	return dist <= threshold;
 }
 
+export function isPointOnPath(x: number, y: number, path: { points: Array<{ x: number; y: number }> }, threshold: number = 5): boolean {
+	if (path.points.length < 2) return false;
+	
+	for (let i = 0; i < path.points.length - 1; i++) {
+		const start = path.points[i];
+		const end = path.points[i + 1];
+		const dx = end.x - start.x;
+		const dy = end.y - start.y;
+		const length = Math.sqrt(dx * dx + dy * dy);
+		
+		if (length === 0) continue;
+		
+		const t = Math.max(0, Math.min(1, ((x - start.x) * dx + (y - start.y) * dy) / (length * length)));
+		const projX = start.x + t * dx;
+		const projY = start.y + t * dy;
+		const dist = Math.sqrt((x - projX) ** 2 + (y - projY) ** 2);
+		
+		if (dist <= threshold) return true;
+	}
+	
+	return false;
+}
+
 export function rectangleIntersectsBox(rect: Rectangle, box: { x: number; y: number; width: number; height: number }): boolean {
 	const rectBounds = { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height };
 	return (
@@ -275,6 +298,37 @@ export function lineIntersectsBox(line: Line | Arrow, box: { x: number; y: numbe
 
 export function arrowIntersectsBox(arrow: Arrow, box: { x: number; y: number; width: number; height: number }): boolean {
 	return lineIntersectsBox(arrow, box);
+}
+
+export function pathIntersectsBox(path: { points: Array<{ x: number; y: number }> }, box: { x: number; y: number; width: number; height: number }): boolean {
+	if (path.points.length === 0) return false;
+	
+	const boxRight = box.x + box.width;
+	const boxBottom = box.y + box.height;
+	
+	for (const point of path.points) {
+		if (point.x >= box.x && point.x <= boxRight && point.y >= box.y && point.y <= boxBottom) {
+			return true;
+		}
+	}
+	
+	for (let i = 0; i < path.points.length - 1; i++) {
+		const start = path.points[i];
+		const end = path.points[i + 1];
+		const lineStartInBox = (
+			start.x >= box.x && start.x <= boxRight &&
+			start.y >= box.y && start.y <= boxBottom
+		);
+		const lineEndInBox = (
+			end.x >= box.x && end.x <= boxRight &&
+			end.y >= box.y && end.y <= boxBottom
+		);
+		if (lineStartInBox && lineEndInBox) {
+			return true;
+		}
+	}
+	
+	return false;
 }
 
 export function isPointInText(x: number, y: number, text: Text, ctx?: CanvasRenderingContext2D): boolean {

@@ -4,3 +4,4 @@ export * from './line';
 export * from './arrow';
 export * from './diamond';
 export * from './texts';
+export * from './path';

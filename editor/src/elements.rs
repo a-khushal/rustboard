@@ -218,6 +218,30 @@ fn default_z_index() -> i32 {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Path {
+    pub id: u64,
+    pub points: Vec<Point>,
+    #[serde(default = "default_stroke_color")]
+    pub stroke_color: String,
+    #[serde(default = "default_line_width")]
+    pub line_width: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
+}
+
+impl Path {
+    pub fn new(id: u64, points: Vec<Point>) -> Self {
+        Self {
+            id,
+            points,
+            stroke_color: default_stroke_color(),
+            line_width: default_line_width(),
+            z_index: default_z_index(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Group {
     pub id: u64,
     pub element_ids: Vec<u64>,

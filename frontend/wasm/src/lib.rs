@@ -265,6 +265,49 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn add_path(&self, points: JsValue) -> u64 {
+        let points: Vec<Point> = serde_wasm_bindgen::from_value(points).unwrap();
+        self.document.borrow_mut().add_path(points)
+    }
+
+    #[wasm_bindgen]
+    pub fn add_path_without_snapshot(&self, points: JsValue) -> u64 {
+        let points: Vec<Point> = serde_wasm_bindgen::from_value(points).unwrap();
+        self.document.borrow_mut().add_path_without_snapshot(points)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_paths(&self) -> JsValue {
+        let paths = self.document.borrow().get_paths().to_vec();
+        to_value(&paths).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_path(&self, id: u64) {
+        self.document.borrow_mut().delete_path(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_path_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_path_without_snapshot(id)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_path_stroke_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_path_stroke_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_path_line_width(&self, id: u64, width: f64, save_history: bool) {
+        self.document.borrow_mut().set_path_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn move_path(&self, id: u64, delta_x: f64, delta_y: f64, save_history: bool) {
+        self.document.borrow_mut().move_path(id, delta_x, delta_y, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn set_rectangle_stroke_color(&self, id: u64, color: String, save_history: bool) {
         self.document.borrow_mut().set_rectangle_stroke_color(id, color, save_history);
     }

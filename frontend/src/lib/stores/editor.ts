@@ -69,6 +69,14 @@ export interface Text {
 	z_index?: number;
 }
 
+export interface Path {
+	id: number;
+	points: Array<{ x: number; y: number }>;
+	stroke_color?: string;
+	line_width?: number;
+	z_index?: number;
+}
+
 export interface Group {
 	id: number;
 	element_ids: number[];
@@ -93,5 +101,7 @@ export const diamonds = writable<Diamond[]>([]);
 export const selectedDiamonds = writable<Diamond[]>([]);
 export const texts = writable<Text[]>([]);
 export const selectedTexts = writable<Text[]>([]);
+export const paths = writable<Path[]>([]);
+export const selectedPaths = writable<Path[]>([]);
 export const groups = writable<Group[]>([]);
 export const selectedGroups = writable<Group[]>([]);

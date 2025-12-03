@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { get } from 'svelte/store';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		lines, selectedLines, arrows, selectedArrows,
 		diamonds, selectedDiamonds, texts, selectedTexts,
+		paths, selectedPaths,
 		groups, selectedGroups,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Group
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Group
 	} from '$lib/stores/editor';
 
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
@@ -16,9 +18,11 @@
 		addDiamond, moveDiamond, resizeDiamond, setDiamondRotation,
 		addLine, moveLine,
 		addArrow, moveArrow,
-		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation
+		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation,
+		addPath, movePath
 	} from '$lib/utils/canvas-operations/index';
 	import { updateTexts } from '$lib/utils/canvas-operations/texts';
+	import { updatePaths } from '$lib/utils/canvas-operations/path';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 	import { copyToClipboard, getClipboard, hasClipboardData } from '$lib/utils/clipboard';
@@ -70,7 +74,7 @@
 	let ctx: CanvasRenderingContext2D | null = null;
 	let isDragging = false;
 	let dragStartPos = { x: 0, y: 0 };
-	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | null = null;
+	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path | null = null;
 	let isSpacePressed = false;
 	let isPanning = false;
 	let panStartPos = { x: 0, y: 0 };
@@ -83,6 +87,8 @@
 	let lineEnd: { x: number; y: number } | null = null;
 	let arrowStart: { x: number; y: number } | null = null;
 	let arrowEnd: { x: number; y: number } | null = null;
+	let freehandPoints: Array<{ x: number; y: number }> = [];
+	let isDrawingFreehand = false;
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
@@ -106,6 +112,7 @@
 		diamonds: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 		lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
+		paths: Map<number, { points: Array<{ x: number; y: number }> }>;
 		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number; boxWidth?: number }>;
 	} = {
 		rectangles: new Map(),
@@ -113,6 +120,7 @@
 		diamonds: new Map(),
 		lines: new Map(),
 		arrows: new Map(),
+		paths: new Map(),
 		texts: new Map()
 	};
 
@@ -122,6 +130,7 @@
 		selectedShapesStartPositions.diamonds.clear();
 		selectedShapesStartPositions.lines.clear();
 		selectedShapesStartPositions.arrows.clear();
+		selectedShapesStartPositions.paths.clear();
 		selectedShapesStartPositions.texts.clear();
 		
 	$selectedRectangles.forEach(rect => {
@@ -142,6 +151,10 @@
 		
 		$selectedArrows.forEach(arrow => {
 		selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y }, rotation: arrow.rotation_angle ?? 0 });
+		});
+
+		$selectedPaths.forEach(path => {
+		selectedShapesStartPositions.paths.set(path.id, { points: path.points.map(p => ({ x: p.x, y: p.y })) });
 		});
 
 		$selectedTexts.forEach(text => {
@@ -1565,8 +1578,8 @@ function rotateSelectedShapes(delta: number) {
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond | Text | Line | Arrow,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'line' | 'arrow',
+		shape: Rectangle | Ellipse | Diamond | Text | Line | Arrow | Path,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'line' | 'arrow' | 'path',
 		isShiftPressed: boolean,
 		x: number,
 		y: number
@@ -1773,7 +1786,7 @@ function rotateSelectedShapes(delta: number) {
 		resizeStartBoxWidth = null;
 		
 		if ($activeTool === 'select') {
-			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length;
+			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length;
 			const allowIndividualHandles = totalSelectedCount <= 1;
 			let rawGroupBox: BoundingBox | null = null;
 			let visualGroupBox: BoundingBox | null = null;
@@ -2041,6 +2054,13 @@ function rotateSelectedShapes(delta: number) {
 				}
 			}
 
+			for (let i = $paths.length - 1; i >= 0; i--) {
+				if (isPointOnPath(x, y, $paths[i], 5 / $zoom)) {
+					handleShapeClick($paths[i], 'path', isShiftPressed, x, y);
+					return;
+				}
+			}
+
 			for (let i = $texts.length - 1; i >= 0; i--) {
 				if (ctx && isPointInText(x, y, $texts[i], ctx)) {
 					handleShapeClick($texts[i], 'text', isShiftPressed, x, y);
@@ -2060,6 +2080,7 @@ function rotateSelectedShapes(delta: number) {
 					const firstSelectedDiamond = $selectedDiamonds[0];
 					const firstSelectedLine = $selectedLines[0];
 					const firstSelectedArrow = $selectedArrows[0];
+					const firstSelectedPath = $selectedPaths[0];
 					const firstSelectedText = $selectedTexts[0];
 					
 					if (firstSelectedRect) {
@@ -2072,6 +2093,8 @@ function rotateSelectedShapes(delta: number) {
 						draggedShape = firstSelectedLine;
 					} else if (firstSelectedArrow) {
 						draggedShape = firstSelectedArrow;
+					} else if (firstSelectedPath) {
+						draggedShape = firstSelectedPath;
 					} else if (firstSelectedText) {
 						draggedShape = firstSelectedText;
 					}
@@ -2116,6 +2139,12 @@ function rotateSelectedShapes(delta: number) {
 			isShiftPressedDuringCreation = isShiftPressed;
 			arrowStart = { x, y };
 			arrowEnd = { x, y };
+			scheduleRender();
+		} else if ($activeTool === 'freehand') {
+			resetRotationState();
+			clearAllSelections();
+			isDrawingFreehand = true;
+			freehandPoints = [{ x, y }];
 			scheduleRender();
 		} else if ($activeTool === 'text') {
 			resetRotationState();
@@ -2209,6 +2238,21 @@ function rotateSelectedShapes(delta: number) {
 		const worldPos = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 		lastMouseWorldPos = { x: worldPos.x, y: worldPos.y };
 
+		const { x, y } = worldPos;
+
+		if ($activeTool === 'freehand' && isDrawingFreehand) {
+			const lastPoint = freehandPoints[freehandPoints.length - 1];
+			const dx = x - lastPoint.x;
+			const dy = y - lastPoint.y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			if (distance > 2) {
+				freehandPoints.push({ x, y });
+				scheduleRender();
+			}
+			canvas.style.cursor = 'crosshair';
+			return;
+		}
+
 		if (isPanning) {
 			canvas.style.cursor = 'grabbing';
 			const deltaX = screenX - panStartPos.x;
@@ -2224,8 +2268,6 @@ function rotateSelectedShapes(delta: number) {
 			canvas.style.cursor = 'grab';
 			return;
 		}
-
-		const { x, y } = worldPos;
 
 		if (isGroupRotating && groupRotationState) {
 			const currentAngle = Math.atan2(y - groupRotationState.center.y, x - groupRotationState.center.x);
@@ -2704,6 +2746,8 @@ function rotateSelectedShapes(delta: number) {
 				arrowEnd = { x, y };
 				scheduleRender();
 			}
+		} else if ($activeTool === 'freehand') {
+			canvas.style.cursor = 'crosshair';
 		} else if ($activeTool === 'text') {
 			canvas.style.cursor = 'text';
 		} else if ($activeTool === 'select') {
@@ -2712,7 +2756,7 @@ function rotateSelectedShapes(delta: number) {
 			} else if (isDragging && draggedShape) {
 				canvas.style.cursor = 'move';
 			} else {
-				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length;
+				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length;
 				const selectionPaddingValue = getSelectionPaddingValue($zoom);
 				const rawGroupBoxForCursor =
 					totalSelectedCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
@@ -2870,6 +2914,12 @@ function rotateSelectedShapes(delta: number) {
 			}
 			for (let i = $arrows.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $arrows[i], 5 / $zoom)) {
+					canvas.style.cursor = 'move';
+					return;
+				}
+			}
+			for (let i = $paths.length - 1; i >= 0; i--) {
+				if (isPointOnPath(x, y, $paths[i], 5 / $zoom)) {
 					canvas.style.cursor = 'move';
 					return;
 				}
@@ -3051,12 +3101,20 @@ function rotateSelectedShapes(delta: number) {
 					}
 				});
 				
+				const selectedPathsArray: Path[] = [];
+				$paths.forEach(path => {
+					if (pathIntersectsBox(path, box)) {
+						selectedPathsArray.push(path);
+					}
+				});
+				
 				selectedRectangles.set(selectedRects);
 				selectedEllipses.set(selectedElls);
 				selectedDiamonds.set(selectedDias);
 				selectedLines.set(selectedLinesArray);
 				selectedArrows.set(selectedArrs);
 				selectedTexts.set(selectedTextsArray);
+				selectedPaths.set(selectedPathsArray);
 			}
 			
 			isSelectingBox = false;
@@ -3133,6 +3191,10 @@ function rotateSelectedShapes(delta: number) {
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveText(id, newX, newY, false);
+			});
+			
+			selectedShapesStartPositions.paths.forEach((startPos, id) => {
+				movePath(id, dragOffset.x, dragOffset.y, false);
 			});
 			
 			$editorApi.save_snapshot();
@@ -3249,6 +3311,26 @@ function rotateSelectedShapes(delta: number) {
 						activeTool.set('select' as Tool);
 					}
 				}
+			}
+			
+			if (isDrawingFreehand) {
+				if (freehandPoints.length > 1) {
+					addPath(freehandPoints);
+					selectedRectangles.set([]);
+					selectedEllipses.set([]);
+					selectedDiamonds.set([]);
+					selectedLines.set([]);
+					selectedArrows.set([]);
+					updatePaths();
+					const updatedPaths = get(paths);
+					if (updatedPaths.length > 0) {
+						const newestPath = updatedPaths[updatedPaths.length - 1];
+						selectedPaths.set([newestPath]);
+					}
+				}
+				isDrawingFreehand = false;
+				freehandPoints = [];
+				scheduleRender();
 			}
 			
 			isCreatingShape = false;
@@ -3655,7 +3737,8 @@ function rotateSelectedShapes(delta: number) {
 			$selectedDiamonds.length +
 			$selectedLines.length +
 			$selectedArrows.length +
-			$selectedTexts.length;
+			$selectedTexts.length +
+			$selectedPaths.length;
 		
 		const selectedGroupChildIds = new Set<number>();
 		if ($selectedGroups.length > 0) {
@@ -3672,6 +3755,7 @@ function rotateSelectedShapes(delta: number) {
 			...$diamonds.map(d => ({ type: 'diamond', data: d })),
 			...$lines.map(l => ({ type: 'line', data: l })),
 			...$arrows.map(a => ({ type: 'arrow', data: a })),
+			...$paths.map(p => ({ type: 'path', data: p })),
 			...$texts.map(t => ({ type: 'text', data: t }))
 		];
 
@@ -3969,6 +4053,54 @@ function rotateSelectedShapes(delta: number) {
 					renderCtx.fill();
 					renderCtx.stroke();
 				}
+			} else if (item.type === 'path') {
+				const path = item.data as Path;
+				const isSelected = $selectedPaths.some(selected => selected.id === path.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.paths.has(path.id);
+				const strokeColor = adaptColorToTheme(path.stroke_color, getDefaultStrokeColor());
+				const lineWidth = path.line_width || 2;
+				
+				renderCtx.strokeStyle = strokeColor;
+				renderCtx.lineWidth = lineWidth;
+				renderCtx.lineCap = 'round';
+				renderCtx.lineJoin = 'round';
+				renderCtx.beginPath();
+				
+				if (path.points.length > 0) {
+					if (isDragged) {
+						renderCtx.moveTo(path.points[0].x + dragOffset.x, path.points[0].y + dragOffset.y);
+						for (let i = 1; i < path.points.length; i++) {
+							renderCtx.lineTo(path.points[i].x + dragOffset.x, path.points[i].y + dragOffset.y);
+						}
+					} else {
+						renderCtx.moveTo(path.points[0].x, path.points[0].y);
+						for (let i = 1; i < path.points.length; i++) {
+							renderCtx.lineTo(path.points[i].x, path.points[i].y);
+						}
+					}
+				}
+				renderCtx.stroke();
+				
+				if (isSelected && !selectedGroupChildIds.has(path.id)) {
+					if (path.points.length > 0) {
+						const points = isDragged 
+							? path.points.map(p => ({ x: p.x + dragOffset.x, y: p.y + dragOffset.y }))
+							: path.points;
+						const minX = Math.min(...points.map(p => p.x));
+						const maxX = Math.max(...points.map(p => p.x));
+						const minY = Math.min(...points.map(p => p.y));
+						const maxY = Math.max(...points.map(p => p.y));
+						const width = maxX - minX;
+						const height = maxY - minY;
+						
+						const outlineBounds = getSelectionOutlineBounds(minX, minY, width, height, $zoom, true);
+						renderSelectionOutline(renderCtx, minX, minY, width, height, $zoom, true, 0);
+						if (showIndividualHandles) {
+							renderCornerHandles(renderCtx, minX, minY, width, height, $zoom, true, 0);
+							renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, 0);
+						}
+					}
+				}
 			} else if (item.type === 'text') {
 				const text = item.data as Text;
 				if (isTypingText && text.id === typingTextId) return;
@@ -4130,24 +4262,22 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.moveTo(arrowStart.x, arrowStart.y);
 			renderCtx.lineTo(arrowEnd.x, arrowEnd.y);
 			renderCtx.stroke();
-			
-			const dx = arrowEnd.x - arrowStart.x;
-			const dy = arrowEnd.y - arrowStart.y;
-			const angle = Math.atan2(dy, dx);
-			const arrowLength = 15;
-			const arrowAngle = Math.PI / 6;
-			
+			renderCtx.globalAlpha = 1.0;
+		}
+		
+		if (isDrawingFreehand && freehandPoints.length > 0) {
+			renderCtx.strokeStyle = getDefaultStrokeColor();
+			renderCtx.lineWidth = 2;
+			renderCtx.lineCap = 'round';
+			renderCtx.lineJoin = 'round';
+			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
-			renderCtx.moveTo(
-				arrowEnd.x - arrowLength * Math.cos(angle - arrowAngle),
-				arrowEnd.y - arrowLength * Math.sin(angle - arrowAngle)
-			);
-			renderCtx.lineTo(arrowEnd.x, arrowEnd.y);
-			renderCtx.lineTo(
-				arrowEnd.x - arrowLength * Math.cos(angle + arrowAngle),
-				arrowEnd.y - arrowLength * Math.sin(angle + arrowAngle)
-			);
+			renderCtx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
+			for (let i = 1; i < freehandPoints.length; i++) {
+				renderCtx.lineTo(freehandPoints[i].x, freehandPoints[i].y);
+			}
 			renderCtx.stroke();
+			renderCtx.globalAlpha = 1.0;
 		}
 		
 		renderCtx.restore();

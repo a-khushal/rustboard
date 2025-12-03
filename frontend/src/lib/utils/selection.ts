@@ -1,4 +1,4 @@
-import { selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts } from '$lib/stores/editor';
+import { selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedPaths } from '$lib/stores/editor';
 
 export function clearAllSelections(): void {
     selectedRectangles.set([]);
@@ -7,4 +7,5 @@ export function clearAllSelections(): void {
     selectedArrows.set([]);
     selectedDiamonds.set([]);
     selectedTexts.set([]);
+    selectedPaths.set([]);
 }

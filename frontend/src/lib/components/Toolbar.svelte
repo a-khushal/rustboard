@@ -13,7 +13,8 @@
 		{ id: 'diamond' as Tool, label: 'Diamond', icon: 'diamond' },
 		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
-		{ id: 'text' as Tool, label: 'Text', icon: 'text' }
+		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
+		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' }
 	];
 
 	function toggleTheme() {
@@ -66,6 +67,10 @@
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
 					<line x1="4" y1="3" x2="12" y2="3" />
 					<line x1="8" y1="3" x2="8" y2="13" />
+				</svg>
+			{:else if tool.icon === 'freehand'}
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M11.5 1.5L3 10l2 2 8.5-8.5-2-2zM9.5 3.5l3 3M2 12l2 2"/>
 				</svg>
 			{/if}
 		</button>
