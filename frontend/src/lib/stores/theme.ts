@@ -27,8 +27,8 @@ if (browser) {
     
     theme.subscribe((value) => {
         if (browser) {
-            localStorage.setItem('theme', value);
-            applyTheme(value);
+        localStorage.setItem('theme', value);
+        applyTheme(value);
         }
     });
 }

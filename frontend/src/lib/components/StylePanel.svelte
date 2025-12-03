@@ -32,6 +32,17 @@
 	let textColor = '#000000';
 	let unifiedColor = '#000000';
 
+	const fillColors = ['#ef4444', '#3b82f6', '#10b981', '#f97316'];
+
+	function isLightColor(hexColor: string): boolean {
+		const hex = hexColor.replace('#', '');
+		const r = parseInt(hex.slice(0, 2), 16);
+		const g = parseInt(hex.slice(2, 4), 16);
+		const b = parseInt(hex.slice(4, 6), 16);
+		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+		return luminance > 0.5;
+	}
+
 	$: {
 		const totalSelected =
 			$selectedRectangles.length +
@@ -412,6 +423,58 @@
 					</div>
 				</fieldset>
 			</div>
+
+			{#if hasFillableShapes}
+				<div class="space-y-1.5">
+					<fieldset class="flex flex-col gap-2 w-full min-w-0">
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Fill</legend>
+						<div class="flex items-center gap-2 min-w-0">
+							<div class="relative shrink-0">
+								<input
+									type="color"
+									value={fillColor || '#000000'}
+									on:input={(e) => updateFillColor((e.target as HTMLInputElement).value)}
+									class={`w-7 h-7 rounded-full border-2 cursor-pointer shrink-0 opacity-0 absolute inset-0 ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-200'}`}
+									title={fillColor || 'No fill'}
+								/>
+								<div
+									class={`w-7 h-7 rounded-full border-2 pointer-events-none ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-200'}`}
+									style="background-color: {fillColor || 'transparent'};"
+								></div>
+							</div>
+							<input
+								type="text"
+								value={fillColor || ''}
+								on:input={(e) => {
+									const val = (e.target as HTMLInputElement).value;
+									updateFillColor(val || null);
+								}}
+								class={`flex-1 min-w-0 px-2 py-1 text-xs font-mono border rounded focus:outline-none focus:ring-1 h-8 ${$theme === 'dark' ? 'border-stone-600 bg-stone-700 text-stone-200 focus:ring-stone-500' : 'border-stone-200 bg-stone-50 focus:ring-stone-400'}`}
+								placeholder="No fill"
+								maxlength="7"
+								aria-label="Fill color hex value"
+							/>
+						</div>
+						<div class="grid grid-cols-4 gap-1.5 w-full mt-1">
+							{#each fillColors as color}
+								<button
+									type="button"
+									on:click={() => updateFillColor(color)}
+									class={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 hover:border-stone-400 ${fillColor === color ? ($theme === 'dark' ? 'border-stone-400 ring-2 ring-stone-500' : 'border-stone-600 ring-2 ring-stone-300') : ($theme === 'dark' ? 'border-stone-600' : 'border-stone-200')}`}
+									style="background-color: {color};"
+									title={color}
+								>
+									{#if fillColor === color}
+										<svg class="w-3 h-3 m-auto drop-shadow-lg {isLightColor(color) ? 'text-stone-900' : 'text-white'}" viewBox="0 0 16 16" fill="currentColor">
+											<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/>
+										</svg>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					</fieldset>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
