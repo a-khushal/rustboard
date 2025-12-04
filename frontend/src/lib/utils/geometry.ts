@@ -1,4 +1,4 @@
-import type { Ellipse, Rectangle, Line, Arrow, Diamond, Text } from '$lib/stores/editor';
+import type { Ellipse, Rectangle, Line, Arrow, Diamond, Text, Image } from '$lib/stores/editor';
 
 const DEFAULT_FONT_SIZE = 16;
 export const DEFAULT_TEXT_FONT_SIZE = DEFAULT_FONT_SIZE;
@@ -257,6 +257,30 @@ export function diamondIntersectsBox(diamond: Diamond, box: { x: number; y: numb
 	return corners.every(corner =>
 		corner.x >= box.x && corner.x <= box.x + box.width &&
 		corner.y >= box.y && corner.y <= box.y + box.height
+	);
+}
+
+export function isPointInImage(x: number, y: number, image: Image): boolean {
+	return (
+		x >= image.position.x &&
+		x <= image.position.x + image.width &&
+		y >= image.position.y &&
+		y <= image.position.y + image.height
+	);
+}
+
+export function imageIntersectsBox(image: Image, box: { x: number; y: number; width: number; height: number }): boolean {
+	const imageBounds = {
+		x: image.position.x,
+		y: image.position.y,
+		width: image.width,
+		height: image.height
+	};
+	return (
+		imageBounds.x >= box.x &&
+		imageBounds.y >= box.y &&
+		imageBounds.x + imageBounds.width <= box.x + box.width &&
+		imageBounds.y + imageBounds.height <= box.y + box.height
 	);
 }
 

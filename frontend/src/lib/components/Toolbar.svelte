@@ -14,7 +14,8 @@
 		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
 		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
-		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' }
+		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' },
+		{ id: 'image' as Tool, label: 'Image', icon: 'image' }
 	];
 
 	function toggleTheme() {
@@ -71,6 +72,14 @@
 			{:else if tool.icon === 'freehand'}
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
 					<path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325"/>
+				</svg>
+			{:else if tool.icon === 'image'}
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="2" y="2" width="12" height="12" rx="1"/>
+					<circle cx="5.5" cy="5.5" r="1.5"/>
+					<polyline points="2,10 5.5,6.5 8,9 11,6 14,10"/>
+					<line x1="14" y1="10" x2="14" y2="14"/>
+					<line x1="2" y1="14" x2="14" y2="14"/>
 				</svg>
 			{/if}
 		</button>

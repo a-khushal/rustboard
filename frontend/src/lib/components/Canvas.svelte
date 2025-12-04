@@ -6,11 +6,12 @@
 		lines, selectedLines, arrows, selectedArrows,
 		diamonds, selectedDiamonds, texts, selectedTexts,
 		paths, selectedPaths,
+		images, selectedImages,
 		groups, selectedGroups,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Group
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image, type Group
 	} from '$lib/stores/editor';
 
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, getPathBoundingBox, measureMultilineText, getFontForSize, getTextContentWidthFromBoxWidth, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox, measureMultilineText, getFontForSize, getTextContentWidthFromBoxWidth, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
@@ -19,7 +20,8 @@
 		addLine, moveLine,
 		addArrow, moveArrow,
 		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation,
-		addPath, movePath
+		addPath, movePath,
+		addImage, moveImage, resizeImage, setImageRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updateTexts } from '$lib/utils/canvas-operations/texts';
 	import { updatePaths } from '$lib/utils/canvas-operations/path';
@@ -83,7 +85,7 @@
 	let ctx: CanvasRenderingContext2D | null = null;
 	let isDragging = false;
 	let dragStartPos = { x: 0, y: 0 };
-	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path | null = null;
+	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path | Image | null = null;
 	let isSpacePressed = false;
 	let isPanning = false;
 	let panStartPos = { x: 0, y: 0 };
@@ -101,8 +103,8 @@
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Image | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
@@ -123,6 +125,7 @@
 		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		paths: Map<number, { points: Array<{ x: number; y: number }> }>;
 		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number; boxWidth?: number }>;
+		images: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 	} = {
 		rectangles: new Map(),
 		ellipses: new Map(),
@@ -130,7 +133,8 @@
 		lines: new Map(),
 		arrows: new Map(),
 		paths: new Map(),
-		texts: new Map()
+		texts: new Map(),
+		images: new Map()
 	};
 
 	function storeSelectedShapesStartPositions() {
@@ -141,6 +145,7 @@
 		selectedShapesStartPositions.arrows.clear();
 		selectedShapesStartPositions.paths.clear();
 		selectedShapesStartPositions.texts.clear();
+		selectedShapesStartPositions.images.clear();
 		
 	$selectedRectangles.forEach(rect => {
 		selectedShapesStartPositions.rectangles.set(rect.id, { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height, rotation: rect.rotation_angle ?? 0 });
@@ -169,6 +174,10 @@
 		$selectedTexts.forEach(text => {
 		selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, rotation: text.rotation_angle ?? 0, boxWidth: text.boxWidth });
 		});
+
+		$selectedImages.forEach(image => {
+		selectedShapesStartPositions.images.set(image.id, { x: image.position.x, y: image.position.y, width: image.width, height: image.height, rotation: image.rotation_angle ?? 0 });
+		});
 	}
 	let isGroupResizing = false;
 	let groupResizeHandleIndex: number | null = null;
@@ -183,7 +192,7 @@
 	const ROTATION_HANDLE_DISTANCE = 18;
 	const ROTATION_HANDLE_RADIUS = 5;
 	const ROTATION_STEP = Math.PI / 12;
-	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text';
+	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image';
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
@@ -213,6 +222,8 @@
         $selectedLines.forEach(l => selectedIds.push(BigInt(l.id)));
         $selectedArrows.forEach(a => selectedIds.push(BigInt(a.id)));
         $selectedTexts.forEach(t => selectedIds.push(BigInt(t.id)));
+        $selectedPaths.forEach(p => selectedIds.push(BigInt(p.id)));
+        $selectedImages.forEach(i => selectedIds.push(BigInt(i.id)));
 
         if (selectedIds.length < 2) return;
 
@@ -250,6 +261,8 @@
         $selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
         $selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
+        $selectedPaths.forEach(p => $editorApi!.bring_shape_to_front(BigInt(p.id)));
+        $selectedImages.forEach(i => $editorApi!.bring_shape_to_front(BigInt(i.id)));
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -264,6 +277,8 @@
         $selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
         $selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
+        $selectedPaths.forEach(p => $editorApi!.bring_shape_forward(BigInt(p.id)));
+        $selectedImages.forEach(i => $editorApi!.bring_shape_forward(BigInt(i.id)));
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -278,6 +293,8 @@
         $selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
         $selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
+        $selectedPaths.forEach(p => $editorApi!.send_shape_backward(BigInt(p.id)));
+        $selectedImages.forEach(i => $editorApi!.send_shape_backward(BigInt(i.id)));
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -292,6 +309,8 @@
         $selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
         $selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
+        $selectedPaths.forEach(p => $editorApi!.send_shape_to_back(BigInt(p.id)));
+        $selectedImages.forEach(i => $editorApi!.send_shape_to_back(BigInt(i.id)));
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -533,7 +552,7 @@
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
 			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0) {
-				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts);
+				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages);
 			}
 			return;
 		}
@@ -543,10 +562,10 @@
 			event.stopPropagation();
 			if (!$editorApi) return;
 			
-			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0;
+			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedImages.length > 0;
 			if (!hasSelection) return;
 			
-			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts);
+			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages);
 			const clipboard = getClipboard();
 			
 			const bounds: Array<{ minX: number; minY: number }> = [];
@@ -556,6 +575,7 @@
 			clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
 			clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
 			clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
+			clipboard.images.forEach(i => bounds.push({ minX: i.position.x, minY: i.position.y }));
 
 			if (bounds.length === 0) return;
 			
@@ -619,8 +639,9 @@
 		const hasSelectedArrows = $selectedArrows.length > 0;
 		const hasSelectedTexts = $selectedTexts.length > 0;
 		const hasSelectedPaths = $selectedPaths.length > 0;
+		const hasSelectedImages = $selectedImages.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedTexts && !hasSelectedPaths) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedTexts && !hasSelectedPaths && !hasSelectedImages) return;
 
 		event.preventDefault();
 		
@@ -631,8 +652,9 @@
 		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
 		const textIds = hasSelectedTexts ? $selectedTexts.map(text => text.id) : [];
 		const pathIds = hasSelectedPaths ? $selectedPaths.map(path => path.id) : [];
+		const imageIds = hasSelectedImages ? $selectedImages.map(image => image.id) : [];
 		
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -644,8 +666,8 @@
 	function getResizeHandleAt(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Text,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
+		shape: Rectangle | Ellipse | Diamond | Text | Image,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image',
 		zoom: number,
 		rotation: number = 0
 	): number | null {
@@ -683,6 +705,12 @@
 			boxY = text.position.y - layout.ascent - verticalPadding - gap;
 			boxWidth = selectionWidth + gap * 2;
 			boxHeight = selectionHeight + gap * 2;
+		} else if (shapeType === 'image') {
+			const image = shape as Image;
+			boxX = image.position.x - padding - gap;
+			boxY = image.position.y - padding - gap;
+			boxWidth = image.width + (padding + gap) * 2;
+			boxHeight = image.height + (padding + gap) * 2;
 		} else {
 			const ellipse = shape as Ellipse;
 			const x = ellipse.position.x - ellipse.radius_x;
@@ -954,8 +982,8 @@
 	}
 
 function getShapeBoundingBox(
-	shape: Rectangle | Ellipse | Diamond | Text,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
+	shape: Rectangle | Ellipse | Diamond | Text | Image,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image',
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
 	if (shapeType === 'rectangle') {
@@ -975,6 +1003,10 @@ function getShapeBoundingBox(
 			height: ellipse.radius_y * 2
 		};
 	}
+	if (shapeType === 'image') {
+		const image = shape as Image;
+		return { x: image.position.x, y: image.position.y, width: image.width, height: image.height };
+	}
 	const text = shape as Text;
 	const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 	const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
@@ -989,8 +1021,8 @@ function getShapeBoundingBox(
 }
 
 function getSelectionBoundsForShape(
-	shape: Rectangle | Ellipse | Diamond | Text,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text',
+	shape: Rectangle | Ellipse | Diamond | Text | Image,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image',
 	zoom: number,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
@@ -1007,7 +1039,7 @@ function getSelectionBoundsForShape(
 }
 
 function getShapeCenter(
-	shape: Rectangle | Ellipse | Diamond | Text,
+	shape: Rectangle | Ellipse | Diamond | Text | Image,
 	shapeType: RotatableShapeType,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number } | null {
@@ -1016,7 +1048,7 @@ function getShapeCenter(
 	return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 }
 
-function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text, shapeType: RotatableShapeType): number {
+function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image, shapeType: RotatableShapeType): number {
 	if (shapeType === 'rectangle') {
 		return (shape as Rectangle).rotation_angle ?? 0;
 	}
@@ -1025,6 +1057,9 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text, shapeType
 	}
 	if (shapeType === 'diamond') {
 		return (shape as Diamond).rotation_angle ?? 0;
+	}
+	if (shapeType === 'image') {
+		return (shape as Image).rotation_angle ?? 0;
 	}
 	return (shape as Text).rotation_angle ?? 0;
 }
@@ -1066,7 +1101,7 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text, shapeType
 	function isPointOnRotationHandle(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Text,
+		shape: Rectangle | Ellipse | Diamond | Text | Image,
 		shapeType: RotatableShapeType,
 		zoom: number,
 		ctxOverride: CanvasRenderingContext2D | null = ctx
@@ -1088,7 +1123,7 @@ function normalizeAngle(angle: number): number {
 }
 
 function getRenderedRotation(
-	shape: Rectangle | Ellipse | Diamond | Text,
+	shape: Rectangle | Ellipse | Diamond | Text | Image,
 	shapeType: RotatableShapeType
 ): number {
 	if (rotationPreview && rotationPreview.type === shapeType && rotationPreview.id === shape.id) {
@@ -1111,11 +1146,15 @@ function applyRotationToShape(type: RotatableShapeType, id: number, angle: numbe
 		setDiamondRotation(id, normalized, saveHistory);
 		return;
 	}
+	if (type === 'image') {
+		setImageRotation(id, normalized, saveHistory);
+		return;
+	}
 	setTextRotation(id, normalized, saveHistory);
 }
 
 function beginRotation(
-	shape: Rectangle | Ellipse | Diamond | Text,
+	shape: Rectangle | Ellipse | Diamond | Text | Image,
 	shapeType: RotatableShapeType,
 	x: number,
 	y: number
@@ -1175,11 +1214,12 @@ function resetRotationState() {
 	}
 
 function rotateSelectedShapes(delta: number) {
-	const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text }> = [];
+	const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text | Image }> = [];
 	$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
 	$selectedEllipses.forEach(ellipse => targets.push({ type: 'ellipse', shape: ellipse }));
 	$selectedDiamonds.forEach(diamond => targets.push({ type: 'diamond', shape: diamond }));
 	$selectedTexts.forEach(text => targets.push({ type: 'text', shape: text }));
+	$selectedImages.forEach(image => targets.push({ type: 'image', shape: image }));
 	if (targets.length === 0) return;
 	targets.forEach((item, index) => {
 		const currentAngle = getShapeRotation(item.shape, item.type);
@@ -1586,11 +1626,33 @@ function rotateSelectedShapes(delta: number) {
 			moveText(id, newX, newY, saveHistory);
 			setTextFontSize(id, Math.max(4, newFontSize), saveHistory);
 		});
+
+		selectedShapesStartPositions.images.forEach((startPos, id) => {
+			const relativeX = startPos.x - startBox.x;
+			const relativeY = startPos.y - startBox.y;
+			let newX: number;
+			let newY: number;
+			if (isFlippedX) {
+				newX = originX - relativeX * absScaleX - startPos.width * absScaleX;
+			} else {
+				newX = originX + relativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newY = originY - relativeY * absScaleY - startPos.height * absScaleY;
+			} else {
+				newY = originY + relativeY * absScaleY;
+			}
+
+			const newWidth = startPos.width * absScaleX;
+			const newHeight = startPos.height * absScaleY;
+			moveImage(id, newX, newY, saveHistory);
+			resizeImage(id, Math.max(1, newWidth), Math.max(1, newHeight), saveHistory);
+		});
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond | Text | Line | Arrow | Path,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'line' | 'arrow' | 'path',
+		shape: Rectangle | Ellipse | Diamond | Text | Line | Arrow | Path | Image,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'line' | 'arrow' | 'path' | 'image',
 		isShiftPressed: boolean,
 		x: number,
 		y: number
@@ -1788,6 +1850,35 @@ function rotateSelectedShapes(delta: number) {
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
 			isDragging = true;
+		} else if (shapeType === 'image') {
+			const clickedImage = shape as Image;
+			const index = $selectedImages.findIndex(i => i.id === clickedImage.id);
+			const isAlreadySelected = index >= 0;
+			
+			if (isShiftPressed) {
+				selectedImages.set(
+					isAlreadySelected
+						? $selectedImages.filter(i => i.id !== clickedImage.id)
+						: [...$selectedImages, clickedImage]
+				);
+			} else if (!isAlreadySelected) {
+				selectedImages.set([clickedImage]);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+				selectedTexts.set([]);
+				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
+			}
+
+			draggedShape = clickedImage;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
 		}
 	}
 	
@@ -1851,7 +1942,7 @@ function rotateSelectedShapes(delta: number) {
 		resizeStartBoxWidth = null;
 		
 		if ($activeTool === 'select') {
-			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length;
+			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length + $selectedImages.length;
 			const allowIndividualHandles = totalSelectedCount <= 1;
 			let rawGroupBox: BoundingBox | null = null;
 			let visualGroupBox: BoundingBox | null = null;
@@ -2131,9 +2222,16 @@ function rotateSelectedShapes(delta: number) {
 			for (let i = $texts.length - 1; i >= 0; i--) {
 				if (ctx && isPointInText(x, y, $texts[i], ctx)) {
 					handleShapeClick($texts[i], 'text', isShiftPressed, x, y);
-				return;
+					return;
+				}
 			}
-		}
+
+			for (let i = $images.length - 1; i >= 0; i--) {
+				if (isPointInImage(x, y, $images[i])) {
+					handleShapeClick($images[i], 'image', isShiftPressed, x, y);
+					return;
+				}
+			}
 
 			if (totalSelectedCount > 1 && visualGroupBox) {
 				if (
@@ -2149,6 +2247,7 @@ function rotateSelectedShapes(delta: number) {
 					const firstSelectedArrow = $selectedArrows[0];
 					const firstSelectedPath = $selectedPaths[0];
 					const firstSelectedText = $selectedTexts[0];
+					const firstSelectedImage = $selectedImages[0];
 					
 					if (firstSelectedRect) {
 						draggedShape = firstSelectedRect;
@@ -2164,6 +2263,8 @@ function rotateSelectedShapes(delta: number) {
 						draggedShape = firstSelectedPath;
 					} else if (firstSelectedText) {
 						draggedShape = firstSelectedText;
+					} else if (firstSelectedImage) {
+						draggedShape = firstSelectedImage;
 					}
 					
 					if (draggedShape) {
@@ -2171,7 +2272,7 @@ function rotateSelectedShapes(delta: number) {
 						dragOffset = { x: 0, y: 0 };
 						storeSelectedShapesStartPositions();
 						isDragging = true;
-				return;
+						return;
 					}
 				}
 			}
@@ -2226,6 +2327,37 @@ function rotateSelectedShapes(delta: number) {
 				activeTool.set('select');
 			}
 			scheduleRender();
+		} else if ($activeTool === 'image') {
+			// Trigger file input for image selection
+			const fileInput = document.createElement('input');
+			fileInput.type = 'file';
+			fileInput.accept = 'image/*';
+			fileInput.style.display = 'none';
+			fileInput.onchange = (e) => {
+				const file = (e.target as HTMLInputElement).files?.[0];
+				if (file) {
+					const reader = new FileReader();
+					reader.onload = (event) => {
+						const imageData = event.target?.result as string;
+						if (imageData) {
+							const img = new Image();
+							img.onload = () => {
+								// Add image at clicked position with original dimensions
+								const newId = addImage(x, y, img.width, img.height, imageData);
+								if (newId !== null) {
+									activeTool.set('select');
+								}
+								scheduleRender();
+							};
+							img.src = imageData;
+						}
+					};
+					reader.readAsDataURL(file);
+				}
+				document.body.removeChild(fileInput);
+			};
+			document.body.appendChild(fileInput);
+			fileInput.click();
 		}
 	}
 
@@ -2293,6 +2425,15 @@ function rotateSelectedShapes(delta: number) {
 			const newRotation = normalizeAngle(startPos.rotation + delta);
 			moveText(id, newX, newY, saveHistory);
 			setTextRotation(id, newRotation, saveHistory);
+		});
+
+		selectedShapesStartPositions.images.forEach((startPos, id) => {
+			const rotatedPos = rotatePointAround({ x: startPos.x + startPos.width / 2, y: startPos.y + startPos.height / 2 }, center, delta);
+			const newX = rotatedPos.x - startPos.width / 2;
+			const newY = rotatedPos.y - startPos.height / 2;
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			moveImage(id, newX, newY, saveHistory);
+			setImageRotation(id, newRotation, saveHistory);
 		});
 	}
 
@@ -2828,7 +2969,7 @@ function rotateSelectedShapes(delta: number) {
 			} else if (isDragging && draggedShape) {
 				canvas.style.cursor = 'move';
 			} else {
-				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length;
+				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length + $selectedImages.length;
 				const selectionPaddingValue = getSelectionPaddingValue($zoom);
 				const rawGroupBoxForCursor =
 					totalSelectedCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
@@ -3012,6 +3153,19 @@ function rotateSelectedShapes(delta: number) {
 					}
 				}
 			}
+			for (let i = $images.length - 1; i >= 0; i--) {
+				const image = $images[i];
+				const isSelected = $selectedImages.some(selected => selected.id === image.id);
+				if (isSelected) {
+					if (x >= image.position.x && x <= image.position.x + image.width && y >= image.position.y && y <= image.position.y + image.height) {
+						canvas.style.cursor = 'move';
+						return;
+					}
+				} else if (isPointInImage(x, y, image)) {
+					canvas.style.cursor = 'move';
+					return;
+				}
+			}
 			canvas.style.cursor = 'default';
 		}
 		}
@@ -3187,6 +3341,13 @@ function rotateSelectedShapes(delta: number) {
 						selectedPathsArray.push(path);
 					}
 				});
+
+				const selectedImagesArray: Image[] = [];
+				$images.forEach(image => {
+					if (imageIntersectsBox(image, box)) {
+						selectedImagesArray.push(image);
+					}
+				});
 				
 				selectedRectangles.set(selectedRects);
 				selectedEllipses.set(selectedElls);
@@ -3195,6 +3356,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedArrows.set(selectedArrs);
 				selectedTexts.set(selectedTextsArray);
 				selectedPaths.set(selectedPathsArray);
+				selectedImages.set(selectedImagesArray);
 			}
 			
 			isSelectingBox = false;
@@ -3275,6 +3437,12 @@ function rotateSelectedShapes(delta: number) {
 			
 			selectedShapesStartPositions.paths.forEach((startPos, id) => {
 				movePath(id, dragOffset.x, dragOffset.y, false);
+			});
+
+			selectedShapesStartPositions.images.forEach((startPos, id) => {
+				const newX = startPos.x + dragOffset.x;
+				const newY = startPos.y + dragOffset.y;
+				moveImage(id, newX, newY, false);
 			});
 			
 			$editorApi.save_snapshot();
@@ -3745,6 +3913,29 @@ function rotateSelectedShapes(delta: number) {
 				maxY
 			});
 		});
+
+		$selectedImages.forEach(image => {
+			const isDragged = isDragging && selectedShapesStartPositions.images.has(image.id);
+			let minX = image.position.x;
+			let minY = image.position.y;
+			let maxX = image.position.x + image.width;
+			let maxY = image.position.y + image.height;
+			
+			if (isDragged) {
+				const startPos = selectedShapesStartPositions.images.get(image.id)!;
+				minX = startPos.x + dragOffset.x;
+				minY = startPos.y + dragOffset.y;
+				maxX = startPos.x + startPos.width + dragOffset.x;
+				maxY = startPos.y + startPos.height + dragOffset.y;
+			}
+			
+			allSelectedShapes.push({
+				minX,
+				minY,
+				maxX,
+				maxY
+			});
+		});
 		
 		if (allSelectedShapes.length === 0) return null;
 		if (allSelectedShapes.length === 1) return null;
@@ -3860,6 +4051,17 @@ function rotateSelectedShapes(delta: number) {
 				}
 			});
 		}
+
+		$images.forEach(image => {
+			if (shapeIds.includes(image.id)) {
+				allShapeBounds.push({
+					minX: image.position.x,
+					minY: image.position.y,
+					maxX: image.position.x + image.width,
+					maxY: image.position.y + image.height
+				});
+			}
+		});
 		
 		if (allShapeBounds.length === 0) return null;
 		
@@ -3932,7 +4134,8 @@ function rotateSelectedShapes(delta: number) {
 			$selectedLines.length +
 			$selectedArrows.length +
 			$selectedTexts.length +
-			$selectedPaths.length;
+			$selectedPaths.length +
+			$selectedImages.length;
 		
 		const selectedGroupChildIds = new Set<number>();
 		if ($selectedGroups.length > 0) {
@@ -3950,7 +4153,8 @@ function rotateSelectedShapes(delta: number) {
 			...$lines.map(l => ({ type: 'line', data: l })),
 			...$arrows.map(a => ({ type: 'arrow', data: a })),
 			...$paths.map(p => ({ type: 'path', data: p })),
-			...$texts.map(t => ({ type: 'text', data: t }))
+			...$texts.map(t => ({ type: 'text', data: t })),
+			...$images.map(i => ({ type: 'image', data: i }))
 		];
 
 		allShapes.sort((a, b) => (a.data.z_index || 0) - (b.data.z_index || 0));
@@ -4371,6 +4575,50 @@ function rotateSelectedShapes(delta: number) {
 					renderSelectionOutline(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
 					if (showIndividualHandles) {
 						renderTextHandles(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
+						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+					}
+				}
+			} else if (item.type === 'image') {
+				const image = item.data as Image;
+				const isSelected = $selectedImages.some(selected => selected.id === image.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.images.has(image.id);
+				
+				let renderX: number, renderY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.images.get(image.id)!;
+					renderX = startPos.x + dragOffset.x;
+					renderY = startPos.y + dragOffset.y;
+				} else {
+					renderX = image.position.x;
+					renderY = image.position.y;
+				}
+				
+				const renderWidth = image.width;
+				const renderHeight = image.height;
+				const rotation = image.rotation_angle ?? 0;
+				
+				renderCtx.save();
+				const centerX = renderX + renderWidth / 2;
+				const centerY = renderY + renderHeight / 2;
+				renderCtx.translate(centerX, centerY);
+				renderCtx.rotate(rotation);
+				
+				const img = new Image();
+				img.onload = () => {
+					renderCtx.drawImage(img, -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+				};
+				img.src = image.image_data;
+				// Try to draw immediately if already loaded
+				if (img.complete) {
+					renderCtx.drawImage(img, -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+				}
+				renderCtx.restore();
+				
+				if (isSelected && !selectedGroupChildIds.has(image.id)) {
+					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
+					renderSelectionOutline(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
+					if (showIndividualHandles) {
+						renderCornerHandles(renderCtx, renderX, renderY, renderWidth, renderHeight, $zoom, true, rotation);
 						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
 					}
 				}

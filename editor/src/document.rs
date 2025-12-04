@@ -1,6 +1,6 @@
 const DEFAULT_TEXT_FONT_SIZE: f64 = 16.0;
 
-use crate::elements::{Arrow, Diamond, Ellipse, Group, Line, Rectangle, Path};
+use crate::elements::{Arrow, Diamond, Ellipse, Group, Image, Line, Rectangle, Path};
 use crate::geometry::Point;
 use crate::Text;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ struct DocumentSnapshot {
     diamonds: Vec<Diamond>,
     texts: Vec<Text>,
     paths: Vec<Path>,
+    images: Vec<Image>,
     groups: Vec<Group>,
     next_id: u64,
 }
@@ -26,6 +27,7 @@ pub struct Document {
     diamonds: Vec<Diamond>,
     texts: Vec<Text>,
     paths: Vec<Path>,
+    images: Vec<Image>,
     groups: Vec<Group>,
     next_id: u64,
     history: Vec<DocumentSnapshot>,
@@ -43,6 +45,7 @@ impl Document {
             diamonds: Vec::new(),
             texts: Vec::new(),
             paths: Vec::new(),
+            images: Vec::new(),
             groups: Vec::new(),
             next_id: 0,
             history: Vec::new(),
@@ -62,6 +65,7 @@ impl Document {
             diamonds: self.diamonds.clone(),
             texts: self.texts.clone(),
             paths: self.paths.clone(),
+            images: self.images.clone(),
             groups: self.groups.clone(),
             next_id: self.next_id,
         };
@@ -75,6 +79,7 @@ impl Document {
                 && last_snapshot.diamonds == snapshot.diamonds
                 && last_snapshot.texts == snapshot.texts
                 && last_snapshot.paths == snapshot.paths
+                && last_snapshot.images == snapshot.images
                 && last_snapshot.groups == snapshot.groups
                 && last_snapshot.next_id == snapshot.next_id
             {
@@ -100,6 +105,7 @@ impl Document {
         self.diamonds = snapshot.diamonds.clone();
         self.texts = snapshot.texts.clone();
         self.paths = snapshot.paths.clone();
+        self.images = snapshot.images.clone();
         self.groups = snapshot.groups.clone();
         self.next_id = snapshot.next_id;
     }
@@ -797,6 +803,66 @@ impl Document {
         }
     }
 
+    pub fn add_image(&mut self, position: Point, width: f64, height: f64, image_data: String) -> u64 {
+        let id = self.add_image_without_snapshot(position, width, height, image_data);
+        self.save_snapshot();
+        id
+    }
+
+    pub fn add_image_without_snapshot(&mut self, position: Point, width: f64, height: f64, image_data: String) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.images.push(Image::new(id, position, width, height, image_data));
+        id
+    }
+
+    pub fn get_images(&self) -> &[Image] {
+        &self.images
+    }
+
+    pub fn move_image(&mut self, id: u64, new_position: Point, save_history: bool) {
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            image.position = new_position;
+            if save_history {
+                self.save_snapshot();
+            }
+        }
+    }
+
+    pub fn resize_image(&mut self, id: u64, width: f64, height: f64, save_history: bool) {
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            image.width = width.max(1.0);
+            image.height = height.max(1.0);
+            if save_history {
+                self.save_snapshot();
+            }
+        }
+    }
+
+    pub fn set_image_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            if (image.rotation_angle - angle).abs() > f64::EPSILON {
+                image.rotation_angle = angle;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn delete_image(&mut self, id: u64) {
+        let existed = self.delete_image_without_snapshot(id);
+        if existed {
+            self.save_snapshot();
+        }
+    }
+
+    pub fn delete_image_without_snapshot(&mut self, id: u64) -> bool {
+        let existed = self.images.iter().any(|i| i.id == id);
+        self.images.retain(|i| i.id != id);
+        existed
+    }
+
     pub fn group_elements(&mut self, element_ids: Vec<u64>) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
@@ -893,6 +959,11 @@ impl Document {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.z_index += 1;
             self.save_snapshot();
+            return;
+        }
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            image.z_index += 1;
+            self.save_snapshot();
         }
     }
 
@@ -929,6 +1000,11 @@ impl Document {
         }
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.z_index -= 1;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            image.z_index -= 1;
             self.save_snapshot();
         }
     }
@@ -970,6 +1046,11 @@ impl Document {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.z_index = new_z;
             self.save_snapshot();
+            return;
+        }
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            image.z_index = new_z;
+            self.save_snapshot();
         }
     }
 
@@ -995,6 +1076,9 @@ impl Document {
         }
         for path in &self.paths {
             max_z = max_z.max(path.z_index);
+        }
+        for image in &self.images {
+            max_z = max_z.max(image.z_index);
         }
         max_z
     }
@@ -1022,6 +1106,9 @@ impl Document {
         for path in &self.paths {
             min_z = min_z.min(path.z_index);
         }
+        for image in &self.images {
+            min_z = min_z.min(image.z_index);
+        }
         min_z
     }
 
@@ -1035,6 +1122,7 @@ impl Document {
             diamonds: self.diamonds.clone(),
             texts: self.texts.clone(),
             paths: self.paths.clone(),
+            images: self.images.clone(),
             groups: self.groups.clone(),
             next_id: self.next_id,
         };

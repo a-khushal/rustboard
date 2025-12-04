@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Image } from '$lib/stores/editor';
 import { DEFAULT_TEXT_FONT_SIZE, measureMultilineText } from '$lib/utils/geometry';
 import type { ClipboardData } from './clipboard';
 
@@ -38,6 +38,11 @@ function calculateBoundingBox(clipboard: ClipboardData, fallbackX: number, fallb
         minYValues.push(t.position.y - layout.ascent);
     });
 
+    clipboard.images.forEach(i => {
+        minXValues.push(i.position.x);
+        minYValues.push(i.position.y);
+    });
+
     if (minXValues.length === 0) return { minX: fallbackX, minY: fallbackY };
     return {
         minX: Math.min(...minXValues),
@@ -52,9 +57,10 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     arrows: number[];
     diamonds: number[];
     texts: number[];
+    images: number[];
 } {
     const api = get(editorApi);
-    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], texts: [] };
+    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], texts: [], images: [] };
 
     const { minX, minY } = calculateBoundingBox(clipboard, offsetX, offsetY);
 
@@ -66,7 +72,8 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         lines: [] as number[],
         arrows: [] as number[],
         diamonds: [] as number[],
-        texts: [] as number[]
+        texts: [] as number[],
+        images: [] as number[]
     };
 
     clipboard.rectangles.forEach(rect => {
@@ -116,6 +123,13 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         pastedIds.texts.push(newId);
     });
 
+    clipboard.images.forEach(image => {
+        const newX = image.position.x - minX + offsetX;
+        const newY = image.position.y - minY + offsetY;
+        const newId = api.add_image_without_snapshot(newX, newY, image.width, image.height, image.image_data);
+        pastedIds.images.push(Number(newId));
+    });
+
     api.save_snapshot();
 
     const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
@@ -124,6 +138,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
     const updatedDiamonds = Array.from(api.get_diamonds() as Diamond[]);
     const updatedTexts = Array.from(api.get_texts() as Text[]);
+    const updatedImages = Array.from(api.get_images() as Image[]);
 
     rectangles.set(updatedRectangles);
     ellipses.set(updatedEllipses);
@@ -131,6 +146,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     arrows.set(updatedArrows);
     diamonds.set(updatedDiamonds);
     texts.set(updatedTexts);
+    images.set(updatedImages);
 
     selectedRectangles.set(updatedRectangles.filter(r => pastedIds.rectangles.includes(r.id)));
     selectedEllipses.set(updatedEllipses.filter(e => pastedIds.ellipses.includes(e.id)));
@@ -138,6 +154,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     selectedArrows.set(updatedArrows.filter(a => pastedIds.arrows.includes(a.id)));
     selectedDiamonds.set(updatedDiamonds.filter(d => pastedIds.diamonds.includes(d.id)));
     selectedTexts.set(updatedTexts.filter(t => pastedIds.texts.includes(t.id)));
+    selectedImages.set(updatedImages.filter(i => pastedIds.images.includes(i.id)));
 
     return pastedIds;
 }

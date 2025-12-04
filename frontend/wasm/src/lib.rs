@@ -307,6 +307,48 @@ impl EditorApi {
         self.document.borrow_mut().move_path(id, delta_x, delta_y, save_history);
     }
 
+    // image
+    #[wasm_bindgen]
+    pub fn add_image(&self, x: f64, y: f64, width: f64, height: f64, image_data: String) -> u64 {
+        self.document.borrow_mut().add_image(Point::new(x, y), width, height, image_data)
+    }
+
+    #[wasm_bindgen]
+    pub fn add_image_without_snapshot(&self, x: f64, y: f64, width: f64, height: f64, image_data: String) -> u64 {
+        self.document.borrow_mut().add_image_without_snapshot(Point::new(x, y), width, height, image_data)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_images(&self) -> JsValue {
+        let images = self.document.borrow().get_images().to_vec();
+        to_value(&images).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_image(&self, id: u64, x: f64, y: f64, save_history: bool) {
+        self.document.borrow_mut().move_image(id, Point::new(x, y), save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn resize_image(&self, id: u64, width: f64, height: f64, save_history: bool) {
+        self.document.borrow_mut().resize_image(id, width, height, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_image_rotation(&self, id: u64, angle: f64, save_history: bool) {
+        self.document.borrow_mut().set_image_rotation(id, angle, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_image(&self, id: u64) {
+        self.document.borrow_mut().delete_image(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_image_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_image_without_snapshot(id)
+    }
+
     #[wasm_bindgen]
     pub fn set_rectangle_stroke_color(&self, id: u64, color: String, save_history: bool) {
         self.document.borrow_mut().set_rectangle_stroke_color(id, color, save_history);

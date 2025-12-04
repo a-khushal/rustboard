@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, texts } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, texts, images } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
@@ -13,6 +13,7 @@
 	let unsubscribeArrows: (() => void) | null = null;
 	let unsubscribeDiamonds: (() => void) | null = null;
 	let unsubscribeTexts: (() => void) | null = null;
+	let unsubscribeImages: (() => void) | null = null;
 	let unsubscribeZoom: (() => void) | null = null;
 	let unsubscribeViewportOffset: (() => void) | null = null;
 
@@ -31,6 +32,7 @@
 			arrows.set(api.get_arrows());
 			diamonds.set(api.get_diamonds());
 			texts.set(api.get_texts());
+			images.set(api.get_images());
 		}
 		resetSelectionHistory();
 
@@ -50,6 +52,7 @@
 			unsubscribeArrows = arrows.subscribe(saveState);
 			unsubscribeDiamonds = diamonds.subscribe(saveState);
 			unsubscribeTexts = texts.subscribe(saveState);
+			unsubscribeImages = images.subscribe(saveState);
 
 		unsubscribeZoom = zoom.subscribe(() => {
 			saveZoomToLocalStorage();
@@ -71,6 +74,7 @@
 		if (unsubscribeArrows) unsubscribeArrows();
 		if (unsubscribeDiamonds) unsubscribeDiamonds();
 		if (unsubscribeTexts) unsubscribeTexts();
+		if (unsubscribeImages) unsubscribeImages();
 		if (unsubscribeZoom) unsubscribeZoom();
 		if (unsubscribeViewportOffset) unsubscribeViewportOffset();
 	});

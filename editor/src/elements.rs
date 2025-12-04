@@ -242,6 +242,33 @@ impl Path {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Image {
+    pub id: u64,
+    pub position: Point,
+    pub width: f64,
+    pub height: f64,
+    pub image_data: String, // base64 data URL or URL
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
+}
+
+impl Image {
+    pub fn new(id: u64, position: Point, width: f64, height: f64, image_data: String) -> Self {
+        Self {
+            id,
+            position,
+            width,
+            height,
+            image_data,
+            rotation_angle: default_rotation(),
+            z_index: default_z_index(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Group {
     pub id: u64,
     pub element_ids: Vec<u64>,

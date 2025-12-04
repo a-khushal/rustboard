@@ -1,4 +1,4 @@
-import type { Rectangle, Ellipse, Diamond, Line, Arrow, Text, Path } from '$lib/stores/editor';
+import type { Rectangle, Ellipse, Diamond, Line, Arrow, Text, Path, Image } from '$lib/stores/editor';
 import { TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from './geometry';
 import { measureMultilineText, getTextContentWidthFromBoxWidth, getPathBoundingBox } from './geometry';
 
@@ -21,6 +21,7 @@ export function exportToSVG(
 	arrows: Arrow[],
 	texts: Text[],
 	paths: Path[],
+	images: Image[],
 	ctx: CanvasRenderingContext2D | null,
 	filename: string = 'rustboard.svg'
 ): void {
@@ -31,7 +32,8 @@ export function exportToSVG(
 		...lines.map(l => ({ type: 'line', data: l, z_index: l.z_index || 0 })),
 		...arrows.map(a => ({ type: 'arrow', data: a, z_index: a.z_index || 0 })),
 		...paths.map(p => ({ type: 'path', data: p, z_index: p.z_index || 0 })),
-		...texts.map(t => ({ type: 'text', data: t, z_index: t.z_index || 0 }))
+		...texts.map(t => ({ type: 'text', data: t, z_index: t.z_index || 0 })),
+		...images.map(i => ({ type: 'image', data: i, z_index: i.z_index || 0 }))
 	];
 
 	allShapes.sort((a, b) => a.z_index - b.z_index);
@@ -84,6 +86,13 @@ export function exportToSVG(
 			maxX = Math.max(maxX, bounds.x + bounds.width);
 			maxY = Math.max(maxY, bounds.y + bounds.height);
 		}
+	});
+
+	images.forEach(image => {
+		minX = Math.min(minX, image.position.x);
+		minY = Math.min(minY, image.position.y);
+		maxX = Math.max(maxX, image.position.x + image.width);
+		maxY = Math.max(maxY, image.position.y + image.height);
 	});
 
 	if (ctx) {
@@ -253,6 +262,21 @@ export function exportToSVG(
 					const lineY = y + index * layout.lineHeight - layout.ascent;
 					svg += `<text x="${x}" y="${lineY}" font-family="'Lucida Console', monospace" font-size="${fontSize}" fill="${textColor}">${escapeXml(line)}</text>\n`;
 				});
+			}
+		} else if (item.type === 'image') {
+			const image = item.data as Image;
+			const x = image.position.x + offsetX;
+			const y = image.position.y + offsetY;
+			const rotation = image.rotation_angle ?? 0;
+			const centerX = x + image.width / 2;
+			const centerY = y + image.height / 2;
+
+			if (rotation !== 0) {
+				svg += `<g transform="translate(${centerX},${centerY}) rotate(${(rotation * 180) / Math.PI})">\n`;
+				svg += `  <image x="${-image.width / 2}" y="${-image.height / 2}" width="${image.width}" height="${image.height}" href="${image.image_data}"/>\n`;
+				svg += `</g>\n`;
+			} else {
+				svg += `<image x="${x}" y="${y}" width="${image.width}" height="${image.height}" href="${image.image_data}"/>\n`;
 			}
 		}
 	});
