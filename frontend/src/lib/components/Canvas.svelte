@@ -57,6 +57,14 @@
 		return '#1e88e5';
 	}
 
+	function getGroupIndicatorColor(): string {
+		return $theme === 'dark' ? '#4a5568' : '#9ca3af';
+	}
+
+	function getGroupSelectionColor(): string {
+		return '#7c3aed';
+	}
+
 	function adaptColorToTheme(color: string | null | undefined, defaultColor: string): string {
 		if (!color) return defaultColor;
 		const normalizedColor = color.toLowerCase().trim();
@@ -3758,10 +3766,137 @@ function rotateSelectedShapes(delta: number) {
 		};
 	}
 
-	function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number) {
+	function calculateGroupBoundingBoxForGroup(group: Group): { x: number; y: number; width: number; height: number } | null {
+		const allShapeBounds: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = [];
+		const shapeIds = getAllShapeIdsInGroup(group);
+		
+		$rectangles.forEach(rect => {
+			if (shapeIds.includes(rect.id)) {
+				allShapeBounds.push({
+					minX: rect.position.x,
+					minY: rect.position.y,
+					maxX: rect.position.x + rect.width,
+					maxY: rect.position.y + rect.height
+				});
+			}
+		});
+		
+		$ellipses.forEach(ellipse => {
+			if (shapeIds.includes(ellipse.id)) {
+				allShapeBounds.push({
+					minX: ellipse.position.x - ellipse.radius_x,
+					minY: ellipse.position.y - ellipse.radius_y,
+					maxX: ellipse.position.x + ellipse.radius_x,
+					maxY: ellipse.position.y + ellipse.radius_y
+				});
+			}
+		});
+		
+		$diamonds.forEach(diamond => {
+			if (shapeIds.includes(diamond.id)) {
+				allShapeBounds.push({
+					minX: diamond.position.x,
+					minY: diamond.position.y,
+					maxX: diamond.position.x + diamond.width,
+					maxY: diamond.position.y + diamond.height
+				});
+			}
+		});
+		
+		$lines.forEach(line => {
+			if (shapeIds.includes(line.id)) {
+				allShapeBounds.push({
+					minX: Math.min(line.start.x, line.end.x),
+					minY: Math.min(line.start.y, line.end.y),
+					maxX: Math.max(line.start.x, line.end.x),
+					maxY: Math.max(line.start.y, line.end.y)
+				});
+			}
+		});
+		
+		$arrows.forEach(arrow => {
+			if (shapeIds.includes(arrow.id)) {
+				allShapeBounds.push({
+					minX: Math.min(arrow.start.x, arrow.end.x),
+					minY: Math.min(arrow.start.y, arrow.end.y),
+					maxX: Math.max(arrow.start.x, arrow.end.x),
+					maxY: Math.max(arrow.start.y, arrow.end.y)
+				});
+			}
+		});
+		
+		$paths.forEach(path => {
+			if (shapeIds.includes(path.id)) {
+				const pathBounds = getPathBoundingBox(path);
+				if (pathBounds) {
+					allShapeBounds.push({
+						minX: pathBounds.x,
+						minY: pathBounds.y,
+						maxX: pathBounds.x + pathBounds.width,
+						maxY: pathBounds.y + pathBounds.height
+					});
+				}
+			}
+		});
+		
+		if (ctx) {
+			$texts.forEach(text => {
+				if (shapeIds.includes(text.id)) {
+					const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
+					const layout = measureMultilineText(
+						text.text,
+						text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
+						ctx ?? undefined,
+						contentWidth
+					);
+					const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+					const verticalPadding = TEXT_VERTICAL_PADDING;
+					const boxX = text.position.x - horizontalPadding;
+					const boxY = text.position.y - layout.ascent - verticalPadding;
+					const boxWidth = (text.boxWidth ?? (layout.width + horizontalPadding * 2));
+					const boxHeight = layout.height + verticalPadding * 2;
+					allShapeBounds.push({
+						minX: boxX,
+						minY: boxY,
+						maxX: boxX + boxWidth,
+						maxY: boxY + boxHeight
+					});
+				}
+			});
+		}
+		
+		if (allShapeBounds.length === 0) return null;
+		
+		const minX = Math.min(...allShapeBounds.map(s => s.minX));
+		const minY = Math.min(...allShapeBounds.map(s => s.minY));
+		const maxX = Math.max(...allShapeBounds.map(s => s.maxX));
+		const maxY = Math.max(...allShapeBounds.map(s => s.maxY));
+		
+		return {
+			x: minX,
+			y: minY,
+			width: maxX - minX,
+			height: maxY - minY
+		};
+	}
+
+	function renderUnselectedGroupIndicator(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number, groupId: number) {
 		ctx.save();
-		ctx.strokeStyle = getSelectionOutlineColor();
-		ctx.lineWidth = 1 / zoom;
+		const hue = (groupId * 137.508) % 360;
+		const indicatorColor = `hsla(${hue}, 50%, ${$theme === 'dark' ? '60%' : '50%'}, 0.3)`;
+		ctx.strokeStyle = indicatorColor;
+		ctx.lineWidth = 1.5 / zoom;
+		const gap = 4 / zoom;
+		ctx.setLineDash([4 / zoom, 4 / zoom]);
+		ctx.strokeRect(box.x - gap, box.y - gap, box.width + gap * 2, box.height + gap * 2);
+		ctx.setLineDash([]);
+		ctx.restore();
+	}
+
+	function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number, isGroupSelection: boolean = false) {
+		ctx.save();
+		ctx.strokeStyle = isGroupSelection ? getGroupSelectionColor() : getSelectionOutlineColor();
+		ctx.lineWidth = isGroupSelection ? 1.5 / zoom : 1 / zoom;
 		const gap = 4 / zoom;
 		ctx.setLineDash([2.5 / zoom, 2.5 / zoom]);
 		ctx.strokeRect(box.x - gap, box.y - gap, box.width + gap * 2, box.height + gap * 2);
@@ -4357,9 +4492,21 @@ function rotateSelectedShapes(delta: number) {
 			groupBoundingBoxRaw && totalSelectionCount > 1
 				? expandBoundingBox(groupBoundingBoxRaw, getSelectionPaddingValue($zoom))
 				: null;
+		const isGroupSelection = $selectedGroups.length > 0;
 		if (groupBoundingBox && !isGroupRotating) {
-			renderGroupBoundingBox(renderCtx, groupBoundingBox, $zoom);
+			renderGroupBoundingBox(renderCtx, groupBoundingBox, $zoom, isGroupSelection);
 		}
+
+		$groups.forEach(group => {
+			const isSelected = $selectedGroups.some(g => g.id === group.id);
+			if (!isSelected) {
+				const groupBox = calculateGroupBoundingBoxForGroup(group);
+				if (groupBox) {
+					const expandedBox = expandBoundingBox(groupBox, getSelectionPaddingValue($zoom));
+					renderUnselectedGroupIndicator(renderCtx, expandedBox, $zoom, group.id);
+				}
+			}
+		});
 		
 		if (isSelectingBox && selectionBoxStart && selectionBoxEnd) {
 			const boxX = Math.min(selectionBoxStart.x, selectionBoxEnd.x);
