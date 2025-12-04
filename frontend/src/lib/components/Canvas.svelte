@@ -10,7 +10,7 @@
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Group
 	} from '$lib/stores/editor';
 
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, getPathBoundingBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
@@ -515,6 +515,11 @@
 			if (isCreatingShape) {
 				return;
 			}
+			if ($activeTool === 'freehand') {
+				finishFreehandDrawing();
+				activeTool.set('select');
+				return;
+			}
 			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'text') {
 				activeTool.set('select');
 			}
@@ -609,8 +614,9 @@
 		const hasSelectedLines = $selectedLines.length > 0;
 		const hasSelectedArrows = $selectedArrows.length > 0;
 		const hasSelectedTexts = $selectedTexts.length > 0;
+		const hasSelectedPaths = $selectedPaths.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedTexts) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedTexts && !hasSelectedPaths) return;
 
 		event.preventDefault();
 		
@@ -620,8 +626,9 @@
 		const lineIds = hasSelectedLines ? $selectedLines.map(line => line.id) : [];
 		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
 		const textIds = hasSelectedTexts ? $selectedTexts.map(text => text.id) : [];
+		const pathIds = hasSelectedPaths ? $selectedPaths.map(path => path.id) : [];
 		
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -1613,6 +1620,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedLines.set([]);
 				selectedArrows.set([]);
 				selectedTexts.set([]);
+				selectedPaths.set([]);
 			}
 
 			draggedShape = clickedRect;
@@ -1638,6 +1646,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedLines.set([]);
 				selectedArrows.set([]);
 				selectedTexts.set([]);
+				selectedPaths.set([]);
 			}
 
 			draggedShape = clickedDiamond;
@@ -1663,6 +1672,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedLines.set([]);
 				selectedArrows.set([]);
 				selectedTexts.set([]);
+				selectedPaths.set([]);
 			}
 
 			draggedShape = clickedEllipse;
@@ -1688,6 +1698,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedPaths.set([]);
 			}
 
 			draggedShape = clickedText;
@@ -1713,6 +1724,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedDiamonds.set([]);
 				selectedArrows.set([]);
 				selectedTexts.set([]);
+				selectedPaths.set([]);
 			}
 
 			draggedShape = clickedLine;
@@ -1738,6 +1750,7 @@ function rotateSelectedShapes(delta: number) {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedTexts.set([]);
+				selectedPaths.set([]);
 			}
 
 			draggedShape = clickedArrow;
@@ -1745,9 +1758,57 @@ function rotateSelectedShapes(delta: number) {
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
 			isDragging = true;
+		} else if (shapeType === 'path') {
+			const clickedPath = shape as Path;
+			const index = $selectedPaths.findIndex(p => p.id === clickedPath.id);
+			const isAlreadySelected = index >= 0;
+			
+			if (isShiftPressed) {
+				selectedPaths.set(
+					isAlreadySelected
+						? $selectedPaths.filter(p => p.id !== clickedPath.id)
+						: [...$selectedPaths, clickedPath]
+				);
+			} else if (!isAlreadySelected) {
+				selectedPaths.set([clickedPath]);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+				selectedTexts.set([]);
+			}
+
+			draggedShape = clickedPath;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
 		}
 	}
-
+	
+	function finishFreehandDrawing() {
+		if (isDrawingFreehand) {
+			if (freehandPoints.length > 1) {
+				addPath(freehandPoints);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+				updatePaths();
+				const updatedPaths = get(paths);
+				if (updatedPaths.length > 0) {
+					const newestPath = updatedPaths[updatedPaths.length - 1];
+					selectedPaths.set([newestPath]);
+				}
+			}
+			isDrawingFreehand = false;
+			freehandPoints = [];
+			scheduleRender();
+		}
+	}
+	
 	function handleMouseDown(event: MouseEvent) {
 		if (!canvas) return;
 
@@ -2055,8 +2116,10 @@ function rotateSelectedShapes(delta: number) {
 			}
 
 			for (let i = $paths.length - 1; i >= 0; i--) {
-				if (isPointOnPath(x, y, $paths[i], 5 / $zoom)) {
-					handleShapeClick($paths[i], 'path', isShiftPressed, x, y);
+				const path = $paths[i];
+				const pathBounds = getPathBoundingBox(path);
+				if (pathBounds && x >= pathBounds.x && x <= pathBounds.x + pathBounds.width && y >= pathBounds.y && y <= pathBounds.y + pathBounds.height) {
+					handleShapeClick(path, 'path', isShiftPressed, x, y);
 					return;
 				}
 			}
@@ -2141,6 +2204,7 @@ function rotateSelectedShapes(delta: number) {
 			arrowEnd = { x, y };
 			scheduleRender();
 		} else if ($activeTool === 'freehand') {
+			finishFreehandDrawing();
 			resetRotationState();
 			clearAllSelections();
 			isDrawingFreehand = true;
@@ -2241,6 +2305,10 @@ function rotateSelectedShapes(delta: number) {
 		const { x, y } = worldPos;
 
 		if ($activeTool === 'freehand' && isDrawingFreehand) {
+			if (event.buttons === 0) {
+				finishFreehandDrawing();
+				return;
+			}
 			const lastPoint = freehandPoints[freehandPoints.length - 1];
 			const dx = x - lastPoint.x;
 			const dy = y - lastPoint.y;
@@ -2919,7 +2987,15 @@ function rotateSelectedShapes(delta: number) {
 				}
 			}
 			for (let i = $paths.length - 1; i >= 0; i--) {
-				if (isPointOnPath(x, y, $paths[i], 5 / $zoom)) {
+				const path = $paths[i];
+				const isSelected = $selectedPaths.some(selected => selected.id === path.id);
+				if (isSelected) {
+					const pathBounds = getPathBoundingBox(path);
+					if (pathBounds && x >= pathBounds.x && x <= pathBounds.x + pathBounds.width && y >= pathBounds.y && y <= pathBounds.y + pathBounds.height) {
+						canvas.style.cursor = 'move';
+						return;
+					}
+				} else if (isPointOnPath(x, y, path)) {
 					canvas.style.cursor = 'move';
 					return;
 				}
@@ -3313,25 +3389,7 @@ function rotateSelectedShapes(delta: number) {
 				}
 			}
 			
-			if (isDrawingFreehand) {
-				if (freehandPoints.length > 1) {
-					addPath(freehandPoints);
-					selectedRectangles.set([]);
-					selectedEllipses.set([]);
-					selectedDiamonds.set([]);
-					selectedLines.set([]);
-					selectedArrows.set([]);
-					updatePaths();
-					const updatedPaths = get(paths);
-					if (updatedPaths.length > 0) {
-						const newestPath = updatedPaths[updatedPaths.length - 1];
-						selectedPaths.set([newestPath]);
-					}
-				}
-				isDrawingFreehand = false;
-				freehandPoints = [];
-				scheduleRender();
-			}
+			finishFreehandDrawing();
 			
 			isCreatingShape = false;
 			createStartPos = { x: 0, y: 0 };
@@ -3348,37 +3406,14 @@ function rotateSelectedShapes(delta: number) {
 		dragOffset = { x: 0, y: 0 };
 		canvas?.focus();
 	}
-
-	function renderResizeHandles(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {
-		const handleSize = 8 / zoom;
-		const halfHandle = handleSize / 2;
-		const gap = 2 / zoom;
-		
-		const boxX = x - gap;
-		const boxY = y - gap;
-		const boxWidth = width + gap * 2;
-		const boxHeight = height + gap * 2;
-		
-		ctx.strokeStyle = getSelectionOutlineColor();
-		ctx.lineWidth = 1 / zoom;
-		ctx.beginPath();
-		ctx.rect(boxX, boxY, boxWidth, boxHeight);
-		ctx.stroke();
-		
-		ctx.fillStyle = getHandleFillColor();
-		ctx.strokeStyle = getHandleStrokeColor();
-		ctx.lineWidth = 2 / zoom;
-		
-		const handles = getHandlePositions({ x: boxX, y: boxY, width: boxWidth, height: boxHeight });
-
-		handles.slice(0, 4).forEach((handle) => {
-			ctx.beginPath();
-			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
-			ctx.fill();
-			ctx.stroke();
-		});
+	
+	function handleMouseLeave() {
+		finishFreehandDrawing();
+		if (isPanning) {
+			isPanning = false;
+		}
 	}
-
+	
 	function getSelectionOutlineBounds(
 		x: number,
 		y: number,
@@ -3678,6 +3713,34 @@ function rotateSelectedShapes(delta: number) {
 				});
 			});
 		}
+		
+		$selectedPaths.forEach(path => {
+			const isDragged = isDragging && selectedShapesStartPositions.paths.has(path.id);
+			const pathBounds = getPathBoundingBox(path);
+			if (!pathBounds) return;
+			
+			let minX = pathBounds.x;
+			let minY = pathBounds.y;
+			let maxX = pathBounds.x + pathBounds.width;
+			let maxY = pathBounds.y + pathBounds.height;
+			
+			if (isDragged) {
+				const startPos = selectedShapesStartPositions.paths.get(path.id)!;
+				const offsetX = dragOffset.x;
+				const offsetY = dragOffset.y;
+				minX = pathBounds.x + offsetX;
+				minY = pathBounds.y + offsetY;
+				maxX = pathBounds.x + pathBounds.width + offsetX;
+				maxY = pathBounds.y + pathBounds.height + offsetY;
+			}
+			
+			allSelectedShapes.push({
+				minX,
+				minY,
+				maxX,
+				maxY
+			});
+		});
 		
 		if (allSelectedShapes.length === 0) return null;
 		if (allSelectedShapes.length === 1) return null;
@@ -4437,6 +4500,7 @@ function rotateSelectedShapes(delta: number) {
 		on:mousedown={handleMouseDown}
 		on:mousemove={handleMouseMove}
 		on:mouseup={handleMouseUp}
+		on:mouseleave={handleMouseLeave}
 		on:dblclick={handleCanvasDoubleClick}
 			on:wheel={(e) => handleViewportScroll(e, canvas!)}
 		bind:this={canvas}

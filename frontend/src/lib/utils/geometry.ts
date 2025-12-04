@@ -189,8 +189,11 @@ export function isPointOnLine(x: number, y: number, line: Line | Arrow, threshol
 	return dist <= threshold;
 }
 
-export function isPointOnPath(x: number, y: number, path: { points: Array<{ x: number; y: number }> }, threshold: number = 5): boolean {
+export function isPointOnPath(x: number, y: number, path: { points: Array<{ x: number; y: number }>; line_width?: number }, threshold?: number): boolean {
 	if (path.points.length < 2) return false;
+	
+	const lineWidth = path.line_width || 2;
+	const effectiveThreshold = threshold !== undefined ? threshold : Math.max(lineWidth / 2 + 1, 2);
 	
 	for (let i = 0; i < path.points.length - 1; i++) {
 		const start = path.points[i];
@@ -206,7 +209,7 @@ export function isPointOnPath(x: number, y: number, path: { points: Array<{ x: n
 		const projY = start.y + t * dy;
 		const dist = Math.sqrt((x - projX) ** 2 + (y - projY) ** 2);
 		
-		if (dist <= threshold) return true;
+		if (dist <= effectiveThreshold) return true;
 	}
 	
 	return false;
@@ -300,6 +303,29 @@ export function arrowIntersectsBox(arrow: Arrow, box: { x: number; y: number; wi
 	return lineIntersectsBox(arrow, box);
 }
 
+export function getPathBoundingBox(path: { points: Array<{ x: number; y: number }> }): { x: number; y: number; width: number; height: number } | null {
+	if (path.points.length === 0) return null;
+	
+	let minX = path.points[0].x;
+	let minY = path.points[0].y;
+	let maxX = path.points[0].x;
+	let maxY = path.points[0].y;
+	
+	for (const point of path.points) {
+		minX = Math.min(minX, point.x);
+		minY = Math.min(minY, point.y);
+		maxX = Math.max(maxX, point.x);
+		maxY = Math.max(maxY, point.y);
+	}
+	
+	return {
+		x: minX,
+		y: minY,
+		width: maxX - minX,
+		height: maxY - minY
+	};
+}
+
 export function pathIntersectsBox(path: { points: Array<{ x: number; y: number }> }, box: { x: number; y: number; width: number; height: number }): boolean {
 	if (path.points.length === 0) return false;
 	
@@ -307,28 +333,12 @@ export function pathIntersectsBox(path: { points: Array<{ x: number; y: number }
 	const boxBottom = box.y + box.height;
 	
 	for (const point of path.points) {
-		if (point.x >= box.x && point.x <= boxRight && point.y >= box.y && point.y <= boxBottom) {
-			return true;
+		if (!(point.x >= box.x && point.x <= boxRight && point.y >= box.y && point.y <= boxBottom)) {
+			return false;
 		}
 	}
 	
-	for (let i = 0; i < path.points.length - 1; i++) {
-		const start = path.points[i];
-		const end = path.points[i + 1];
-		const lineStartInBox = (
-			start.x >= box.x && start.x <= boxRight &&
-			start.y >= box.y && start.y <= boxBottom
-		);
-		const lineEndInBox = (
-			end.x >= box.x && end.x <= boxRight &&
-			end.y >= box.y && end.y <= boxBottom
-		);
-		if (lineStartInBox && lineEndInBox) {
-			return true;
-		}
-	}
-	
-	return false;
+	return true;
 }
 
 export function isPointInText(x: number, y: number, text: Text, ctx?: CanvasRenderingContext2D): boolean {
