@@ -8,6 +8,12 @@ const DEFAULT_TEXT_DESCENT = 4;
 export const TEXT_HORIZONTAL_PADDING = 4;
 export const TEXT_VERTICAL_PADDING = 4;
 
+export function getTextContentWidthFromBoxWidth(boxWidth: number | null): number | undefined {
+	if (!boxWidth || !isFinite(boxWidth)) return undefined;
+	const contentWidth = boxWidth - TEXT_HORIZONTAL_PADDING * 2;
+	return contentWidth > 0 ? contentWidth : undefined;
+}
+
 export function getFontForSize(fontSize: number = DEFAULT_FONT_SIZE): string {
 	return `${fontSize}px 'Lucida Console', monospace`;
 }

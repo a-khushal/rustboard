@@ -10,7 +10,7 @@
 		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Group
 	} from '$lib/stores/editor';
 
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, getPathBoundingBox, measureMultilineText, getFontForSize, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, getPathBoundingBox, measureMultilineText, getFontForSize, getTextContentWidthFromBoxWidth, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
@@ -34,6 +34,7 @@
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
 	import StylePanel from './StylePanel.svelte';
+	import Sidebar from './Sidebar.svelte';
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
 
@@ -202,11 +203,6 @@
 	let textInputRef: HTMLTextAreaElement | null = null;
 	let typingLayout = measureMultilineText('', DEFAULT_TEXT_FONT_SIZE);
 
-	function getTextContentWidthFromBoxWidth(boxWidth: number | null): number | undefined {
-		if (!boxWidth || !isFinite(boxWidth)) return undefined;
-		const contentWidth = boxWidth - TEXT_HORIZONTAL_PADDING * 2;
-		return contentWidth > 0 ? contentWidth : undefined;
-	}
 
     function groupSelectedShapes() {
         if (!$editorApi) return;
@@ -4624,6 +4620,7 @@ function rotateSelectedShapes(delta: number) {
 
 <div class="relative w-full h-full bg-stone-50 dark:bg-stone-900">
 	<Toolbar />
+	<Sidebar bind:canvas bind:ctx />
 	<ZoomControls />
 	<UndoRedoControls />
 	<StylePanel />
