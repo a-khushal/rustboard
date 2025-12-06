@@ -1,4 +1,4 @@
-import type { Rectangle, Ellipse, Line, Arrow, Diamond, Text, Image } from '$lib/stores/editor';
+import type { Rectangle, Ellipse, Line, Arrow, Diamond, Text, Image, Path } from '$lib/stores/editor';
 
 export interface ClipboardData {
 	rectangles: Rectangle[];
@@ -8,6 +8,7 @@ export interface ClipboardData {
 	diamonds: Diamond[];
 	texts: Text[];
 	images: Image[];
+	paths: Path[];
 }
 
 let clipboard: ClipboardData = {
@@ -17,10 +18,11 @@ let clipboard: ClipboardData = {
 	arrows: [],
 	diamonds: [],
 	texts: [],
-	images: []
+	images: [],
+	paths: []
 };
 
-export function copyToClipboard(rectangles: Rectangle[], ellipses: Ellipse[], lines: Line[], arrows: Arrow[], diamonds: Diamond[], texts: Text[], images: Image[]): void {
+export function copyToClipboard(rectangles: Rectangle[], ellipses: Ellipse[], lines: Line[], arrows: Arrow[], diamonds: Diamond[], texts: Text[], images: Image[], paths: Path[] = []): void {
 	clipboard = {
 		rectangles: rectangles.map(r => ({ ...r })),
 		ellipses: ellipses.map(e => ({ ...e })),
@@ -28,7 +30,8 @@ export function copyToClipboard(rectangles: Rectangle[], ellipses: Ellipse[], li
 		arrows: arrows.map(a => ({ ...a })),
 		diamonds: diamonds.map(d => ({ ...d })),
 		texts: texts.map(t => ({ ...t })),
-		images: images.map(i => ({ ...i }))
+		images: images.map(i => ({ ...i })),
+		paths: paths.map(p => ({ ...p, points: p.points.map(pt => ({ ...pt })) }))
 	};
 }
 
@@ -37,6 +40,6 @@ export function getClipboard(): ClipboardData {
 }
 
 export function hasClipboardData(): boolean {
-	return clipboard.rectangles.length > 0 || clipboard.ellipses.length > 0 || clipboard.lines.length > 0 || clipboard.arrows.length > 0 || clipboard.diamonds.length > 0 || clipboard.texts.length > 0 || clipboard.images.length > 0;
+	return clipboard.rectangles.length > 0 || clipboard.ellipses.length > 0 || clipboard.lines.length > 0 || clipboard.arrows.length > 0 || clipboard.diamonds.length > 0 || clipboard.texts.length > 0 || clipboard.images.length > 0 || clipboard.paths.length > 0;
 }
 

@@ -9,11 +9,12 @@ export function addImage(x: number, y: number, width: number, height: number, im
     const updatedImages = Array.from(api.get_images() as Image[]);
     images.set(updatedImages);
 
-    const newImage = updatedImages.find((i: Image) => i.id === newId);
+    const newIdNum = Number(newId);
+    const newImage = updatedImages.find((i: Image) => i.id === newIdNum);
     if (newImage) {
         selectedImages.set([newImage]);
     }
-    return Number(newId);
+    return newIdNum;
 }
 
 export function moveImage(id: number, x: number, y: number, saveHistory: boolean = true): void {

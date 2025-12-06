@@ -13,6 +13,8 @@ pub struct Rectangle {
     pub fill_color: Option<String>,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_border_radius")]
+    pub border_radius: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
@@ -29,6 +31,7 @@ impl Rectangle {
             stroke_color: default_stroke_color(),
             fill_color: default_fill_color(),
             line_width: default_line_width(),
+            border_radius: default_border_radius(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
         }
@@ -139,6 +142,8 @@ pub struct Diamond {
     pub fill_color: Option<String>,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_border_radius")]
+    pub border_radius: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
@@ -155,6 +160,7 @@ impl Diamond {
             stroke_color: default_stroke_color(),
             fill_color: default_fill_color(),
             line_width: default_line_width(),
+            border_radius: default_border_radius(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
         }
@@ -207,6 +213,10 @@ fn default_fill_color() -> Option<String> {
 
 fn default_line_width() -> f64 {
     2.0
+}
+
+fn default_border_radius() -> f64 {
+    4.0
 }
 
 fn default_rotation() -> f64 {

@@ -109,7 +109,7 @@
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text'; id: number; fontSize?: number; baseline?: number } | null = null;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image'; id: number; fontSize?: number; baseline?: number } | null = null;
 	let resizeStartTextAscent = 0;
 	let resizeStartOriginalText: string | null = null;
 	let resizeStartBoxWidth: number | null = null;
@@ -564,7 +564,7 @@
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
 			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0) {
-				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages);
+				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages, $selectedPaths);
 			}
 			return;
 		}
@@ -574,10 +574,10 @@
 			event.stopPropagation();
 			if (!$editorApi) return;
 			
-			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedImages.length > 0;
+			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
 			if (!hasSelection) return;
 			
-			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages);
+			copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages, $selectedPaths);
 			const clipboard = getClipboard();
 			
 			const bounds: Array<{ minX: number; minY: number }> = [];
@@ -588,6 +588,13 @@
 			clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
 			clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
 			clipboard.images.forEach(i => bounds.push({ minX: i.position.x, minY: i.position.y }));
+			clipboard.paths.forEach(p => {
+				if (p.points.length > 0) {
+					const minX = Math.min(...p.points.map(pt => pt.x));
+					const minY = Math.min(...p.points.map(pt => pt.y));
+					bounds.push({ minX, minY });
+				}
+			});
 
 			if (bounds.length === 0) return;
 			
@@ -2166,6 +2173,38 @@ function rotateSelectedShapes(delta: number) {
 					}
 				}
 
+				for (let i = $selectedImages.length - 1; i >= 0; i--) {
+					if (isPointOnRotationHandle(x, y, $selectedImages[i], 'image', $zoom)) {
+						if (beginRotation($selectedImages[i], 'image', x, y)) {
+							return;
+						}
+					}
+					const handleIndex = getResizeHandleAt(
+						x,
+						y,
+						$selectedImages[i],
+						'image',
+						$zoom,
+						getRenderedRotation($selectedImages[i], 'image')
+					);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedImages[i];
+						resizeStartShapeType = 'image';
+						const image = $selectedImages[i];
+						resizeStartPos = {
+							x: image.position.x,
+							y: image.position.y,
+							width: image.width,
+							height: image.height
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
 			}
 
 			if (visualGroupBox && rawGroupBox) {
@@ -2932,6 +2971,59 @@ function rotateSelectedShapes(delta: number) {
 				};
 			}
 			scheduleRender();
+			} else if (resizeStartShapeType === 'image') {
+				const image = resizeStartShape as Image;
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				const adjustsHorizontal = affectsLeft || affectsRight;
+				const adjustsVertical = affectsTop || affectsBottom;
+
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+
+				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
+					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
+					const width = right - left;
+					const height = bottom - top;
+					const absWidth = Math.abs(width);
+					const absHeight = Math.abs(height);
+
+					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+						const targetHeight = absWidth / aspectRatio;
+						if (height >= 0) {
+							bottom = top + targetHeight;
+						} else {
+							top = bottom + targetHeight;
+						}
+					} else {
+						const targetWidth = absHeight * aspectRatio;
+						if (width >= 0) {
+							right = left + targetWidth;
+						} else {
+							left = right + targetWidth;
+						}
+					}
+				}
+
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+
+				const newWidth = Math.max(1, finalRight - finalLeft);
+				const newHeight = Math.max(1, finalBottom - finalTop);
+
+				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'image', id: image.id };
+				scheduleRender();
 			}
 			return;
 		}
@@ -3073,6 +3165,21 @@ function rotateSelectedShapes(delta: number) {
 							'text',
 							$zoom,
 							getRenderedRotation($selectedTexts[i], 'text')
+						);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
+							return;
+						}
+					}
+					
+					for (let i = $selectedImages.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedImages[i],
+							'image',
+							$zoom,
+							getRenderedRotation($selectedImages[i], 'image')
 						);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
@@ -3274,6 +3381,9 @@ function rotateSelectedShapes(delta: number) {
 				if (shouldDeferSnapshot) {
 					$editorApi.save_snapshot();
 				}
+			} else if (resizePreview.type === 'image') {
+				moveImage(resizePreview.id, resizePreview.x, resizePreview.y, true);
+				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
 			}
 			resizePreview = null;
 			resizeStartBoxWidth = null;
@@ -4184,6 +4294,7 @@ function rotateSelectedShapes(delta: number) {
 				const strokeColor = adaptColorToTheme(rect.stroke_color, getDefaultStrokeColor());
 				const fillColor = rect.fill_color ? adaptColorToTheme(rect.fill_color, rect.fill_color) : null;
 				const lineWidth = rect.line_width || 2;
+				const borderRadius = rect.border_radius || 4;
 				const rotation = getRenderedRotation(rect, 'rectangle');
 				
 				renderCtx.lineWidth = lineWidth;
@@ -4192,12 +4303,31 @@ function rotateSelectedShapes(delta: number) {
 				const centerY = renderY + renderHeight / 2;
 				renderCtx.translate(centerX, centerY);
 				renderCtx.rotate(rotation);
+				
+				const x = -renderWidth / 2;
+				const y = -renderHeight / 2;
+				const w = renderWidth;
+				const h = renderHeight;
+				const r = Math.min(borderRadius, w / 2, h / 2);
+				
+				renderCtx.beginPath();
+				renderCtx.moveTo(x + r, y);
+				renderCtx.lineTo(x + w - r, y);
+				renderCtx.quadraticCurveTo(x + w, y, x + w, y + r);
+				renderCtx.lineTo(x + w, y + h - r);
+				renderCtx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+				renderCtx.lineTo(x + r, y + h);
+				renderCtx.quadraticCurveTo(x, y + h, x, y + h - r);
+				renderCtx.lineTo(x, y + r);
+				renderCtx.quadraticCurveTo(x, y, x + r, y);
+				renderCtx.closePath();
+				
 				if (fillColor) {
 					renderCtx.fillStyle = fillColor;
-					renderCtx.fillRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+					renderCtx.fill();
 				}
 				renderCtx.strokeStyle = strokeColor;
-				renderCtx.strokeRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+				renderCtx.stroke();
 				renderCtx.restore();
 				
 				if (isSelected && !selectedGroupChildIds.has(rect.id)) {
@@ -4294,14 +4424,21 @@ function rotateSelectedShapes(delta: number) {
 				const rotation = getRenderedRotation(diamond, 'diamond');
 				
 				renderCtx.lineWidth = lineWidth;
+				const borderRadius = diamond.border_radius || 4;
 				renderCtx.save();
 				renderCtx.translate(centerX, centerY);
 				renderCtx.rotate(rotation);
+				
+				const r = Math.min(borderRadius, halfWidth * 0.3, halfHeight * 0.3);
+				
 				renderCtx.beginPath();
 				renderCtx.moveTo(0, -halfHeight);
-				renderCtx.lineTo(halfWidth, 0);
-				renderCtx.lineTo(0, halfHeight);
-				renderCtx.lineTo(-halfWidth, 0);
+				renderCtx.lineTo(halfWidth - r, -r);
+				renderCtx.quadraticCurveTo(halfWidth, 0, halfWidth - r, r);
+				renderCtx.lineTo(r, halfHeight);
+				renderCtx.quadraticCurveTo(0, halfHeight, -r, halfHeight);
+				renderCtx.lineTo(-halfWidth + r, r);
+				renderCtx.quadraticCurveTo(-halfWidth, 0, -halfWidth + r, -r);
 				renderCtx.closePath();
 				
 				if (fillColor) {
@@ -4461,16 +4598,35 @@ function rotateSelectedShapes(delta: number) {
 				renderCtx.beginPath();
 				
 				if (path.points.length > 0) {
-					if (isDragged) {
-						renderCtx.moveTo(path.points[0].x + dragOffset.x, path.points[0].y + dragOffset.y);
-						for (let i = 1; i < path.points.length; i++) {
-							renderCtx.lineTo(path.points[i].x + dragOffset.x, path.points[i].y + dragOffset.y);
+					const points = isDragged 
+						? path.points.map(p => ({ x: p.x + dragOffset.x, y: p.y + dragOffset.y }))
+						: path.points;
+					
+					if (points.length === 1) {
+						renderCtx.moveTo(points[0].x, points[0].y);
+						renderCtx.lineTo(points[0].x, points[0].y);
+					} else if (points.length === 2) {
+						renderCtx.moveTo(points[0].x, points[0].y);
+						renderCtx.lineTo(points[1].x, points[1].y);
+					} else if (points.length > 2) {
+						renderCtx.moveTo(points[0].x, points[0].y);
+						
+						for (let i = 0; i < points.length - 1; i++) {
+							const current = points[i];
+							const next = points[i + 1];
+							const midX = (current.x + next.x) / 2;
+							const midY = (current.y + next.y) / 2;
+							
+							if (i === 0) {
+								renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
+							} else {
+								renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
+							}
 						}
-					} else {
-						renderCtx.moveTo(path.points[0].x, path.points[0].y);
-						for (let i = 1; i < path.points.length; i++) {
-							renderCtx.lineTo(path.points[i].x, path.points[i].y);
-						}
+						
+						const last = points[points.length - 1];
+						const secondLast = points[points.length - 2];
+						renderCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
 					}
 				}
 				renderCtx.stroke();
@@ -4578,6 +4734,7 @@ function rotateSelectedShapes(delta: number) {
 				const image = item.data as Image;
 				const isSelected = $selectedImages.some(selected => selected.id === image.id);
 				const isDragged = isDragging && isSelected && selectedShapesStartPositions.images.has(image.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'image' && resizePreview.id === image.id;
 				
 				let renderX: number, renderY: number;
 				if (isDragged) {
@@ -4589,8 +4746,14 @@ function rotateSelectedShapes(delta: number) {
 					renderY = image.position.y;
 				}
 				
-				const renderWidth = image.width;
-				const renderHeight = image.height;
+				let renderWidth = image.width;
+				let renderHeight = image.height;
+				if (isResized && resizePreview) {
+					renderX = resizePreview.x;
+					renderY = resizePreview.y;
+					renderWidth = resizePreview.width;
+					renderHeight = resizePreview.height;
+				}
 				const rotation = image.rotation_angle ?? 0;
 				
 				let img = imageCache.get(image.id);
@@ -4674,11 +4837,18 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
 			renderCtx.globalAlpha = 0.5;
+			
+			const borderRadius = 4;
+			const r = Math.min(borderRadius, halfWidth * 0.3, halfHeight * 0.3);
+			
 			renderCtx.beginPath();
 			renderCtx.moveTo(centerX, centerY - halfHeight);
-			renderCtx.lineTo(centerX + halfWidth, centerY);
-			renderCtx.lineTo(centerX, centerY + halfHeight);
-			renderCtx.lineTo(centerX - halfWidth, centerY);
+			renderCtx.lineTo(centerX + halfWidth - r, centerY - r);
+			renderCtx.quadraticCurveTo(centerX + halfWidth, centerY, centerX + halfWidth - r, centerY + r);
+			renderCtx.lineTo(centerX + r, centerY + halfHeight);
+			renderCtx.quadraticCurveTo(centerX, centerY + halfHeight, centerX - r, centerY + halfHeight);
+			renderCtx.lineTo(centerX - halfWidth + r, centerY + r);
+			renderCtx.quadraticCurveTo(centerX - halfWidth, centerY, centerX - halfWidth + r, centerY - r);
 			renderCtx.closePath();
 			renderCtx.stroke();
 			renderCtx.globalAlpha = 1.0;
@@ -4713,10 +4883,34 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.lineJoin = 'round';
 			renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
-			renderCtx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
-			for (let i = 1; i < freehandPoints.length; i++) {
-				renderCtx.lineTo(freehandPoints[i].x, freehandPoints[i].y);
+			
+			if (freehandPoints.length === 1) {
+				renderCtx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
+				renderCtx.lineTo(freehandPoints[0].x, freehandPoints[0].y);
+			} else if (freehandPoints.length === 2) {
+				renderCtx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
+				renderCtx.lineTo(freehandPoints[1].x, freehandPoints[1].y);
+			} else if (freehandPoints.length > 2) {
+				renderCtx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
+				
+				for (let i = 0; i < freehandPoints.length - 1; i++) {
+					const current = freehandPoints[i];
+					const next = freehandPoints[i + 1];
+					const midX = (current.x + next.x) / 2;
+					const midY = (current.y + next.y) / 2;
+					
+					if (i === 0) {
+						renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
+					} else {
+						renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
+					}
+				}
+				
+				const last = freehandPoints[freehandPoints.length - 1];
+				const secondLast = freehandPoints[freehandPoints.length - 2];
+				renderCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
 			}
+			
 			renderCtx.stroke();
 			renderCtx.globalAlpha = 1.0;
 		}

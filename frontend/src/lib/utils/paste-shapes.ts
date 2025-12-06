@@ -1,6 +1,7 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Image } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, images, paths, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedImages, selectedPaths, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Image, type Path } from '$lib/stores/editor';
 import { DEFAULT_TEXT_FONT_SIZE, measureMultilineText } from '$lib/utils/geometry';
+import { updatePaths } from '$lib/utils/canvas-operations/path';
 import type { ClipboardData } from './clipboard';
 
 function calculateBoundingBox(clipboard: ClipboardData, fallbackX: number, fallbackY: number): { minX: number; minY: number } {
@@ -43,6 +44,15 @@ function calculateBoundingBox(clipboard: ClipboardData, fallbackX: number, fallb
         minYValues.push(i.position.y);
     });
 
+    clipboard.paths.forEach(p => {
+        if (p.points.length > 0) {
+            const minX = Math.min(...p.points.map(pt => pt.x));
+            const minY = Math.min(...p.points.map(pt => pt.y));
+            minXValues.push(minX);
+            minYValues.push(minY);
+        }
+    });
+
     if (minXValues.length === 0) return { minX: fallbackX, minY: fallbackY };
     return {
         minX: Math.min(...minXValues),
@@ -58,9 +68,10 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     diamonds: number[];
     texts: number[];
     images: number[];
+    paths: number[];
 } {
     const api = get(editorApi);
-    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], texts: [], images: [] };
+    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], texts: [], images: [], paths: [] };
 
     const { minX, minY } = calculateBoundingBox(clipboard, offsetX, offsetY);
 
@@ -73,7 +84,8 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         arrows: [] as number[],
         diamonds: [] as number[],
         texts: [] as number[],
-        images: [] as number[]
+        images: [] as number[],
+        paths: [] as number[]
     };
 
     clipboard.rectangles.forEach(rect => {
@@ -130,6 +142,23 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         pastedIds.images.push(Number(newId));
     });
 
+    clipboard.paths.forEach(path => {
+        if (path.points.length > 0) {
+            const offsetPoints = path.points.map(pt => ({
+                x: pt.x - minX + offsetX,
+                y: pt.y - minY + offsetY
+            }));
+            const newId = api.add_path_without_snapshot(offsetPoints);
+            if (path.stroke_color) {
+                api.set_path_stroke_color(BigInt(newId), path.stroke_color, false);
+            }
+            if (path.line_width) {
+                api.set_path_line_width(BigInt(newId), path.line_width, false);
+            }
+            pastedIds.paths.push(Number(newId));
+        }
+    });
+
     api.save_snapshot();
 
     const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
@@ -148,6 +177,10 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     texts.set(updatedTexts);
     images.set(updatedImages);
 
+    updatePaths();
+    const updatedPaths = Array.from(api.get_paths() as Path[]);
+    paths.set(updatedPaths);
+
     selectedRectangles.set(updatedRectangles.filter(r => pastedIds.rectangles.includes(r.id)));
     selectedEllipses.set(updatedEllipses.filter(e => pastedIds.ellipses.includes(e.id)));
     selectedLines.set(updatedLines.filter(l => pastedIds.lines.includes(l.id)));
@@ -155,6 +188,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     selectedDiamonds.set(updatedDiamonds.filter(d => pastedIds.diamonds.includes(d.id)));
     selectedTexts.set(updatedTexts.filter(t => pastedIds.texts.includes(t.id)));
     selectedImages.set(updatedImages.filter(i => pastedIds.images.includes(i.id)));
+    selectedPaths.set(updatedPaths.filter(p => pastedIds.paths.includes(p.id)));
 
     return pastedIds;
 }

@@ -10,6 +10,7 @@ export interface Rectangle {
 	stroke_color?: string;
 	fill_color?: string | null;
 	line_width?: number;
+	border_radius?: number;
 	rotation_angle?: number;
 	z_index?: number;
 }
@@ -54,6 +55,7 @@ export interface Diamond {
 	stroke_color?: string;
 	fill_color?: string | null;
 	line_width?: number;
+	border_radius?: number;
 	rotation_angle?: number;
 	z_index?: number;
 }
