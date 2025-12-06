@@ -473,6 +473,26 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn bring_shape_to_front(&self, id: u64) {
+        self.document.borrow_mut().bring_shape_to_front(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn bring_shape_forward(&self, id: u64) {
+        self.document.borrow_mut().bring_shape_forward(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn send_shape_backward(&self, id: u64) {
+        self.document.borrow_mut().send_shape_backward(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn send_shape_to_back(&self, id: u64) {
+        self.document.borrow_mut().send_shape_to_back(id);
+    }
+
+    #[wasm_bindgen]
     pub fn serialize(&self) -> String {
         self.document.borrow().serialize()
     }
