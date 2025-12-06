@@ -4294,7 +4294,7 @@ function rotateSelectedShapes(delta: number) {
 				const strokeColor = adaptColorToTheme(rect.stroke_color, getDefaultStrokeColor());
 				const fillColor = rect.fill_color ? adaptColorToTheme(rect.fill_color, rect.fill_color) : null;
 				const lineWidth = rect.line_width || 2;
-				const borderRadius = rect.border_radius || 4;
+				const borderRadius = rect.border_radius || 0;
 				const rotation = getRenderedRotation(rect, 'rectangle');
 				
 				renderCtx.lineWidth = lineWidth;
@@ -4308,19 +4308,25 @@ function rotateSelectedShapes(delta: number) {
 				const y = -renderHeight / 2;
 				const w = renderWidth;
 				const h = renderHeight;
-				const r = Math.min(borderRadius, w / 2, h / 2);
 				
-				renderCtx.beginPath();
-				renderCtx.moveTo(x + r, y);
-				renderCtx.lineTo(x + w - r, y);
-				renderCtx.quadraticCurveTo(x + w, y, x + w, y + r);
-				renderCtx.lineTo(x + w, y + h - r);
-				renderCtx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-				renderCtx.lineTo(x + r, y + h);
-				renderCtx.quadraticCurveTo(x, y + h, x, y + h - r);
-				renderCtx.lineTo(x, y + r);
-				renderCtx.quadraticCurveTo(x, y, x + r, y);
-				renderCtx.closePath();
+				if (borderRadius > 0) {
+					const r = Math.min(borderRadius, w / 2, h / 2);
+					renderCtx.beginPath();
+					renderCtx.moveTo(x + r, y);
+					renderCtx.lineTo(x + w - r, y);
+					renderCtx.quadraticCurveTo(x + w, y, x + w, y + r);
+					renderCtx.lineTo(x + w, y + h - r);
+					renderCtx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+					renderCtx.lineTo(x + r, y + h);
+					renderCtx.quadraticCurveTo(x, y + h, x, y + h - r);
+					renderCtx.lineTo(x, y + r);
+					renderCtx.quadraticCurveTo(x, y, x + r, y);
+					renderCtx.closePath();
+				} else {
+					renderCtx.beginPath();
+					renderCtx.rect(x, y, w, h);
+					renderCtx.closePath();
+				}
 				
 				if (fillColor) {
 					renderCtx.fillStyle = fillColor;
@@ -4424,22 +4430,63 @@ function rotateSelectedShapes(delta: number) {
 				const rotation = getRenderedRotation(diamond, 'diamond');
 				
 				renderCtx.lineWidth = lineWidth;
-				const borderRadius = diamond.border_radius || 4;
+				const borderRadius = diamond.border_radius || 0;
 				renderCtx.save();
 				renderCtx.translate(centerX, centerY);
 				renderCtx.rotate(rotation);
 				
-				const r = Math.min(borderRadius, halfWidth * 0.3, halfHeight * 0.3);
-				
-				renderCtx.beginPath();
-				renderCtx.moveTo(0, -halfHeight);
-				renderCtx.lineTo(halfWidth - r, -r);
-				renderCtx.quadraticCurveTo(halfWidth, 0, halfWidth - r, r);
-				renderCtx.lineTo(r, halfHeight);
-				renderCtx.quadraticCurveTo(0, halfHeight, -r, halfHeight);
-				renderCtx.lineTo(-halfWidth + r, r);
-				renderCtx.quadraticCurveTo(-halfWidth, 0, -halfWidth + r, -r);
-				renderCtx.closePath();
+				if (borderRadius > 0) {
+					const r = Math.min(borderRadius, halfWidth * 0.3, halfHeight * 0.3);
+					const edgeLength = Math.sqrt(halfWidth * halfWidth + halfHeight * halfHeight);
+					const ratio = r / edgeLength;
+					
+					const topCornerX = 0;
+					const topCornerY = -halfHeight;
+					const rightCornerX = halfWidth;
+					const rightCornerY = 0;
+					const bottomCornerX = 0;
+					const bottomCornerY = halfHeight;
+					const leftCornerX = -halfWidth;
+					const leftCornerY = 0;
+					
+					const topStartX = topCornerX - ratio * halfWidth;
+					const topStartY = topCornerY + ratio * halfHeight;
+					const topEndX = topCornerX + ratio * halfWidth;
+					const topEndY = topCornerY + ratio * halfHeight;
+					
+					const rightStartX = rightCornerX - ratio * halfWidth;
+					const rightStartY = rightCornerY - ratio * halfHeight;
+					const rightEndX = rightCornerX - ratio * halfWidth;
+					const rightEndY = rightCornerY + ratio * halfHeight;
+					
+					const bottomStartX = bottomCornerX + ratio * halfWidth;
+					const bottomStartY = bottomCornerY - ratio * halfHeight;
+					const bottomEndX = bottomCornerX - ratio * halfWidth;
+					const bottomEndY = bottomCornerY - ratio * halfHeight;
+					
+					const leftStartX = leftCornerX + ratio * halfWidth;
+					const leftStartY = leftCornerY + ratio * halfHeight;
+					const leftEndX = leftCornerX + ratio * halfWidth;
+					const leftEndY = leftCornerY - ratio * halfHeight;
+					
+					renderCtx.beginPath();
+					renderCtx.moveTo(topStartX, topStartY);
+					renderCtx.quadraticCurveTo(topCornerX, topCornerY, topEndX, topEndY);
+					renderCtx.lineTo(rightStartX, rightStartY);
+					renderCtx.quadraticCurveTo(rightCornerX, rightCornerY, rightEndX, rightEndY);
+					renderCtx.lineTo(bottomStartX, bottomStartY);
+					renderCtx.quadraticCurveTo(bottomCornerX, bottomCornerY, bottomEndX, bottomEndY);
+					renderCtx.lineTo(leftStartX, leftStartY);
+					renderCtx.quadraticCurveTo(leftCornerX, leftCornerY, leftEndX, leftEndY);
+					renderCtx.closePath();
+				} else {
+					renderCtx.beginPath();
+					renderCtx.moveTo(0, -halfHeight);
+					renderCtx.lineTo(halfWidth, 0);
+					renderCtx.lineTo(0, halfHeight);
+					renderCtx.lineTo(-halfWidth, 0);
+					renderCtx.closePath();
+				}
 				
 				if (fillColor) {
 					renderCtx.fillStyle = fillColor;
@@ -4838,17 +4885,11 @@ function rotateSelectedShapes(delta: number) {
 			renderCtx.lineWidth = 2;
 			renderCtx.globalAlpha = 0.5;
 			
-			const borderRadius = 4;
-			const r = Math.min(borderRadius, halfWidth * 0.3, halfHeight * 0.3);
-			
 			renderCtx.beginPath();
 			renderCtx.moveTo(centerX, centerY - halfHeight);
-			renderCtx.lineTo(centerX + halfWidth - r, centerY - r);
-			renderCtx.quadraticCurveTo(centerX + halfWidth, centerY, centerX + halfWidth - r, centerY + r);
-			renderCtx.lineTo(centerX + r, centerY + halfHeight);
-			renderCtx.quadraticCurveTo(centerX, centerY + halfHeight, centerX - r, centerY + halfHeight);
-			renderCtx.lineTo(centerX - halfWidth + r, centerY + r);
-			renderCtx.quadraticCurveTo(centerX - halfWidth, centerY, centerX - halfWidth + r, centerY - r);
+			renderCtx.lineTo(centerX + halfWidth, centerY);
+			renderCtx.lineTo(centerX, centerY + halfHeight);
+			renderCtx.lineTo(centerX - halfWidth, centerY);
 			renderCtx.closePath();
 			renderCtx.stroke();
 			renderCtx.globalAlpha = 1.0;

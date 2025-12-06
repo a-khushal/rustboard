@@ -250,6 +250,17 @@ impl Document {
         }
     }
 
+    pub fn set_rectangle_border_radius(&mut self, id: u64, radius: f64, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if (rect.border_radius - radius).abs() > f64::EPSILON {
+                rect.border_radius = radius.max(0.0);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_diamond(&mut self, position: Point, width: f64, height: f64) -> u64 {
         let id = self.add_diamond_without_snapshot(position, width, height);
         self.save_snapshot();
@@ -351,6 +362,17 @@ impl Document {
         if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
             if (diamond.rotation_angle - angle).abs() > f64::EPSILON {
                 diamond.rotation_angle = angle;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_diamond_border_radius(&mut self, id: u64, radius: f64, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if (diamond.border_radius - radius).abs() > f64::EPSILON {
+                diamond.border_radius = radius.max(0.0);
                 if save_history {
                     self.save_snapshot();
                 }

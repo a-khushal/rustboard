@@ -216,7 +216,7 @@ fn default_line_width() -> f64 {
 }
 
 fn default_border_radius() -> f64 {
-    4.0
+    0.0
 }
 
 fn default_rotation() -> f64 {

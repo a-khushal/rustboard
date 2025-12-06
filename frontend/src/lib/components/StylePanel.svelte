@@ -34,6 +34,7 @@
 	import { copyToClipboard, getClipboard } from '$lib/utils/clipboard';
 	import { pasteShapes } from '$lib/utils/paste-shapes';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
+	import { edgeStyle, type EdgeStyle } from '$lib/stores/edge-style';
 
 	let strokeColor = '#000000';
 	let fillColor: string | null = null;
@@ -310,6 +311,10 @@
 		$selectedEllipses.length > 0 ||
 		$selectedDiamonds.length > 0;
 
+	$: hasEditableEdges =
+		$selectedRectangles.length > 0 ||
+		$selectedDiamonds.length > 0;
+
 	$: hasImagesOnly = $selectedImages.length > 0 && 
 		$selectedRectangles.length === 0 &&
 		$selectedEllipses.length === 0 &&
@@ -437,6 +442,48 @@
 
 		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
 	}
+
+	function handleEdgeStyleChange(style: EdgeStyle) {
+		if (!$editorApi) return;
+
+		edgeStyle.set(style);
+		const radius = style === 'rounded' ? 4.0 : 0.0;
+
+		$selectedRectangles.forEach((rect) => {
+			$editorApi.set_rectangle_border_radius(BigInt(rect.id), radius, false);
+		});
+
+		$selectedDiamonds.forEach((diamond) => {
+			$editorApi.set_diamond_border_radius(BigInt(diamond.id), radius, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	$: {
+		if (hasEditableEdges) {
+			const allBorderRadii: number[] = [];
+			$selectedRectangles.forEach(r => {
+				const br = r.border_radius ?? 0;
+				allBorderRadii.push(br);
+			});
+			$selectedDiamonds.forEach(d => {
+				const br = d.border_radius ?? 0;
+				allBorderRadii.push(br);
+			});
+			
+			const allSharp = allBorderRadii.length > 0 && allBorderRadii.every(r => r === 0);
+			const allRounded = allBorderRadii.length > 0 && allBorderRadii.every(r => r > 0);
+			
+			if (allSharp) {
+				edgeStyle.set('sharp');
+			} else if (allRounded) {
+				edgeStyle.set('rounded');
+			}
+		}
+	}
 </script>
 
 {#if hasSelection}
@@ -525,6 +572,37 @@
 									{/if}
 								</button>
 							{/each}
+						</div>
+					</fieldset>
+				</div>
+			{/if}
+
+			{#if hasEditableEdges}
+				<div class="space-y-1.5">
+					<fieldset class="space-y-1.5">
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Edges</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={() => handleEdgeStyleChange('sharp')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$edgeStyle === 'sharp' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Sharp"
+								aria-label="Sharp edges"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="3" width="18" height="18" rx="0" ry="0" stroke-dasharray="2 2"></rect>
+								</svg>
+							</button>
+							<button
+								on:click={() => handleEdgeStyleChange('rounded')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$edgeStyle === 'rounded' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Rounded"
+								aria-label="Rounded edges"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="2 2"></rect>
+									<path d="M15 3h6v6" stroke-width="2.5" fill="none"></path>
+								</svg>
+							</button>
 						</div>
 					</fieldset>
 				</div>

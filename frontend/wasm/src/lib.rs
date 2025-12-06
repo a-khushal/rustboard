@@ -370,6 +370,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_rectangle_border_radius(&self, id: u64, radius: f64, save_history: bool) {
+        self.document.borrow_mut().set_rectangle_border_radius(id, radius, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn set_ellipse_stroke_color(&self, id: u64, color: String, save_history: bool) {
         self.document.borrow_mut().set_ellipse_stroke_color(id, color, save_history);
     }
@@ -407,6 +412,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn set_diamond_rotation(&self, id: u64, angle: f64, save_history: bool) {
         self.document.borrow_mut().set_diamond_rotation(id, angle, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_diamond_border_radius(&self, id: u64, radius: f64, save_history: bool) {
+        self.document.borrow_mut().set_diamond_border_radius(id, radius, save_history);
     }
 
     #[wasm_bindgen]

@@ -1,11 +1,18 @@
 import { get } from 'svelte/store';
 import { editorApi, rectangles, selectedRectangles, type Rectangle } from '$lib/stores/editor';
+import { get as getStore } from 'svelte/store';
+import { edgeStyle } from '$lib/stores/edge-style';
 
 export function addRectangle(x: number, y: number, width: number = 100, height: number = 50): number | null {
     const api = get(editorApi);
     if (!api) return null;
 
+    const currentEdgeStyle = getStore(edgeStyle);
+    const radius = currentEdgeStyle === 'rounded' ? 4.0 : 0.0;
+
     const newId = api.add_rectangle(x, y, width, height);
+    api.set_rectangle_border_radius(BigInt(newId), radius, false);
+    
     const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
     rectangles.set(updatedRectangles);
 
