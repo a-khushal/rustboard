@@ -1,9 +1,51 @@
 <script lang="ts">
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
+	import { viewportOffset, zoom } from '$lib/stores/editor';
+	import { addImage } from '$lib/utils/canvas-operations/index';
+	import { screenToWorld } from '$lib/utils/viewport';
 
 	function setTool(tool: Tool) {
-		activeTool.set(tool);
+		if (tool === 'image') {
+			const fileInput = document.createElement('input');
+			fileInput.type = 'file';
+			fileInput.accept = 'image/*';
+			fileInput.style.display = 'none';
+			fileInput.onchange = (e) => {
+				const file = (e.target as HTMLInputElement).files?.[0];
+				if (file) {
+					const reader = new FileReader();
+					reader.onload = (event) => {
+						const imageData = event.target?.result as string;
+						if (imageData) {
+							const img = new Image();
+							img.onload = () => {
+								const canvas = document.querySelector('canvas');
+								if (canvas) {
+									const rect = canvas.getBoundingClientRect();
+									const centerScreenX = rect.width / 2;
+									const centerScreenY = rect.height / 2;
+									const worldPos = screenToWorld(centerScreenX, centerScreenY, $viewportOffset, $zoom);
+									const x = worldPos.x - img.width / 2;
+									const y = worldPos.y - img.height / 2;
+									addImage(x, y, img.width, img.height, imageData);
+								} else {
+									addImage(0, 0, img.width, img.height, imageData);
+								}
+								activeTool.set('select');
+							};
+							img.src = imageData;
+						}
+					};
+					reader.readAsDataURL(file);
+				}
+				document.body.removeChild(fileInput);
+			};
+			document.body.appendChild(fileInput);
+			fileInput.click();
+		} else {
+			activeTool.set(tool);
+		}
 	}
 
 	const tools: Array<{ id: Tool; label: string; icon: string }> = [

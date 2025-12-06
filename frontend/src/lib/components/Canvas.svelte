@@ -188,6 +188,7 @@
 	let isGroupRotating = false;
 	let groupRotationState: { center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let renderDependencies: Record<string, unknown> | null = null;
+	const imageCache = new Map<number, HTMLImageElement>();
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 	const ROTATION_HANDLE_DISTANCE = 18;
 	const ROTATION_HANDLE_RADIUS = 5;
@@ -215,15 +216,15 @@
 
     function groupSelectedShapes() {
         if (!$editorApi) return;
-        const selectedIds: bigint[] = [];
-        $selectedRectangles.forEach(r => selectedIds.push(BigInt(r.id)));
-        $selectedEllipses.forEach(e => selectedIds.push(BigInt(e.id)));
-        $selectedDiamonds.forEach(d => selectedIds.push(BigInt(d.id)));
-        $selectedLines.forEach(l => selectedIds.push(BigInt(l.id)));
-        $selectedArrows.forEach(a => selectedIds.push(BigInt(a.id)));
-        $selectedTexts.forEach(t => selectedIds.push(BigInt(t.id)));
-        $selectedPaths.forEach(p => selectedIds.push(BigInt(p.id)));
-        $selectedImages.forEach(i => selectedIds.push(BigInt(i.id)));
+        const selectedIds: number[] = [];
+        $selectedRectangles.forEach(r => selectedIds.push(r.id));
+        $selectedEllipses.forEach(e => selectedIds.push(e.id));
+        $selectedDiamonds.forEach(d => selectedIds.push(d.id));
+        $selectedLines.forEach(l => selectedIds.push(l.id));
+        $selectedArrows.forEach(a => selectedIds.push(a.id));
+        $selectedTexts.forEach(t => selectedIds.push(t.id));
+        $selectedPaths.forEach(p => selectedIds.push(p.id));
+        $selectedImages.forEach(i => selectedIds.push(i.id));
 
         if (selectedIds.length < 2) return;
 
@@ -388,6 +389,8 @@
              selectedLines.set([]);
              selectedArrows.set([]);
              selectedTexts.set([]);
+             selectedPaths.set([]);
+             selectedImages.set([]);
         }
 
         const rects: Rectangle[] = [];
@@ -396,6 +399,8 @@
         const lns: Line[] = [];
         const arrs: Arrow[] = [];
         const txts: Text[] = [];
+        const pths: Path[] = [];
+        const imgs: Image[] = [];
 
         $rectangles.forEach(r => { if (allShapeIds.has(r.id)) rects.push(r); });
         $ellipses.forEach(e => { if (allShapeIds.has(e.id)) ells.push(e); });
@@ -403,13 +408,18 @@
         $lines.forEach(l => { if (allShapeIds.has(l.id)) lns.push(l); });
         $arrows.forEach(a => { if (allShapeIds.has(a.id)) arrs.push(a); });
         $texts.forEach(t => { if (allShapeIds.has(t.id)) txts.push(t); });
+        $paths.forEach(p => { if (allShapeIds.has(p.id)) pths.push(p); });
+        $images.forEach(i => { if (allShapeIds.has(i.id)) imgs.push(i); });
 
-        if (isShiftPressed) {
-        }
-        
         if (isShiftPressed) {
              selectedRectangles.update(s => [...s, ...rects].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedEllipses.update(s => [...s, ...ells].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedDiamonds.update(s => [...s, ...diams].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedLines.update(s => [...s, ...lns].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedArrows.update(s => [...s, ...arrs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedTexts.update(s => [...s, ...txts].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedPaths.update(s => [...s, ...pths].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedImages.update(s => [...s, ...imgs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
         } else {
              selectedRectangles.set(rects);
              selectedEllipses.set(ells);
@@ -417,6 +427,8 @@
              selectedLines.set(lns);
              selectedArrows.set(arrs);
              selectedTexts.set(txts);
+             selectedPaths.set(pths);
+             selectedImages.set(imgs);
         }
 	}
 
@@ -1687,6 +1699,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedArrows.set([]);
 				selectedTexts.set([]);
 				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedRect;
@@ -1713,6 +1727,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedArrows.set([]);
 				selectedTexts.set([]);
 				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedDiamond;
@@ -1739,6 +1755,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedArrows.set([]);
 				selectedTexts.set([]);
 				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedEllipse;
@@ -1765,6 +1783,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedLines.set([]);
 				selectedArrows.set([]);
 				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedText;
@@ -1791,6 +1811,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedArrows.set([]);
 				selectedTexts.set([]);
 				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedLine;
@@ -1817,6 +1839,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedLines.set([]);
 				selectedTexts.set([]);
 				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedArrow;
@@ -1843,6 +1867,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedLines.set([]);
 				selectedArrows.set([]);
 				selectedTexts.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedPath;
@@ -1861,17 +1887,18 @@ function rotateSelectedShapes(delta: number) {
 						? $selectedImages.filter(i => i.id !== clickedImage.id)
 						: [...$selectedImages, clickedImage]
 				);
-			} else if (!isAlreadySelected) {
-				selectedImages.set([clickedImage]);
-				selectedRectangles.set([]);
-				selectedEllipses.set([]);
-				selectedDiamonds.set([]);
-				selectedLines.set([]);
-				selectedArrows.set([]);
-				selectedTexts.set([]);
-				selectedPaths.set([]);
-				selectedImages.set([]);
-				selectedGroups.set([]);
+			} else {
+				if (!isAlreadySelected) {
+					selectedImages.set([clickedImage]);
+					selectedRectangles.set([]);
+					selectedEllipses.set([]);
+					selectedDiamonds.set([]);
+					selectedLines.set([]);
+					selectedArrows.set([]);
+					selectedTexts.set([]);
+					selectedPaths.set([]);
+					selectedGroups.set([]);
+				}
 			}
 
 			draggedShape = clickedImage;
@@ -2233,7 +2260,7 @@ function rotateSelectedShapes(delta: number) {
 				}
 			}
 
-			if (totalSelectedCount > 1 && visualGroupBox) {
+			if (!isShiftPressed && totalSelectedCount > 1 && visualGroupBox) {
 				if (
 					x >= visualGroupBox.x &&
 					x <= visualGroupBox.x + visualGroupBox.width &&
@@ -2327,37 +2354,6 @@ function rotateSelectedShapes(delta: number) {
 				activeTool.set('select');
 			}
 			scheduleRender();
-		} else if ($activeTool === 'image') {
-			// Trigger file input for image selection
-			const fileInput = document.createElement('input');
-			fileInput.type = 'file';
-			fileInput.accept = 'image/*';
-			fileInput.style.display = 'none';
-			fileInput.onchange = (e) => {
-				const file = (e.target as HTMLInputElement).files?.[0];
-				if (file) {
-					const reader = new FileReader();
-					reader.onload = (event) => {
-						const imageData = event.target?.result as string;
-						if (imageData) {
-							const img = new Image();
-							img.onload = () => {
-								// Add image at clicked position with original dimensions
-								const newId = addImage(x, y, img.width, img.height, imageData);
-								if (newId !== null) {
-									activeTool.set('select');
-								}
-								scheduleRender();
-							};
-							img.src = imageData;
-						}
-					};
-					reader.readAsDataURL(file);
-				}
-				document.body.removeChild(fileInput);
-			};
-			document.body.appendChild(fileInput);
-			fileInput.click();
 		}
 	}
 
@@ -4093,8 +4089,8 @@ function rotateSelectedShapes(delta: number) {
 
 	function renderGroupBoundingBox(ctx: CanvasRenderingContext2D, box: BoundingBox, zoom: number, isGroupSelection: boolean = false) {
 		ctx.save();
-		ctx.strokeStyle = isGroupSelection ? getGroupSelectionColor() : getSelectionOutlineColor();
-		ctx.lineWidth = isGroupSelection ? 1.5 / zoom : 1 / zoom;
+		ctx.strokeStyle = getSelectionOutlineColor();
+		ctx.lineWidth = 1 / zoom;
 		const gap = 4 / zoom;
 		ctx.setLineDash([2.5 / zoom, 2.5 / zoom]);
 		ctx.strokeRect(box.x - gap, box.y - gap, box.width + gap * 2, box.height + gap * 2);
@@ -4597,22 +4593,25 @@ function rotateSelectedShapes(delta: number) {
 				const renderHeight = image.height;
 				const rotation = image.rotation_angle ?? 0;
 				
-				renderCtx.save();
-				const centerX = renderX + renderWidth / 2;
-				const centerY = renderY + renderHeight / 2;
-				renderCtx.translate(centerX, centerY);
-				renderCtx.rotate(rotation);
-				
-				const img = new Image();
-				img.onload = () => {
-					renderCtx.drawImage(img, -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
-				};
-				img.src = image.image_data;
-				// Try to draw immediately if already loaded
-				if (img.complete) {
-					renderCtx.drawImage(img, -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+				let img = imageCache.get(image.id);
+				if (!img || img.src !== image.image_data) {
+					img = new Image();
+					img.onload = () => {
+						scheduleRender();
+					};
+					img.src = image.image_data;
+					imageCache.set(image.id, img);
 				}
-				renderCtx.restore();
+				
+				if (img.complete && img.naturalWidth > 0) {
+					renderCtx.save();
+					const centerX = renderX + renderWidth / 2;
+					const centerY = renderY + renderHeight / 2;
+					renderCtx.translate(centerX, centerY);
+					renderCtx.rotate(rotation);
+					renderCtx.drawImage(img, -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+					renderCtx.restore();
+				}
 				
 				if (isSelected && !selectedGroupChildIds.has(image.id)) {
 					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
@@ -4741,16 +4740,6 @@ function rotateSelectedShapes(delta: number) {
 			renderGroupBoundingBox(renderCtx, groupBoundingBox, $zoom, isGroupSelection);
 		}
 
-		$groups.forEach(group => {
-			const isSelected = $selectedGroups.some(g => g.id === group.id);
-			if (!isSelected) {
-				const groupBox = calculateGroupBoundingBoxForGroup(group);
-				if (groupBox) {
-					const expandedBox = expandBoundingBox(groupBox, getSelectionPaddingValue($zoom));
-					renderUnselectedGroupIndicator(renderCtx, expandedBox, $zoom, group.id);
-				}
-			}
-		});
 		
 		if (isSelectingBox && selectionBoxStart && selectionBoxEnd) {
 			const boxX = Math.min(selectionBoxStart.x, selectionBoxEnd.x);
@@ -4842,28 +4831,51 @@ function rotateSelectedShapes(delta: number) {
 	});
 
 	$: if (canvas && $editorApi && !ctx) initCanvas();
-	$: renderDependencies = {
-		viewportOffset: $viewportOffset,
-		zoomValue: $zoom,
-		rectangles: $rectangles,
-		selectedRectangles: $selectedRectangles,
-		ellipses: $ellipses,
-		selectedEllipses: $selectedEllipses,
-		lines: $lines,
-		selectedLines: $selectedLines,
-		arrows: $arrows,
-		selectedArrows: $selectedArrows,
-		diamonds: $diamonds,
-		selectedDiamonds: $selectedDiamonds,
-		texts: $texts,
-		selectedTexts: $selectedTexts
-	};
-
-	$: if (ctx && canvas && !isCreatingShape && renderDependencies) {
+	
+	$: {
+		const currentImageIds = new Set($images.map(img => img.id));
+		for (const [id, img] of imageCache.entries()) {
+			if (!currentImageIds.has(id)) {
+				imageCache.delete(id);
+			}
+		}
+		for (const image of $images) {
+			const cached = imageCache.get(image.id);
+			if (!cached || cached.src !== image.image_data) {
+				const img = new Image();
+				img.onload = () => {
+					scheduleRender();
+				};
+				img.src = image.image_data;
+				imageCache.set(image.id, img);
+			}
+		}
+	}
+	
+	$: if (ctx && canvas && !isCreatingShape) {
+		$viewportOffset;
+		$zoom;
+		$rectangles;
+		$selectedRectangles;
+		$ellipses;
+		$selectedEllipses;
+		$lines;
+		$selectedLines;
+		$arrows;
+		$selectedArrows;
+		$diamonds;
+		$selectedDiamonds;
+		$texts;
+		$selectedTexts;
+		$paths;
+		$selectedPaths;
+		$images;
+		$selectedImages;
+		$groups;
+		$selectedGroups;
+		$theme;
 		scheduleRender();
 	}
-
-	$: $theme, scheduleRender();
 </script>
 
 <div class="relative w-full h-full bg-stone-50 dark:bg-stone-900">

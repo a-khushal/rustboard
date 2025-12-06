@@ -33,6 +33,8 @@
 			diamonds.set(api.get_diamonds());
 			texts.set(api.get_texts());
 			images.set(api.get_images());
+		} else {
+			images.set(api.get_images());
 		}
 		resetSelectionHistory();
 
