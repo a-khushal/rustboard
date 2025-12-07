@@ -550,6 +550,7 @@
 			if (isCreatingShape) {
 				return;
 			}
+			clearAllSelections();
 			if ($activeTool === 'freehand') {
 				finishFreehandDrawing();
 				activeTool.set('select');
@@ -1925,12 +1926,8 @@ function rotateSelectedShapes(delta: number) {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedPaths.set([]);
 				updatePaths();
-				const updatedPaths = get(paths);
-				if (updatedPaths.length > 0) {
-					const newestPath = updatedPaths[updatedPaths.length - 1];
-					selectedPaths.set([newestPath]);
-				}
 			}
 			isDrawingFreehand = false;
 			freehandPoints = [];
