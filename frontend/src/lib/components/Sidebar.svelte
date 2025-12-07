@@ -3,7 +3,8 @@
 	import { theme } from '$lib/stores/theme';
 	import { 
 		rectangles, ellipses, diamonds, lines, arrows, texts, paths, images,
-		editorApi, selectedRectangles, selectedEllipses, selectedDiamonds, selectedLines, selectedArrows, selectedTexts, selectedPaths, selectedImages
+		editorApi,
+		type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image
 	} from '$lib/stores/editor';
 	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
@@ -14,6 +15,7 @@
 
 	let isOpen = false;
 	let showResetModal = false;
+	let fileInputRef: HTMLInputElement;
 
 	export function closeSidebar() {
 		isOpen = false;
@@ -91,6 +93,65 @@
 		if (!canvas) return;
 		await exportToPDF(canvas, 'rustboard.pdf');
 	}
+
+	function handleSaveAs() {
+		const api = get(editorApi);
+		if (!api) return;
+
+		const jsonData = api.serialize();
+		const blob = new Blob([jsonData], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'rustboard.json';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	async function handleLoadFile(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		const api = get(editorApi);
+		if (!api) return;
+
+		try {
+			const text = await file.text();
+			const success = api.deserialize(text);
+			
+			if (success) {
+				const updatedRectangles = api.get_rectangles() as Rectangle[];
+				const updatedEllipses = api.get_ellipses() as Ellipse[];
+				const updatedLines = api.get_lines() as Line[];
+				const updatedArrows = api.get_arrows() as Arrow[];
+				const updatedDiamonds = api.get_diamonds() as Diamond[];
+				const updatedTexts = api.get_texts() as Text[];
+				const updatedPaths = api.get_paths() as Path[];
+				const updatedImages = api.get_images() as Image[];
+				
+				rectangles.set(updatedRectangles);
+				ellipses.set(updatedEllipses);
+				lines.set(updatedLines);
+				arrows.set(updatedArrows);
+				diamonds.set(updatedDiamonds);
+				texts.set(updatedTexts);
+				paths.set(updatedPaths);
+				images.set(updatedImages);
+				
+				clearAllSelections();
+			} else {
+				alert('Failed to load file. Please ensure it is a valid Rustboard JSON file.');
+			}
+		} catch (error) {
+			console.error('Error loading file:', error);
+			alert('Error loading file. Please try again.');
+		}
+
+		target.value = '';
+	}
 </script>
 
 <div class="absolute top-2 right-2 z-50 flex items-start gap-2" role="complementary" aria-label="Sidebar menu">
@@ -120,6 +181,53 @@
 			</div>
 			
 			<div class="flex flex-col gap-2">
+				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-600'}`}>File</div>
+				
+				<div class="flex flex-col gap-2">
+					<button
+						on:click={handleSaveAs}
+						class={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans transition-colors duration-150 rounded-sm
+							${$theme === 'dark'
+								? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+								: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+						title="Save As JSON"
+					>
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M14 10v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2"/>
+							<polyline points="11 7 8 10 5 7"/>
+							<line x1="8" y1="10" x2="8" y2="2"/>
+						</svg>
+						<span>Save As</span>
+					</button>
+					
+					<input
+						bind:this={fileInputRef}
+						type="file"
+						accept=".json"
+						on:change={handleLoadFile}
+						class="hidden"
+						aria-label="Load JSON file"
+					/>
+					<button
+						type="button"
+						on:click={() => fileInputRef?.click()}
+						class={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans transition-colors duration-150 rounded-sm w-full
+							${$theme === 'dark'
+								? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+								: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+						title="Load JSON file"
+					>
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M14 10v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2"/>
+							<polyline points="5 7 8 4 11 7"/>
+							<line x1="8" y1="4" x2="8" y2="12"/>
+						</svg>
+						<span>Load</span>
+					</button>
+				</div>
+
+				<div class="border-t ${$theme === 'dark' ? 'border-stone-700' : 'border-stone-200'} my-1"></div>
+
 				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-600'}`}>Export</div>
 				
 				<div class="flex flex-row gap-2">
