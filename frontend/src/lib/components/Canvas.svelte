@@ -36,6 +36,8 @@
 	import UndoRedoControls from './UndoRedoControls.svelte';
 	import StylePanel from './StylePanel.svelte';
 	import Sidebar from './Sidebar.svelte';
+	
+	let sidebarRef: Sidebar;
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
 
@@ -1931,6 +1933,10 @@ function rotateSelectedShapes(delta: number) {
 
 		event.preventDefault();
 		canvas.focus({ preventScroll: true });
+
+		if (sidebarRef) {
+			sidebarRef.closeSidebar();
+		}
 
 		if (isTypingText) {
 			commitTypingText();
@@ -5103,7 +5109,7 @@ function rotateSelectedShapes(delta: number) {
 
 <div class="relative w-full h-full bg-stone-50 dark:bg-stone-900">
 	<Toolbar />
-	<Sidebar bind:canvas bind:ctx />
+	<Sidebar bind:this={sidebarRef} bind:canvas bind:ctx />
 	<ZoomControls />
 	<UndoRedoControls />
 	<StylePanel />
