@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { get } from 'svelte/store';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		lines, selectedLines, arrows, selectedArrows,
@@ -20,8 +19,8 @@
 		addLine, moveLine,
 		addArrow, moveArrow,
 		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation,
-		addPath, movePath,
-		addImage, moveImage, resizeImage, setImageRotation
+		addPath, movePath, 
+		moveImage, resizeImage, setImageRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updateTexts } from '$lib/utils/canvas-operations/texts';
 	import { updatePaths } from '$lib/utils/canvas-operations/path';
@@ -58,14 +57,6 @@
 
 	function getSelectionOutlineColor(): string {
 		return '#1e88e5';
-	}
-
-	function getGroupIndicatorColor(): string {
-		return $theme === 'dark' ? '#4a5568' : '#9ca3af';
-	}
-
-	function getGroupSelectionColor(): string {
-		return '#7c3aed';
 	}
 
 	function adaptColorToTheme(color: string | null | undefined, defaultColor: string): string {

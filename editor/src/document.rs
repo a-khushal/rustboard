@@ -977,7 +977,49 @@ impl Document {
             return;
         }
         
-        let new_z = current_z + 1;
+        let mut next_z: Option<i32> = None;
+        for rect in &self.rectangles {
+            if rect.id != id && rect.z_index > current_z {
+                next_z = Some(next_z.map_or(rect.z_index, |z: i32| z.min(rect.z_index)));
+            }
+        }
+        for ellipse in &self.ellipses {
+            if ellipse.id != id && ellipse.z_index > current_z {
+                next_z = Some(next_z.map_or(ellipse.z_index, |z: i32| z.min(ellipse.z_index)));
+            }
+        }
+        for diamond in &self.diamonds {
+            if diamond.id != id && diamond.z_index > current_z {
+                next_z = Some(next_z.map_or(diamond.z_index, |z: i32| z.min(diamond.z_index)));
+            }
+        }
+        for line in &self.lines {
+            if line.id != id && line.z_index > current_z {
+                next_z = Some(next_z.map_or(line.z_index, |z: i32| z.min(line.z_index)));
+            }
+        }
+        for arrow in &self.arrows {
+            if arrow.id != id && arrow.z_index > current_z {
+                next_z = Some(next_z.map_or(arrow.z_index, |z: i32| z.min(arrow.z_index)));
+            }
+        }
+        for text in &self.texts {
+            if text.id != id && text.z_index > current_z {
+                next_z = Some(next_z.map_or(text.z_index, |z: i32| z.min(text.z_index)));
+            }
+        }
+        for path in &self.paths {
+            if path.id != id && path.z_index > current_z {
+                next_z = Some(next_z.map_or(path.z_index, |z: i32| z.min(path.z_index)));
+            }
+        }
+        for image in &self.images {
+            if image.id != id && image.z_index > current_z {
+                next_z = Some(next_z.map_or(image.z_index, |z: i32| z.min(image.z_index)));
+            }
+        }
+        
+        let new_z = next_z.unwrap_or(current_z + 1);
         
         for rect in &mut self.rectangles {
             if rect.id != id && rect.z_index == new_z {
@@ -1080,94 +1122,136 @@ impl Document {
             return;
         }
         
-        let prev_z = current_z - 1;
+        let mut prev_z: Option<i32> = None;
+        for rect in &self.rectangles {
+            if rect.id != id && rect.z_index < current_z {
+                prev_z = Some(prev_z.map_or(rect.z_index, |z: i32| z.max(rect.z_index)));
+            }
+        }
+        for ellipse in &self.ellipses {
+            if ellipse.id != id && ellipse.z_index < current_z {
+                prev_z = Some(prev_z.map_or(ellipse.z_index, |z: i32| z.max(ellipse.z_index)));
+            }
+        }
+        for diamond in &self.diamonds {
+            if diamond.id != id && diamond.z_index < current_z {
+                prev_z = Some(prev_z.map_or(diamond.z_index, |z: i32| z.max(diamond.z_index)));
+            }
+        }
+        for line in &self.lines {
+            if line.id != id && line.z_index < current_z {
+                prev_z = Some(prev_z.map_or(line.z_index, |z: i32| z.max(line.z_index)));
+            }
+        }
+        for arrow in &self.arrows {
+            if arrow.id != id && arrow.z_index < current_z {
+                prev_z = Some(prev_z.map_or(arrow.z_index, |z: i32| z.max(arrow.z_index)));
+            }
+        }
+        for text in &self.texts {
+            if text.id != id && text.z_index < current_z {
+                prev_z = Some(prev_z.map_or(text.z_index, |z: i32| z.max(text.z_index)));
+            }
+        }
+        for path in &self.paths {
+            if path.id != id && path.z_index < current_z {
+                prev_z = Some(prev_z.map_or(path.z_index, |z: i32| z.max(path.z_index)));
+            }
+        }
+        for image in &self.images {
+            if image.id != id && image.z_index < current_z {
+                prev_z = Some(prev_z.map_or(image.z_index, |z: i32| z.max(image.z_index)));
+            }
+        }
+        
+        let new_z = prev_z.unwrap_or(current_z - 1);
         
         for rect in &mut self.rectangles {
-            if rect.id != id && rect.z_index == prev_z {
+            if rect.id != id && rect.z_index == new_z {
                 rect.z_index = current_z;
                 break;
             }
         }
         for ellipse in &mut self.ellipses {
-            if ellipse.id != id && ellipse.z_index == prev_z {
+            if ellipse.id != id && ellipse.z_index == new_z {
                 ellipse.z_index = current_z;
                 break;
             }
         }
         for diamond in &mut self.diamonds {
-            if diamond.id != id && diamond.z_index == prev_z {
+            if diamond.id != id && diamond.z_index == new_z {
                 diamond.z_index = current_z;
                 break;
             }
         }
         for line in &mut self.lines {
-            if line.id != id && line.z_index == prev_z {
+            if line.id != id && line.z_index == new_z {
                 line.z_index = current_z;
                 break;
             }
         }
         for arrow in &mut self.arrows {
-            if arrow.id != id && arrow.z_index == prev_z {
+            if arrow.id != id && arrow.z_index == new_z {
                 arrow.z_index = current_z;
                 break;
             }
         }
         for text in &mut self.texts {
-            if text.id != id && text.z_index == prev_z {
+            if text.id != id && text.z_index == new_z {
                 text.z_index = current_z;
                 break;
             }
         }
         for path in &mut self.paths {
-            if path.id != id && path.z_index == prev_z {
+            if path.id != id && path.z_index == new_z {
                 path.z_index = current_z;
                 break;
             }
         }
         for image in &mut self.images {
-            if image.id != id && image.z_index == prev_z {
+            if image.id != id && image.z_index == new_z {
                 image.z_index = current_z;
                 break;
             }
         }
         
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
-            rect.z_index = prev_z;
+            rect.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
-            ellipse.z_index = prev_z;
+            ellipse.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
-            diamond.z_index = prev_z;
+            diamond.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
-            line.z_index = prev_z;
+            line.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
-            arrow.z_index = prev_z;
+            arrow.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            text.z_index = prev_z;
+            text.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
-            path.z_index = prev_z;
+            path.z_index = new_z;
             self.save_snapshot();
             return;
         }
         if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
-            image.z_index = prev_z;
+            image.z_index = new_z;
             self.save_snapshot();
         }
     }
