@@ -51,12 +51,12 @@
 	const tools: Array<{ id: Tool; label: string; icon: string }> = [
 		{ id: 'select' as Tool, label: 'Select', icon: 'cursor' },
 		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect' },
-		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
 		{ id: 'diamond' as Tool, label: 'Diamond', icon: 'diamond' },
-		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
+		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
-		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
+		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
 		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' },
+		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
 		{ id: 'image' as Tool, label: 'Image', icon: 'image' }
 	];
 

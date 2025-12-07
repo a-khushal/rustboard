@@ -42,7 +42,101 @@
 	let textColor = '#000000';
 	let unifiedColor = '#000000';
 
-	const fillColors = ['#ef4444', '#3b82f6', '#10b981', '#f97316'];
+	const strokeColors = [
+		'#d1d5db',
+		'#60a5fa',
+		'#34d399',
+		'#fb7185',
+		'#d97706'
+	];
+
+	const fillColors = [
+		'#374151',
+		'#1e3a8a',
+		'#166534',
+		'#991b1b',
+		'#78350f'
+	];
+
+	let strokeColorPickerButton: HTMLButtonElement;
+	let fillColorPickerButton: HTMLButtonElement;
+	let stylePanelRef: HTMLDivElement;
+
+	function openStrokeColorPicker(event: MouseEvent) {
+		const button = event.currentTarget as HTMLButtonElement;
+		const buttonRect = button.getBoundingClientRect();
+		const panelRect = stylePanelRef.getBoundingClientRect();
+		
+		const input = document.createElement('input');
+		input.type = 'color';
+		input.value = strokeColor;
+		input.style.position = 'fixed';
+		input.style.left = `${panelRect.left - 250}px`;
+		input.style.top = `${buttonRect.top}px`;
+		input.style.width = '1px';
+		input.style.height = '1px';
+		input.style.opacity = '0.01';
+		input.style.pointerEvents = 'auto';
+		input.style.zIndex = '9999';
+		document.body.appendChild(input);
+		
+		setTimeout(() => {
+			input.focus();
+			input.click();
+		}, 10);
+		
+		input.onchange = (e) => {
+			updateStrokeColor((e.target as HTMLInputElement).value);
+			if (document.body.contains(input)) {
+				document.body.removeChild(input);
+			}
+		};
+		input.onblur = () => {
+			setTimeout(() => {
+				if (document.body.contains(input)) {
+					document.body.removeChild(input);
+				}
+			}, 100);
+		};
+	}
+
+	function openFillColorPicker(event: MouseEvent) {
+		const button = event.currentTarget as HTMLButtonElement;
+		const buttonRect = button.getBoundingClientRect();
+		const panelRect = stylePanelRef.getBoundingClientRect();
+		
+		const input = document.createElement('input');
+		input.type = 'color';
+		input.value = fillColor || '#000000';
+		input.style.position = 'fixed';
+		input.style.left = `${panelRect.left - 250}px`;
+		input.style.top = `${buttonRect.top}px`;
+		input.style.width = '1px';
+		input.style.height = '1px';
+		input.style.opacity = '0.01';
+		input.style.pointerEvents = 'auto';
+		input.style.zIndex = '9999';
+		document.body.appendChild(input);
+		
+		setTimeout(() => {
+			input.focus();
+			input.click();
+		}, 10);
+		
+		input.onchange = (e) => {
+			updateFillColor((e.target as HTMLInputElement).value);
+			if (document.body.contains(input)) {
+				document.body.removeChild(input);
+			}
+		};
+		input.onblur = () => {
+			setTimeout(() => {
+				if (document.body.contains(input)) {
+					document.body.removeChild(input);
+				}
+			}, 100);
+		};
+	}
 
 	function isLightColor(hexColor: string): boolean {
 		const hex = hexColor.replace('#', '');
@@ -487,13 +581,38 @@
 </script>
 
 {#if hasSelection}
-	<div class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[200px] min-w-[200px] min-h-[100px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
+	<div bind:this={stylePanelRef} class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[240px] min-w-[240px] min-h-[100px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
 		<div class="space-y-2.5 min-w-0">
 			{#if !hasImagesOnly}
 				{#if hasShapes && hasText}
 					<ColorPicker label="Color" bind:value={unifiedColor} onInput={(val: string) => updateUnifiedColor(val)} />
 				{:else if hasShapes}
-					<ColorPicker label="Stroke" bind:value={strokeColor} onInput={(val: string) => updateStrokeColor(val)} />
+					<div class="space-y-1.5">
+						<fieldset class="flex flex-col gap-2 w-full min-w-0">
+							<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke</legend>
+							<div class="flex items-center gap-1.5 w-full">
+								<button
+									type="button"
+									bind:this={strokeColorPickerButton}
+									on:click={openStrokeColorPicker}
+									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
+									style="background-color: {strokeColor};"
+									title="Current color - click to change"
+								>
+								</button>
+								{#each strokeColors as color}
+									<button
+										type="button"
+										on:click={() => updateStrokeColor(color)}
+										class={`rounded-full border transition-all hover:scale-105 ${strokeColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+										style="background-color: {color};"
+										title={color}
+									>
+									</button>
+								{/each}
+							</div>
+						</fieldset>
+					</div>
 				{:else if hasText}
 					<ColorPicker label="Text" bind:value={textColor} onInput={(val: string) => updateTextColor(val)} />
 				{/if}
@@ -528,48 +647,37 @@
 			{#if hasFillableShapes}
 				<div class="space-y-1.5">
 					<fieldset class="flex flex-col gap-2 w-full min-w-0">
-						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Fill</legend>
-						<div class="flex items-center gap-2 min-w-0">
-							<div class="relative shrink-0">
-								<input
-									type="color"
-									value={fillColor || '#000000'}
-									on:input={(e) => updateFillColor((e.target as HTMLInputElement).value)}
-									class={`w-7 h-7 rounded-full border-2 cursor-pointer shrink-0 opacity-0 absolute inset-0 ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-200'}`}
-									title={fillColor || 'No fill'}
-								/>
-								<div
-									class={`w-7 h-7 rounded-full border-2 pointer-events-none ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-200'}`}
-									style="background-color: {fillColor || 'transparent'};"
-								></div>
-							</div>
-							<input
-								type="text"
-								value={fillColor || ''}
-								on:input={(e) => {
-									const val = (e.target as HTMLInputElement).value;
-									updateFillColor(val || null);
-								}}
-								class={`flex-1 min-w-0 px-2 py-1 text-xs font-mono border rounded focus:outline-none focus:ring-1 h-8 ${$theme === 'dark' ? 'border-stone-600 bg-stone-700 text-stone-200 focus:ring-stone-500' : 'border-stone-200 bg-stone-50 focus:ring-stone-400'}`}
-								placeholder="No fill"
-								maxlength="7"
-								aria-label="Fill color hex value"
-							/>
-						</div>
-						<div class="grid grid-cols-4 gap-1.5 w-full mt-1">
+						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Background</legend>
+						<div class="flex items-center gap-1.5 w-full">
+							{#if fillColor === null}
+								<button
+									type="button"
+									bind:this={fillColorPickerButton}
+									on:click={openFillColorPicker}
+									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 relative ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
+									title="No fill - click to change"
+								>
+									<div class={`w-full h-full rounded-full absolute inset-0 ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'}`} style="background-image: repeating-conic-gradient(${$theme === 'dark' ? '#374151' : '#e5e7eb'} 0% 25%, transparent 0% 50%); background-size: 50% 50%;"></div>
+								</button>
+							{:else}
+								<button
+									type="button"
+									bind:this={fillColorPickerButton}
+									on:click={openFillColorPicker}
+									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
+									style="background-color: {fillColor};"
+									title="Current color - click to change"
+								>
+								</button>
+							{/if}
 							{#each fillColors as color}
 								<button
 									type="button"
 									on:click={() => updateFillColor(color)}
-									class={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 hover:border-stone-400 ${fillColor === color ? ($theme === 'dark' ? 'border-stone-400 ring-2 ring-stone-500' : 'border-stone-600 ring-2 ring-stone-300') : ($theme === 'dark' ? 'border-stone-600' : 'border-stone-200')}`}
+									class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 									style="background-color: {color};"
 									title={color}
 								>
-									{#if fillColor === color}
-										<svg class="w-3 h-3 m-auto drop-shadow-lg {isLightColor(color) ? 'text-stone-900' : 'text-white'}" viewBox="0 0 16 16" fill="currentColor">
-											<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/>
-										</svg>
-									{/if}
 								</button>
 							{/each}
 						</div>
