@@ -42,13 +42,9 @@
 	let textColor = '#000000';
 	let unifiedColor = '#000000';
 
-	const strokeColors = [
-		'#d1d5db',
-		'#60a5fa',
-		'#34d399',
-		'#fb7185',
-		'#d97706'
-	];
+	$: strokeColors = $theme === 'dark' 
+		? ['#ffffff', '#60a5fa', '#34d399', '#fb7185', '#d97706']
+		: ['#000000', '#60a5fa', '#34d399', '#fb7185', '#d97706'];
 
 	const fillColors = [
 		'#374151',
@@ -69,7 +65,7 @@
 		
 		const input = document.createElement('input');
 		input.type = 'color';
-		input.value = strokeColor;
+		input.value = getDisplayStrokeColor();
 		input.style.position = 'fixed';
 		input.style.left = `${panelRect.left - 250}px`;
 		input.style.top = `${buttonRect.top}px`;
@@ -86,7 +82,10 @@
 		}, 10);
 		
 		input.onchange = (e) => {
-			updateStrokeColor((e.target as HTMLInputElement).value);
+			const selectedColor = (e.target as HTMLInputElement).value;
+			const denormalizedColor = $theme === 'dark' && selectedColor === '#000000' ? '#ffffff' : 
+			                          $theme !== 'dark' && selectedColor === '#ffffff' ? '#000000' : selectedColor;
+			updateStrokeColor(denormalizedColor);
 			if (document.body.contains(input)) {
 				document.body.removeChild(input);
 			}
@@ -194,6 +193,23 @@
 			.filter((c, i, arr) => arr.indexOf(c) === i);
 		textColor = textColors.length === 1 ? textColors[0] : '#000000';
 		}
+	}
+
+	function normalizeColorForTheme(color: string): string {
+		if ($theme === 'dark') {
+			if (color.toLowerCase() === '#ffffff' || color.toLowerCase() === '#fff' || color === 'white') {
+				return '#000000';
+			}
+		} else {
+			if (color.toLowerCase() === '#000000' || color.toLowerCase() === '#000' || color === 'black') {
+				return '#ffffff';
+			}
+		}
+		return color;
+	}
+
+	function getDisplayStrokeColor(): string {
+		return normalizeColorForTheme(strokeColor);
 	}
 
 	async function updateStrokeColor(color: string) {
@@ -557,6 +573,15 @@
 	}
 
 	$: {
+		if (hasSelection && strokeColor && $editorApi && $theme) {
+			const normalized = normalizeColorForTheme(strokeColor);
+			if (normalized !== strokeColor) {
+				updateStrokeColor(normalized);
+			}
+		}
+	}
+
+	$: {
 		if (hasEditableEdges) {
 			const allBorderRadii: number[] = [];
 			$selectedRectangles.forEach(r => {
@@ -596,7 +621,7 @@
 									bind:this={strokeColorPickerButton}
 									on:click={openStrokeColorPicker}
 									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-									style="background-color: {strokeColor};"
+									style="background-color: {getDisplayStrokeColor()};"
 									title="Current color - click to change"
 								>
 								</button>
