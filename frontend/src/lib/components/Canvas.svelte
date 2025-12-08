@@ -2551,11 +2551,32 @@ function resetRotationState() {
 		selectedShapesStartPositions.paths.forEach((startPos, id) => {
 			if (startPos.points.length === 0) return;
 			
-			const rotatedPoints = startPos.points.map(point => 
-				rotatePointAround(point, center, delta)
-			);
+			const pathBounds = getPathBoundingBox({ points: startPos.points });
+			if (!pathBounds) return;
 			
-			setPathPoints(id, rotatedPoints, false);
+			const centerX = pathBounds.x + pathBounds.width / 2;
+			const centerY = pathBounds.y + pathBounds.height / 2;
+			const pathCenter = { x: centerX, y: centerY };
+			
+			const rotatedCenter = rotatePointAround(pathCenter, center, delta);
+			const offsetX = rotatedCenter.x - centerX;
+			const offsetY = rotatedCenter.y - centerY;
+			
+			const currentPath = $paths.find(p => p.id === id);
+			if (!currentPath) return;
+			
+			const currentBounds = getPathBoundingBox({ points: currentPath.points });
+			if (!currentBounds) return;
+			
+			const currentCenterX = currentBounds.x + currentBounds.width / 2;
+			const currentCenterY = currentBounds.y + currentBounds.height / 2;
+			
+			const actualOffsetX = rotatedCenter.x - currentCenterX;
+			const actualOffsetY = rotatedCenter.y - currentCenterY;
+			
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			movePath(id, actualOffsetX, actualOffsetY, false);
+			setPathRotation(id, newRotation, false);
 		});
 
 		selectedShapesStartPositions.images.forEach((startPos, id) => {
