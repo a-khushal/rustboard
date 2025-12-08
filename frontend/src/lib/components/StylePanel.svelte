@@ -148,52 +148,56 @@
 		return luminance > 0.5;
 	}
 
+	let isUpdatingColor = false;
+
 	$: {
-		const totalSelected =
-			$selectedRectangles.length +
-			$selectedEllipses.length +
-			$selectedDiamonds.length +
-			$selectedLines.length +
-			$selectedArrows.length +
-			$selectedTexts.length +
-			$selectedImages.length +
-			$selectedPaths.length;
+		if (!isUpdatingColor) {
+			const totalSelected =
+				$selectedRectangles.length +
+				$selectedEllipses.length +
+				$selectedDiamonds.length +
+				$selectedLines.length +
+				$selectedArrows.length +
+				$selectedTexts.length +
+				$selectedImages.length +
+				$selectedPaths.length;
 
-		if (totalSelected === 0) {
-			strokeColor = '#000000';
-			fillColor = null;
-			lineWidth = 2;
-			textColor = '#000000';
-		} else {
-		const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path> = [
-			...$selectedRectangles,
-			...$selectedEllipses,
-			...$selectedDiamonds,
-			...$selectedLines,
-			...$selectedArrows,
-			...$selectedTexts,
-			...$selectedPaths
-		];
+			if (totalSelected === 0) {
+				strokeColor = '#000000';
+				fillColor = null;
+				lineWidth = 2;
+				textColor = '#000000';
+			} else {
+				const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path> = [
+					...$selectedRectangles,
+					...$selectedEllipses,
+					...$selectedDiamonds,
+					...$selectedLines,
+					...$selectedArrows,
+					...$selectedTexts,
+					...$selectedPaths
+				];
 
-		const strokeColors = shapes
-			.map((s) => (s as any).stroke_color || '#000000')
-			.filter((c, i, arr) => arr.indexOf(c) === i);
-		strokeColor = strokeColors.length === 1 ? strokeColors[0] : '#000000';
+				const strokeColors = shapes
+					.map((s) => (s as any).stroke_color || '#000000')
+					.filter((c, i, arr) => arr.indexOf(c) === i);
+				strokeColor = strokeColors.length === 1 ? strokeColors[0] : '#000000';
 
-		const fillColors = shapes
-			.map((s) => (s as any).fill_color ?? null)
-			.filter((c, i, arr) => arr.indexOf(c) === i);
-		fillColor = fillColors.length === 1 ? fillColors[0] : null;
+				const fillColors = shapes
+					.map((s) => (s as any).fill_color ?? null)
+					.filter((c, i, arr) => arr.indexOf(c) === i);
+				fillColor = fillColors.length === 1 ? fillColors[0] : null;
 
-		const lineWidths = shapes
-			.map((s) => (s as any).line_width ?? 2)
-			.filter((w, i, arr) => arr.indexOf(w) === i);
-		lineWidth = lineWidths.length === 1 ? lineWidths[0] : 2;
+				const lineWidths = shapes
+					.map((s) => (s as any).line_width ?? 2)
+					.filter((w, i, arr) => arr.indexOf(w) === i);
+				lineWidth = lineWidths.length === 1 ? lineWidths[0] : 2;
 
-		const textColors = $selectedTexts
-			.map((t) => t.text_color || '#000000')
-			.filter((c, i, arr) => arr.indexOf(c) === i);
-		textColor = textColors.length === 1 ? textColors[0] : '#000000';
+				const textColors = $selectedTexts
+					.map((t) => t.text_color || '#000000')
+					.filter((c, i, arr) => arr.indexOf(c) === i);
+				textColor = textColors.length === 1 ? textColors[0] : '#000000';
+			}
 		}
 	}
 
@@ -215,8 +219,12 @@
 	}
 
 	async function updateStrokeColor(color: string) {
+		isUpdatingColor = true;
 		strokeColor = color;
-		if (!$editorApi) return;
+		if (!$editorApi) {
+			isUpdatingColor = false;
+			return;
+		}
 
 		const selectedRects = get(selectedRectangles);
 		const selectedElls = get(selectedEllipses);
@@ -246,12 +254,18 @@
 
 		$editorApi.save_snapshot();
 		updateStores();
+		await tick();
+		isUpdatingColor = false;
 		saveStateToLocalStorage();
 	}
 
-	function updateFillColor(color: string | null) {
+	async function updateFillColor(color: string | null) {
+		isUpdatingColor = true;
 		fillColor = color;
-		if (!$editorApi) return;
+		if (!$editorApi) {
+			isUpdatingColor = false;
+			return;
+		}
 
 		const colorValue = color || null;
 
@@ -267,6 +281,8 @@
 
 		$editorApi.save_snapshot();
 		updateStores();
+		await tick();
+		isUpdatingColor = false;
 		saveStateToLocalStorage();
 	}
 
