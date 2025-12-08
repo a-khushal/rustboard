@@ -546,7 +546,36 @@
 		const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
 		if (!hasSelection) return;
 
-		copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages, $selectedPaths);
+		const selectedIds = new Set([
+			...$selectedRectangles.map(r => r.id),
+			...$selectedEllipses.map(e => e.id),
+			...$selectedLines.map(l => l.id),
+			...$selectedArrows.map(a => a.id),
+			...$selectedDiamonds.map(d => d.id),
+			...$selectedTexts.map(t => t.id),
+			...$selectedPaths.map(p => p.id),
+			...$selectedImages.map(i => i.id)
+		]);
+
+		const allRectangles = Array.from($editorApi.get_rectangles() as Rectangle[]);
+		const allEllipses = Array.from($editorApi.get_ellipses() as Ellipse[]);
+		const allLines = Array.from($editorApi.get_lines() as Line[]);
+		const allArrows = Array.from($editorApi.get_arrows() as Arrow[]);
+		const allDiamonds = Array.from($editorApi.get_diamonds() as Diamond[]);
+		const allTexts = Array.from($editorApi.get_texts() as Text[]);
+		const allPaths = Array.from($editorApi.get_paths() as Path[]);
+		const allImages = Array.from($editorApi.get_images() as Image[]);
+
+		const currentRectangles = allRectangles.filter(r => selectedIds.has(r.id));
+		const currentEllipses = allEllipses.filter(e => selectedIds.has(e.id));
+		const currentLines = allLines.filter(l => selectedIds.has(l.id));
+		const currentArrows = allArrows.filter(a => selectedIds.has(a.id));
+		const currentDiamonds = allDiamonds.filter(d => selectedIds.has(d.id));
+		const currentTexts = allTexts.filter(t => selectedIds.has(t.id));
+		const currentPaths = allPaths.filter(p => selectedIds.has(p.id));
+		const currentImages = allImages.filter(i => selectedIds.has(i.id));
+
+		copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentTexts, currentImages, currentPaths);
 		const clipboard = getClipboard();
 
 		const bounds: Array<{ minX: number; minY: number }> = [];

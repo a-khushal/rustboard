@@ -207,6 +207,9 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         const newY = text.position.y - minY + offsetY;
         const newId = Number(api.add_text_without_snapshot(newX, newY, text.text));
         api.resize_text_without_snapshot(BigInt(newId), text.fontSize ?? DEFAULT_TEXT_FONT_SIZE);
+        if (text.rotation_angle !== undefined) {
+            api.set_text_rotation(BigInt(newId), text.rotation_angle, false);
+        }
         pastedIds.texts.push(newId);
     });
 
@@ -214,6 +217,9 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         const newX = image.position.x - minX + offsetX;
         const newY = image.position.y - minY + offsetY;
         const newId = api.add_image_without_snapshot(newX, newY, image.width, image.height, image.image_data);
+        if (image.rotation_angle !== undefined) {
+            api.set_image_rotation(BigInt(newId), image.rotation_angle, false);
+        }
         pastedIds.images.push(Number(newId));
     });
 
@@ -229,6 +235,9 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
             }
             if (path.line_width) {
                 api.set_path_line_width(BigInt(newId), path.line_width, false);
+            }
+            if (path.rotation_angle !== undefined) {
+                api.set_path_rotation(BigInt(newId), path.rotation_angle, false);
             }
             pastedIds.paths.push(Number(newId));
         }
