@@ -181,7 +181,10 @@
 				const strokeColors = shapes
 					.map((s) => (s as any).stroke_color || '#000000')
 					.filter((c, i, arr) => arr.indexOf(c) === i);
-				strokeColor = strokeColors.length === 1 ? strokeColors[0] : '#000000';
+				const newStrokeColor = strokeColors.length === 1 ? strokeColors[0] : '#000000';
+				if (newStrokeColor !== strokeColor) {
+					strokeColor = newStrokeColor;
+				}
 
 				const fillColors = shapes
 					.map((s) => (s as any).fill_color ?? null)
@@ -638,7 +641,7 @@
 	}
 
 	$: {
-		if (hasSelection && strokeColor && $editorApi && $theme) {
+		if (!isUpdatingColor && hasSelection && strokeColor && $editorApi && $theme) {
 			const normalized = normalizeColorForTheme(strokeColor);
 			if (normalized !== strokeColor) {
 				updateStrokeColor(normalized);
@@ -724,7 +727,7 @@
 									bind:this={strokeColorPickerButton}
 									on:click={openStrokeColorPicker}
 									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-									style="background-color: {getDisplayStrokeColor()};"
+									style="background-color: {strokeColor};"
 									title="Current color - click to change"
 								>
 								</button>
