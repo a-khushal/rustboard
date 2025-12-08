@@ -317,6 +317,34 @@
 		saveStateToLocalStorage();
 	}
 
+	function updateStrokeWidthType(width: number) {
+		lineWidth = width;
+		if (!$editorApi) return;
+
+		$selectedRectangles.forEach((rect) => {
+			$editorApi.set_rectangle_line_width(BigInt(rect.id), lineWidth, false);
+		});
+		$selectedEllipses.forEach((ellipse) => {
+			$editorApi.set_ellipse_line_width(BigInt(ellipse.id), lineWidth, false);
+		});
+		$selectedDiamonds.forEach((diamond) => {
+			$editorApi.set_diamond_line_width(BigInt(diamond.id), lineWidth, false);
+		});
+		$selectedLines.forEach((line) => {
+			$editorApi.set_line_line_width(BigInt(line.id), lineWidth, false);
+		});
+		$selectedArrows.forEach((arrow) => {
+			$editorApi.set_arrow_line_width(BigInt(arrow.id), lineWidth, false);
+		});
+		$selectedPaths.forEach((path) => {
+			$editorApi.set_path_line_width(BigInt(path.id), lineWidth, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
 	function updateTextColor(color: string) {
 		textColor = color;
 		if (!$editorApi) return;
@@ -778,7 +806,7 @@
 				{/if}
 			{/if}
 
-			{#if isSingleSelection && hasShapes}
+			{#if false}
 				<div class="flex items-center gap-2 min-w-0">
 					<label for="line-width" class="sr-only">Line Width</label>
 					<input
@@ -869,6 +897,46 @@
 								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 									<rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="2 2"></rect>
 									<path d="M15 3h6v6" stroke-width="2.5" fill="none"></path>
+								</svg>
+							</button>
+						</div>
+					</fieldset>
+				</div>
+			{/if}
+
+			{#if hasShapes}
+				<div class="space-y-1.5">
+					<fieldset class="space-y-1.5">
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={() => updateStrokeWidthType(1)}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${lineWidth === 1 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Thin"
+								aria-label="Thin stroke"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="3" y1="12" x2="21" y2="12"></line>
+								</svg>
+							</button>
+							<button
+								on:click={() => updateStrokeWidthType(2)}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${lineWidth === 2 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Medium"
+								aria-label="Medium stroke"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="3" y1="12" x2="21" y2="12"></line>
+								</svg>
+							</button>
+							<button
+								on:click={() => updateStrokeWidthType(4)}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${lineWidth === 4 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Thick"
+								aria-label="Thick stroke"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="3" y1="12" x2="21" y2="12"></line>
 								</svg>
 							</button>
 						</div>

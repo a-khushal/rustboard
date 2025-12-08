@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, texts, images } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, texts, images, paths } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
@@ -14,6 +14,7 @@
 	let unsubscribeDiamonds: (() => void) | null = null;
 	let unsubscribeTexts: (() => void) | null = null;
 	let unsubscribeImages: (() => void) | null = null;
+	let unsubscribePaths: (() => void) | null = null;
 	let unsubscribeZoom: (() => void) | null = null;
 	let unsubscribeViewportOffset: (() => void) | null = null;
 
@@ -33,8 +34,10 @@
 			diamonds.set(api.get_diamonds());
 			texts.set(api.get_texts());
 			images.set(api.get_images());
+			paths.set(api.get_paths());
 		} else {
 			images.set(api.get_images());
+			paths.set(api.get_paths());
 		}
 		resetSelectionHistory();
 
@@ -55,6 +58,7 @@
 			unsubscribeDiamonds = diamonds.subscribe(saveState);
 			unsubscribeTexts = texts.subscribe(saveState);
 			unsubscribeImages = images.subscribe(saveState);
+			unsubscribePaths = paths.subscribe(saveState);
 
 		unsubscribeZoom = zoom.subscribe(() => {
 			saveZoomToLocalStorage();
@@ -77,6 +81,7 @@
 		if (unsubscribeDiamonds) unsubscribeDiamonds();
 		if (unsubscribeTexts) unsubscribeTexts();
 		if (unsubscribeImages) unsubscribeImages();
+		if (unsubscribePaths) unsubscribePaths();
 		if (unsubscribeZoom) unsubscribeZoom();
 		if (unsubscribeViewportOffset) unsubscribeViewportOffset();
 	});
