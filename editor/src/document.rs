@@ -946,6 +946,17 @@ impl Document {
         }
     }
 
+    pub fn set_path_points(&mut self, id: u64, points: Vec<Point>, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if path.points != points {
+                path.points = points;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_image(&mut self, position: Point, width: f64, height: f64, image_data: String) -> u64 {
         let id = self.add_image_without_snapshot(position, width, height, image_data);
         self.save_snapshot();

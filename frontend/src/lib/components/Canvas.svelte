@@ -19,7 +19,7 @@
 		addLine, moveLine,
 		addArrow, moveArrow,
 		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation,
-		addPath, movePath, resizePath, setPathRotation, 
+		addPath, movePath, resizePath, setPathRotation, setPathPoints,
 		moveImage, resizeImage, setImageRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updateTexts } from '$lib/utils/canvas-operations/texts';
@@ -2551,19 +2551,11 @@ function resetRotationState() {
 		selectedShapesStartPositions.paths.forEach((startPos, id) => {
 			if (startPos.points.length === 0) return;
 			
-			const pathBounds = getPathBoundingBox({ points: startPos.points });
-			if (!pathBounds) return;
+			const rotatedPoints = startPos.points.map(point => 
+				rotatePointAround(point, center, delta)
+			);
 			
-			const centerX = pathBounds.x + pathBounds.width / 2;
-			const centerY = pathBounds.y + pathBounds.height / 2;
-			const pathCenter = rotatePointAround({ x: centerX, y: centerY }, center, delta);
-			
-			const deltaX = pathCenter.x - centerX;
-			const deltaY = pathCenter.y - centerY;
-
-			movePath(id, deltaX, deltaY, saveHistory);
-			const newRotation = normalizeAngle(startPos.rotation + delta);
-			setPathRotation(id, newRotation, saveHistory);
+			setPathPoints(id, rotatedPoints, false);
 		});
 
 		selectedShapesStartPositions.images.forEach((startPos, id) => {

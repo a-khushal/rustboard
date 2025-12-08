@@ -40,6 +40,14 @@ export function setPathRotation(id: number, angle: number, saveHistory: boolean 
     updatePaths();
 }
 
+export function setPathPoints(id: number, points: Array<{ x: number; y: number }>, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_path_points(BigInt(id), points, saveHistory);
+    updatePaths();
+}
+
 export function updatePaths(): void {
     const api = get(editorApi);
     if (!api) return;

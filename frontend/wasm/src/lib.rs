@@ -308,6 +308,12 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_path_points(&self, id: u64, points: JsValue, save_history: bool) {
+        let points: Vec<Point> = serde_wasm_bindgen::from_value(points).unwrap();
+        self.document.borrow_mut().set_path_points(id, points, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn move_path(&self, id: u64, delta_x: f64, delta_y: f64, save_history: bool) {
         self.document.borrow_mut().move_path(id, delta_x, delta_y, save_history);
     }
