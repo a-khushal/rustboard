@@ -544,6 +544,7 @@
 				return;
 			}
 			clearAllSelections();
+			scheduleRender();
 			if ($activeTool === 'freehand') {
 				finishFreehandDrawing();
 				activeTool.set('select');

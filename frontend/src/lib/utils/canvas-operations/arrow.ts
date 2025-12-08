@@ -1,11 +1,21 @@
 import { get } from 'svelte/store';
 import { editorApi, arrows, selectedArrows, type Arrow } from '$lib/stores/editor';
+import { get as getStore } from 'svelte/store';
+import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+import { dashPattern } from '$lib/stores/dash-pattern';
 
 export function addArrow(startX: number, startY: number, endX: number, endY: number): number | null {
     const api = get(editorApi);
     if (!api) return null;
 
+    const strokeWidth = getStore(defaultStrokeWidth);
+    const dashPatternValue = getStore(dashPattern);
+
     const newId = api.add_arrow(startX, startY, endX, endY);
+    api.set_arrow_line_width(BigInt(newId), strokeWidth, false);
+    if (dashPatternValue !== 'solid') {
+        api.set_arrow_dash_pattern(BigInt(newId), dashPatternValue, false);
+    }
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
     arrows.set(updatedArrows);
 

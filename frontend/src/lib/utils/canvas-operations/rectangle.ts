@@ -2,6 +2,8 @@ import { get } from 'svelte/store';
 import { editorApi, rectangles, selectedRectangles, type Rectangle } from '$lib/stores/editor';
 import { get as getStore } from 'svelte/store';
 import { edgeStyle } from '$lib/stores/edge-style';
+import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+import { dashPattern } from '$lib/stores/dash-pattern';
 
 export function addRectangle(x: number, y: number, width: number = 100, height: number = 50): number | null {
     const api = get(editorApi);
@@ -9,9 +11,15 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
 
     const currentEdgeStyle = getStore(edgeStyle);
     const radius = currentEdgeStyle === 'rounded' ? 4.0 : 0.0;
+    const strokeWidth = getStore(defaultStrokeWidth);
+    const dashPatternValue = getStore(dashPattern);
 
     const newId = api.add_rectangle(x, y, width, height);
     api.set_rectangle_border_radius(BigInt(newId), radius, false);
+    api.set_rectangle_line_width(BigInt(newId), strokeWidth, false);
+    if (dashPatternValue !== 'solid') {
+        api.set_rectangle_dash_pattern(BigInt(newId), dashPatternValue, false);
+    }
     
     const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
     rectangles.set(updatedRectangles);

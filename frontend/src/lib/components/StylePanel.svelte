@@ -36,6 +36,7 @@
 	import { deleteShapes } from '$lib/utils/delete-shapes';
 	import { edgeStyle, type EdgeStyle } from '$lib/stores/edge-style';
 	import { dashPattern, type DashPattern } from '$lib/stores/dash-pattern';
+	import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 	import { activeTool } from '$lib/stores/tools';
 
 	let strokeColor = '#000000';
@@ -195,6 +196,9 @@
 					.map((s) => (s as any).line_width ?? 2)
 					.filter((w, i, arr) => arr.indexOf(w) === i);
 				lineWidth = lineWidths.length === 1 ? lineWidths[0] : 2;
+				if (lineWidths.length === 1 && (lineWidths[0] === 1 || lineWidths[0] === 2 || lineWidths[0] === 4)) {
+					defaultStrokeWidth.set(lineWidths[0]);
+				}
 
 				const textColors = $selectedTexts
 					.map((t) => t.text_color || '#000000')
@@ -291,6 +295,7 @@
 
 	function updateLineWidth(width: number) {
 		lineWidth = Math.max(0.1, width);
+		defaultStrokeWidth.set(lineWidth);
 		if (!$editorApi) return;
 
 		$selectedRectangles.forEach((rect) => {
@@ -319,25 +324,26 @@
 
 	function updateStrokeWidthType(width: number) {
 		lineWidth = width;
+		defaultStrokeWidth.set(width);
 		if (!$editorApi) return;
 
 		$selectedRectangles.forEach((rect) => {
-			$editorApi.set_rectangle_line_width(BigInt(rect.id), lineWidth, false);
+			$editorApi.set_rectangle_line_width(BigInt(rect.id), width, false);
 		});
 		$selectedEllipses.forEach((ellipse) => {
-			$editorApi.set_ellipse_line_width(BigInt(ellipse.id), lineWidth, false);
+			$editorApi.set_ellipse_line_width(BigInt(ellipse.id), width, false);
 		});
 		$selectedDiamonds.forEach((diamond) => {
-			$editorApi.set_diamond_line_width(BigInt(diamond.id), lineWidth, false);
+			$editorApi.set_diamond_line_width(BigInt(diamond.id), width, false);
 		});
 		$selectedLines.forEach((line) => {
-			$editorApi.set_line_line_width(BigInt(line.id), lineWidth, false);
+			$editorApi.set_line_line_width(BigInt(line.id), width, false);
 		});
 		$selectedArrows.forEach((arrow) => {
-			$editorApi.set_arrow_line_width(BigInt(arrow.id), lineWidth, false);
+			$editorApi.set_arrow_line_width(BigInt(arrow.id), width, false);
 		});
 		$selectedPaths.forEach((path) => {
-			$editorApi.set_path_line_width(BigInt(path.id), lineWidth, false);
+			$editorApi.set_path_line_width(BigInt(path.id), width, false);
 		});
 
 		$editorApi.save_snapshot();
@@ -904,14 +910,14 @@
 				</div>
 			{/if}
 
-			{#if hasShapes}
+			{#if hasShapes || $activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'freehand'}
 				<div class="space-y-1.5">
 					<fieldset class="space-y-1.5">
 						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
 						<div class="flex items-center gap-1">
 							<button
 								on:click={() => updateStrokeWidthType(1)}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${lineWidth === 1 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$defaultStrokeWidth === 1 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
 								title="Thin"
 								aria-label="Thin stroke"
 							>
@@ -921,7 +927,7 @@
 							</button>
 							<button
 								on:click={() => updateStrokeWidthType(2)}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${lineWidth === 2 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$defaultStrokeWidth === 2 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
 								title="Medium"
 								aria-label="Medium stroke"
 							>
@@ -931,7 +937,7 @@
 							</button>
 							<button
 								on:click={() => updateStrokeWidthType(4)}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${lineWidth === 4 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$defaultStrokeWidth === 4 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
 								title="Thick"
 								aria-label="Thick stroke"
 							>
