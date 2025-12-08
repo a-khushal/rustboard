@@ -24,6 +24,22 @@ export function movePath(id: number, deltaX: number, deltaY: number, saveHistory
     updatePaths();
 }
 
+export function resizePath(id: number, x: number, y: number, width: number, height: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.resize_path(BigInt(id), x, y, width, height, saveHistory);
+    updatePaths();
+}
+
+export function setPathRotation(id: number, angle: number, saveHistory: boolean = true): void {
+    const api = get(editorApi);
+    if (!api) return;
+
+    api.set_path_rotation(BigInt(id), angle, saveHistory);
+    updatePaths();
+}
+
 export function updatePaths(): void {
     const api = get(editorApi);
     if (!api) return;

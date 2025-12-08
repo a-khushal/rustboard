@@ -891,6 +891,61 @@ impl Document {
         }
     }
 
+    pub fn resize_path(&mut self, id: u64, new_x: f64, new_y: f64, new_width: f64, new_height: f64, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if path.points.is_empty() {
+                return;
+            }
+
+            let mut min_x = path.points[0].x;
+            let mut min_y = path.points[0].y;
+            let mut max_x = path.points[0].x;
+            let mut max_y = path.points[0].y;
+
+            for point in &path.points {
+                min_x = min_x.min(point.x);
+                min_y = min_y.min(point.y);
+                max_x = max_x.max(point.x);
+                max_y = max_y.max(point.y);
+            }
+
+            let old_width = max_x - min_x;
+            let old_height = max_y - min_y;
+
+            // Avoid division by zero
+            if old_width.abs() < f64::EPSILON || old_height.abs() < f64::EPSILON {
+                return;
+            }
+
+            // Calculate scale factors
+            let scale_x = new_width / old_width;
+            let scale_y = new_height / old_height;
+
+            // Scale and translate all points
+            for point in &mut path.points {
+                let relative_x = point.x - min_x;
+                let relative_y = point.y - min_y;
+                point.x = new_x + relative_x * scale_x;
+                point.y = new_y + relative_y * scale_y;
+            }
+
+            if save_history {
+                self.save_snapshot();
+            }
+        }
+    }
+
+    pub fn set_path_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if (path.rotation_angle - angle).abs() > f64::EPSILON {
+                path.rotation_angle = angle;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn add_image(&mut self, position: Point, width: f64, height: f64, image_data: String) -> u64 {
         let id = self.add_image_without_snapshot(position, width, height, image_data);
         self.save_snapshot();

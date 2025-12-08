@@ -303,11 +303,20 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_path_rotation(&self, id: u64, angle: f64, save_history: bool) {
+        self.document.borrow_mut().set_path_rotation(id, angle, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn move_path(&self, id: u64, delta_x: f64, delta_y: f64, save_history: bool) {
         self.document.borrow_mut().move_path(id, delta_x, delta_y, save_history);
     }
 
-    // image
+    #[wasm_bindgen]
+    pub fn resize_path(&self, id: u64, x: f64, y: f64, width: f64, height: f64, save_history: bool) {
+        self.document.borrow_mut().resize_path(id, x, y, width, height, save_history);
+    }
+
     #[wasm_bindgen]
     pub fn add_image(&self, x: f64, y: f64, width: f64, height: f64, image_data: String) -> u64 {
         self.document.borrow_mut().add_image(Point::new(x, y), width, height, image_data)

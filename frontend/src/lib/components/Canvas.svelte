@@ -19,7 +19,7 @@
 		addLine, moveLine,
 		addArrow, moveArrow,
 		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation,
-		addPath, movePath, 
+		addPath, movePath, resizePath, setPathRotation, 
 		moveImage, resizeImage, setImageRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updateTexts } from '$lib/utils/canvas-operations/texts';
@@ -96,13 +96,13 @@
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Image | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Image | Path | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image' | 'path' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image'; id: number; fontSize?: number; baseline?: number } | null = null;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image' | 'path'; id: number; fontSize?: number; baseline?: number } | null = null;
 	let resizeStartTextAscent = 0;
 	let resizeStartOriginalText: string | null = null;
 	let resizeStartBoxWidth: number | null = null;
@@ -116,7 +116,7 @@
 		diamonds: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 		lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
-		paths: Map<number, { points: Array<{ x: number; y: number }> }>;
+		paths: Map<number, { points: Array<{ x: number; y: number }>; rotation: number }>;
 		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number; boxWidth?: number }>;
 		images: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 	} = {
@@ -161,7 +161,7 @@
 		});
 
 		$selectedPaths.forEach(path => {
-		selectedShapesStartPositions.paths.set(path.id, { points: path.points.map(p => ({ x: p.x, y: p.y })) });
+		selectedShapesStartPositions.paths.set(path.id, { points: path.points.map(p => ({ x: p.x, y: p.y })), rotation: path.rotation_angle ?? 0 });
 		});
 
 		$selectedTexts.forEach(text => {
@@ -186,7 +186,7 @@
 	const ROTATION_HANDLE_DISTANCE = 18;
 	const ROTATION_HANDLE_RADIUS = 5;
 	const ROTATION_STEP = Math.PI / 12;
-	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image';
+	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image' | 'path';
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
@@ -995,8 +995,8 @@
 	}
 
 function getShapeBoundingBox(
-	shape: Rectangle | Ellipse | Diamond | Text | Image,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image',
+	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image' | 'path',
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
 	if (shapeType === 'rectangle') {
@@ -1020,6 +1020,10 @@ function getShapeBoundingBox(
 		const image = shape as Image;
 		return { x: image.position.x, y: image.position.y, width: image.width, height: image.height };
 	}
+	if (shapeType === 'path') {
+		const path = shape as Path;
+		return getPathBoundingBox(path);
+	}
 	const text = shape as Text;
 	const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
 	const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
@@ -1034,8 +1038,8 @@ function getShapeBoundingBox(
 }
 
 function getSelectionBoundsForShape(
-	shape: Rectangle | Ellipse | Diamond | Text | Image,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image',
+	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image' | 'path',
 	zoom: number,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
@@ -1052,7 +1056,7 @@ function getSelectionBoundsForShape(
 }
 
 function getShapeCenter(
-	shape: Rectangle | Ellipse | Diamond | Text | Image,
+	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
 	shapeType: RotatableShapeType,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number } | null {
@@ -1061,7 +1065,7 @@ function getShapeCenter(
 	return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 }
 
-function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image, shapeType: RotatableShapeType): number {
+function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image | Path, shapeType: RotatableShapeType): number {
 	if (shapeType === 'rectangle') {
 		return (shape as Rectangle).rotation_angle ?? 0;
 	}
@@ -1073,6 +1077,9 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image, s
 	}
 	if (shapeType === 'image') {
 		return (shape as Image).rotation_angle ?? 0;
+	}
+	if (shapeType === 'path') {
+		return (shape as Path).rotation_angle ?? 0;
 	}
 	return (shape as Text).rotation_angle ?? 0;
 }
@@ -1114,7 +1121,7 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image, s
 	function isPointOnRotationHandle(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Text | Image,
+		shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
 		shapeType: RotatableShapeType,
 		zoom: number,
 		ctxOverride: CanvasRenderingContext2D | null = ctx
@@ -1136,7 +1143,7 @@ function normalizeAngle(angle: number): number {
 }
 
 function getRenderedRotation(
-	shape: Rectangle | Ellipse | Diamond | Text | Image,
+	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
 	shapeType: RotatableShapeType
 ): number {
 	if (rotationPreview && rotationPreview.type === shapeType && rotationPreview.id === shape.id) {
@@ -1163,11 +1170,15 @@ function applyRotationToShape(type: RotatableShapeType, id: number, angle: numbe
 		setImageRotation(id, normalized, saveHistory);
 		return;
 	}
+	if (type === 'path') {
+		setPathRotation(id, normalized, saveHistory);
+		return;
+	}
 	setTextRotation(id, normalized, saveHistory);
 }
 
 function beginRotation(
-	shape: Rectangle | Ellipse | Diamond | Text | Image,
+	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
 	shapeType: RotatableShapeType,
 	x: number,
 	y: number
@@ -1226,22 +1237,22 @@ function resetRotationState() {
 		groupRotationState = null;
 	}
 
-function rotateSelectedShapes(delta: number) {
-	const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text | Image }> = [];
-	$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
-	$selectedEllipses.forEach(ellipse => targets.push({ type: 'ellipse', shape: ellipse }));
-	$selectedDiamonds.forEach(diamond => targets.push({ type: 'diamond', shape: diamond }));
-	$selectedTexts.forEach(text => targets.push({ type: 'text', shape: text }));
-	$selectedImages.forEach(image => targets.push({ type: 'image', shape: image }));
-	if (targets.length === 0) return;
-	targets.forEach((item, index) => {
-		const currentAngle = getShapeRotation(item.shape, item.type);
-		const newAngle = normalizeAngle(currentAngle + delta);
-		const isLast = index === targets.length - 1;
-		applyRotationToShape(item.type, item.shape.id, newAngle, isLast);
-	});
-	scheduleRender();
-}
+	function rotateSelectedShapes(delta: number) {
+		const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text | Image }> = [];
+		$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
+		$selectedEllipses.forEach(ellipse => targets.push({ type: 'ellipse', shape: ellipse }));
+		$selectedDiamonds.forEach(diamond => targets.push({ type: 'diamond', shape: diamond }));
+		$selectedTexts.forEach(text => targets.push({ type: 'text', shape: text }));
+		$selectedImages.forEach(image => targets.push({ type: 'image', shape: image }));
+		if (targets.length === 0) return;
+		targets.forEach((item, index) => {
+			const currentAngle = getShapeRotation(item.shape, item.type);
+			const newAngle = normalizeAngle(currentAngle + delta);
+			const isLast = index === targets.length - 1;
+			applyRotationToShape(item.type, item.shape.id, newAngle, isLast);
+		});
+		scheduleRender();
+	}
 
 	function getSelectionPaddingValue(currentZoom: number): number {
 		return 2 / currentZoom;
@@ -1371,6 +1382,20 @@ function rotateSelectedShapes(delta: number) {
 		}
 		
 		return null;
+	}
+
+	function getPathResizeHandleAt(x: number, y: number, path: Path, zoom: number): number | null {
+		const pathBounds = getPathBoundingBox(path);
+		if (!pathBounds) return null;
+		
+		const padding = getSelectionPaddingValue(zoom);
+		const gap = 4 / zoom;
+		const boxX = pathBounds.x - padding - gap;
+		const boxY = pathBounds.y - padding - gap;
+		const boxWidth = pathBounds.width + (padding + gap) * 2;
+		const boxHeight = pathBounds.height + (padding + gap) * 2;
+		
+		return hitTestEdges(x, y, { x: boxX, y: boxY, width: boxWidth, height: boxHeight }, zoom);
 	}
 
 
@@ -1660,6 +1685,46 @@ function rotateSelectedShapes(delta: number) {
 			const newHeight = startPos.height * absScaleY;
 			moveImage(id, newX, newY, saveHistory);
 			resizeImage(id, Math.max(1, newWidth), Math.max(1, newHeight), saveHistory);
+		});
+
+		selectedShapesStartPositions.paths.forEach((startPos, id) => {
+			if (startPos.points.length === 0) return;
+			
+			let minX = startPos.points[0].x;
+			let minY = startPos.points[0].y;
+			let maxX = startPos.points[0].x;
+			let maxY = startPos.points[0].y;
+			
+			for (const point of startPos.points) {
+				minX = Math.min(minX, point.x);
+				minY = Math.min(minY, point.y);
+				maxX = Math.max(maxX, point.x);
+				maxY = Math.max(maxY, point.y);
+			}
+			
+			const oldWidth = maxX - minX;
+			const oldHeight = maxY - minY;
+			
+			if (oldWidth === 0 || oldHeight === 0) return;
+			
+			const relativeX = minX - startBox.x;
+			const relativeY = minY - startBox.y;
+			let newX: number;
+			let newY: number;
+			if (isFlippedX) {
+				newX = originX - relativeX * absScaleX - oldWidth * absScaleX;
+			} else {
+				newX = originX + relativeX * absScaleX;
+			}
+			if (isFlippedY) {
+				newY = originY - relativeY * absScaleY - oldHeight * absScaleY;
+			} else {
+				newY = originY + relativeY * absScaleY;
+			}
+			
+			const newWidth = oldWidth * absScaleX;
+			const newHeight = oldHeight * absScaleY;
+			resizePath(id, newX, newY, newWidth, newHeight, saveHistory);
 		});
 	}
 
@@ -2199,6 +2264,33 @@ function rotateSelectedShapes(delta: number) {
 					}
 				}
 
+				for (let i = $selectedPaths.length - 1; i >= 0; i--) {
+					if (isPointOnRotationHandle(x, y, $selectedPaths[i], 'path', $zoom)) {
+						if (beginRotation($selectedPaths[i], 'path', x, y)) {
+							return;
+						}
+					}
+					const handleIndex = getPathResizeHandleAt(x, y, $selectedPaths[i], $zoom);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedPaths[i];
+						resizeStartShapeType = 'path';
+						const pathBounds = getPathBoundingBox($selectedPaths[i]);
+						if (pathBounds) {
+							resizeStartPos = {
+								x: pathBounds.x,
+								y: pathBounds.y,
+								width: pathBounds.width,
+								height: pathBounds.height
+							};
+						}
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
 			}
 
 			if (visualGroupBox && rawGroupBox) {
@@ -2454,6 +2546,24 @@ function rotateSelectedShapes(delta: number) {
 			const newRotation = normalizeAngle(startPos.rotation + delta);
 			moveText(id, newX, newY, saveHistory);
 			setTextRotation(id, newRotation, saveHistory);
+		});
+
+		selectedShapesStartPositions.paths.forEach((startPos, id) => {
+			if (startPos.points.length === 0) return;
+			
+			const pathBounds = getPathBoundingBox({ points: startPos.points });
+			if (!pathBounds) return;
+			
+			const centerX = pathBounds.x + pathBounds.width / 2;
+			const centerY = pathBounds.y + pathBounds.height / 2;
+			const pathCenter = rotatePointAround({ x: centerX, y: centerY }, center, delta);
+			
+			const deltaX = pathCenter.x - centerX;
+			const deltaY = pathCenter.y - centerY;
+
+			movePath(id, deltaX, deltaY, saveHistory);
+			const newRotation = normalizeAngle(startPos.rotation + delta);
+			setPathRotation(id, newRotation, saveHistory);
 		});
 
 		selectedShapesStartPositions.images.forEach((startPos, id) => {
@@ -3018,6 +3128,59 @@ function rotateSelectedShapes(delta: number) {
 
 				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'image', id: image.id };
 				scheduleRender();
+			} else if (resizeStartShapeType === 'path') {
+				const path = resizeStartShape as Path;
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				const adjustsHorizontal = affectsLeft || affectsRight;
+				const adjustsVertical = affectsTop || affectsBottom;
+
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+
+				if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
+					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
+					const width = right - left;
+					const height = bottom - top;
+					const absWidth = Math.abs(width);
+					const absHeight = Math.abs(height);
+					
+					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+						const targetHeight = absWidth / aspectRatio;
+						if (height >= 0) {
+							bottom = top + targetHeight;
+						} else {
+							top = bottom + targetHeight;
+						}
+					} else {
+						const targetWidth = absHeight * aspectRatio;
+						if (width >= 0) {
+							right = left + targetWidth;
+						} else {
+							left = right + targetWidth;
+						}
+					}
+				}
+
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+
+				const newWidth = Math.max(1, finalRight - finalLeft);
+				const newHeight = Math.max(1, finalBottom - finalTop);
+
+				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'path', id: path.id };
+				scheduleRender();
 			}
 			return;
 		}
@@ -3089,6 +3252,12 @@ function rotateSelectedShapes(delta: number) {
 								canvas.style.cursor = 'grab';
 								return;
 							}
+						}
+					}
+					for (let i = $selectedPaths.length - 1; i >= 0; i--) {
+						if (isPointOnRotationHandle(x, y, $selectedPaths[i], 'path', $zoom)) {
+							canvas.style.cursor = 'grab';
+							return;
 						}
 					}
 					for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
@@ -3175,6 +3344,14 @@ function rotateSelectedShapes(delta: number) {
 							$zoom,
 							getRenderedRotation($selectedImages[i], 'image')
 						);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
+							return;
+						}
+					}
+					
+					for (let i = $selectedPaths.length - 1; i >= 0; i--) {
+						const handleIndex = getPathResizeHandleAt(x, y, $selectedPaths[i], $zoom);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
@@ -3378,6 +3555,8 @@ function rotateSelectedShapes(delta: number) {
 			} else if (resizePreview.type === 'image') {
 				moveImage(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
+			} else if (resizePreview.type === 'path') {
+				resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
 			}
 			resizePreview = null;
 			resizeStartBoxWidth = null;
@@ -4684,66 +4863,95 @@ function rotateSelectedShapes(delta: number) {
 				const path = item.data as Path;
 				const isSelected = $selectedPaths.some(selected => selected.id === path.id);
 				const isDragged = isDragging && isSelected && selectedShapesStartPositions.paths.has(path.id);
+				const isResized = isResizing && resizePreview && resizePreview.type === 'path' && resizePreview.id === path.id;
+				const isRotated = isRotating && rotationPreview && rotationPreview.type === 'path' && rotationPreview.id === path.id;
+				const rotation = isRotated ? rotationPreview!.angle : (path.rotation_angle ?? 0);
 				const strokeColor = adaptColorToTheme(path.stroke_color, getDefaultStrokeColor());
 				const lineWidth = path.line_width || 2;
 				
-				renderCtx.strokeStyle = strokeColor;
-				renderCtx.lineWidth = lineWidth;
-				renderCtx.lineCap = 'round';
-				renderCtx.lineJoin = 'round';
-				renderCtx.beginPath();
-				
 				if (path.points.length > 0) {
-					const points = isDragged 
-						? path.points.map(p => ({ x: p.x + dragOffset.x, y: p.y + dragOffset.y }))
-						: path.points;
-					
-					if (points.length === 1) {
-						renderCtx.moveTo(points[0].x, points[0].y);
-						renderCtx.lineTo(points[0].x, points[0].y);
-					} else if (points.length === 2) {
-						renderCtx.moveTo(points[0].x, points[0].y);
-						renderCtx.lineTo(points[1].x, points[1].y);
-					} else if (points.length > 2) {
-						renderCtx.moveTo(points[0].x, points[0].y);
-						
-						for (let i = 0; i < points.length - 1; i++) {
-							const current = points[i];
-							const next = points[i + 1];
-							const midX = (current.x + next.x) / 2;
-							const midY = (current.y + next.y) / 2;
-							
-							if (i === 0) {
-								renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
-							} else {
-								renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
-							}
+					let points: Array<{ x: number; y: number }>;
+					if (isResized && resizePreview && resizePreview.type === 'path') {
+						const pathBounds = getPathBoundingBox(path);
+						const preview = resizePreview;
+						if (pathBounds && pathBounds.width > 0 && pathBounds.height > 0) {
+							const scaleX = preview.width / pathBounds.width;
+							const scaleY = preview.height / pathBounds.height;
+							points = path.points.map(p => ({
+								x: preview.x + (p.x - pathBounds.x) * scaleX,
+								y: preview.y + (p.y - pathBounds.y) * scaleY
+							}));
+						} else {
+							points = path.points;
 						}
-						
-						const last = points[points.length - 1];
-						const secondLast = points[points.length - 2];
-						renderCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
-					}
-				}
-				renderCtx.stroke();
-				
-				if (isSelected && !selectedGroupChildIds.has(path.id)) {
-					if (path.points.length > 0) {
-						const points = isDragged 
+					} else {
+						points = isDragged 
 							? path.points.map(p => ({ x: p.x + dragOffset.x, y: p.y + dragOffset.y }))
 							: path.points;
-						const minX = Math.min(...points.map(p => p.x));
-						const maxX = Math.max(...points.map(p => p.x));
-						const minY = Math.min(...points.map(p => p.y));
-						const maxY = Math.max(...points.map(p => p.y));
-						const width = maxX - minX;
-						const height = maxY - minY;
+					}
+					
+					const pathBounds = getPathBoundingBox({ points });
+					if (pathBounds) {
+						const centerX = pathBounds.x + pathBounds.width / 2;
+						const centerY = pathBounds.y + pathBounds.height / 2;
 						
-						const outlineBounds = getSelectionOutlineBounds(minX, minY, width, height, $zoom, true);
-						renderSelectionOutline(renderCtx, minX, minY, width, height, $zoom, true, 0);
-						if (showIndividualHandles) {
-							renderCornerHandles(renderCtx, minX, minY, width, height, $zoom, true, 0);
-							renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, 0);
+						renderCtx.save();
+						renderCtx.translate(centerX, centerY);
+						renderCtx.rotate(rotation);
+						
+						const relativePoints = points.map(p => ({
+							x: p.x - centerX,
+							y: p.y - centerY
+						}));
+						
+						renderCtx.strokeStyle = strokeColor;
+						renderCtx.lineWidth = lineWidth;
+						renderCtx.lineCap = 'round';
+						renderCtx.lineJoin = 'round';
+						renderCtx.beginPath();
+						
+						if (relativePoints.length === 1) {
+							renderCtx.moveTo(relativePoints[0].x, relativePoints[0].y);
+							renderCtx.lineTo(relativePoints[0].x, relativePoints[0].y);
+						} else if (relativePoints.length === 2) {
+							renderCtx.moveTo(relativePoints[0].x, relativePoints[0].y);
+							renderCtx.lineTo(relativePoints[1].x, relativePoints[1].y);
+						} else if (relativePoints.length > 2) {
+							renderCtx.moveTo(relativePoints[0].x, relativePoints[0].y);
+							
+							for (let i = 0; i < relativePoints.length - 1; i++) {
+								const current = relativePoints[i];
+								const next = relativePoints[i + 1];
+								const midX = (current.x + next.x) / 2;
+								const midY = (current.y + next.y) / 2;
+								
+								if (i === 0) {
+									renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
+								} else {
+									renderCtx.quadraticCurveTo(current.x, current.y, midX, midY);
+								}
+							}
+							
+							const last = relativePoints[relativePoints.length - 1];
+							const secondLast = relativePoints[relativePoints.length - 2];
+							renderCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
+						}
+						
+						renderCtx.stroke();
+						renderCtx.restore();
+						
+						if (isSelected && !selectedGroupChildIds.has(path.id)) {
+							const minX = pathBounds.x;
+							const minY = pathBounds.y;
+							const width = pathBounds.width;
+							const height = pathBounds.height;
+							
+							const outlineBounds = getSelectionOutlineBounds(minX, minY, width, height, $zoom, true);
+							renderSelectionOutline(renderCtx, minX, minY, width, height, $zoom, true, rotation);
+							if (showIndividualHandles) {
+								renderCornerHandles(renderCtx, minX, minY, width, height, $zoom, true, rotation);
+								renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
+							}
 						}
 					}
 				}

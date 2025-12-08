@@ -254,6 +254,8 @@ pub struct Path {
     pub stroke_color: String,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
 }
@@ -265,6 +267,7 @@ impl Path {
             points,
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
+            rotation_angle: default_rotation(),
             z_index: default_z_index(),
         }
     }
