@@ -93,6 +93,10 @@
 	let arrowEnd: { x: number; y: number } | null = null;
 	let freehandPoints: Array<{ x: number; y: number }> = [];
 	let isDrawingFreehand = false;
+	let isErasing = false;
+	let eraserRadius = 5;
+	let eraserPosition: { x: number; y: number } | null = null;
+	let eraserShadowPosition: { x: number; y: number } | null = null;
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
@@ -550,7 +554,7 @@
 				activeTool.set('select');
 				return;
 			}
-			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'text') {
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'text' || $activeTool === 'eraser') {
 				activeTool.set('select');
 			}
 			return;
@@ -2022,6 +2026,225 @@ function resetRotationState() {
 			scheduleRender();
 		}
 	}
+
+	function performErase(x: number, y: number) {
+		if (!$editorApi) return;
+
+		const pathsToUpdate: Array<{ id: number; points: Array<{ x: number; y: number }> }> = [];
+		$paths.forEach(path => {
+			if (path.points.length === 0) return;
+			
+			let hasIntersection = false;
+			const remainingPoints: Array<{ x: number; y: number }> = [];
+			
+			for (let i = 0; i < path.points.length; i++) {
+				const point = path.points[i];
+				const dx = point.x - x;
+				const dy = point.y - y;
+				const distance = Math.sqrt(dx * dx + dy * dy);
+				
+				if (distance <= eraserRadius) {
+					hasIntersection = true;
+					continue;
+				}
+				
+				if (i > 0) {
+					const prevPoint = path.points[i - 1];
+					const segDx = prevPoint.x - point.x;
+					const segDy = prevPoint.y - point.y;
+					const segLength = Math.sqrt(segDx * segDx + segDy * segDy);
+					
+					if (segLength > 0) {
+						const t = Math.max(0, Math.min(1, ((x - prevPoint.x) * segDx + (y - prevPoint.y) * segDy) / (segLength * segLength)));
+						const closestX = prevPoint.x + t * segDx;
+						const closestY = prevPoint.y + t * segDy;
+						const closestDx = closestX - x;
+						const closestDy = closestY - y;
+						const closestDistance = Math.sqrt(closestDx * closestDx + closestDy * closestDy);
+						
+						if (closestDistance <= eraserRadius) {
+							hasIntersection = true;
+							continue;
+						}
+					}
+				}
+				
+				remainingPoints.push(point);
+			}
+			
+			if (hasIntersection) {
+				if (remainingPoints.length > 1) {
+					pathsToUpdate.push({ id: path.id, points: remainingPoints });
+				} else {
+					$editorApi.delete_path_without_snapshot(BigInt(path.id));
+				}
+			}
+		});
+
+		pathsToUpdate.forEach(({ id, points }) => {
+			setPathPoints(id, points, false);
+		});
+
+		const shapesToDelete: {
+			rectangles: number[];
+			ellipses: number[];
+			diamonds: number[];
+			lines: number[];
+			arrows: number[];
+			texts: number[];
+			images: number[];
+		} = {
+			rectangles: [],
+			ellipses: [],
+			diamonds: [],
+			lines: [],
+			arrows: [],
+			texts: [],
+			images: []
+		};
+
+		$rectangles.forEach(rect => {
+			const centerX = rect.position.x + rect.width / 2;
+			const centerY = rect.position.y + rect.height / 2;
+			const dx = centerX - x;
+			const dy = centerY - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const maxDistance = Math.sqrt(rect.width * rect.width + rect.height * rect.height) / 2;
+			
+			if (distance < eraserRadius + maxDistance) {
+				shapesToDelete.rectangles.push(rect.id);
+			}
+		});
+
+		$ellipses.forEach(ellipse => {
+			const dx = ellipse.position.x - x;
+			const dy = ellipse.position.y - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const maxRadius = Math.max(ellipse.radius_x, ellipse.radius_y);
+			
+			if (distance < eraserRadius + maxRadius) {
+				shapesToDelete.ellipses.push(ellipse.id);
+			}
+		});
+
+		$diamonds.forEach(diamond => {
+			const centerX = diamond.position.x + diamond.width / 2;
+			const centerY = diamond.position.y + diamond.height / 2;
+			const dx = centerX - x;
+			const dy = centerY - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const maxDistance = Math.sqrt(diamond.width * diamond.width + diamond.height * diamond.height) / 2;
+			
+			if (distance < eraserRadius + maxDistance) {
+				shapesToDelete.diamonds.push(diamond.id);
+			}
+		});
+
+		$lines.forEach(line => {
+			const midX = (line.start.x + line.end.x) / 2;
+			const midY = (line.start.y + line.end.y) / 2;
+			const dx = midX - x;
+			const dy = midY - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const lineLength = Math.sqrt(
+				Math.pow(line.end.x - line.start.x, 2) + Math.pow(line.end.y - line.start.y, 2)
+			);
+			
+			if (distance < eraserRadius + lineLength / 2) {
+				shapesToDelete.lines.push(line.id);
+			}
+		});
+
+		$arrows.forEach(arrow => {
+			const midX = (arrow.start.x + arrow.end.x) / 2;
+			const midY = (arrow.start.y + arrow.end.y) / 2;
+			const dx = midX - x;
+			const dy = midY - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const arrowLength = Math.sqrt(
+				Math.pow(arrow.end.x - arrow.start.x, 2) + Math.pow(arrow.end.y - arrow.start.y, 2)
+			);
+			
+			if (distance < eraserRadius + arrowLength / 2) {
+				shapesToDelete.arrows.push(arrow.id);
+			}
+		});
+
+		$texts.forEach(text => {
+			const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
+			const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined, contentWidth);
+			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
+			const verticalPadding = TEXT_VERTICAL_PADDING;
+			const textWidth = text.boxWidth ?? (layout.width + horizontalPadding * 2);
+			const textHeight = layout.height + verticalPadding * 2;
+			const boxX = text.position.x - horizontalPadding;
+			const boxY = text.position.y - layout.ascent - verticalPadding;
+			const boxCenterX = boxX + textWidth / 2;
+			const boxCenterY = boxY + textHeight / 2;
+			const rotation = text.rotation_angle ?? 0;
+			
+			let testX = x;
+			let testY = y;
+			if (Math.abs(rotation) > 0.0001) {
+				const rotatedPoint = rotatePointAround({ x, y }, { x: boxCenterX, y: boxCenterY }, -rotation);
+				testX = rotatedPoint.x;
+				testY = rotatedPoint.y;
+			}
+			
+			const eraserBox = {
+				x: testX - eraserRadius,
+				y: testY - eraserRadius,
+				width: eraserRadius * 2,
+				height: eraserRadius * 2
+			};
+			
+			const textBox = {
+				x: boxX,
+				y: boxY,
+				width: textWidth,
+				height: textHeight
+			};
+			
+			if (eraserBox.x < textBox.x + textBox.width &&
+				eraserBox.x + eraserBox.width > textBox.x &&
+				eraserBox.y < textBox.y + textBox.height &&
+				eraserBox.y + eraserBox.height > textBox.y) {
+				shapesToDelete.texts.push(text.id);
+			}
+		});
+
+		$images.forEach(image => {
+			const centerX = image.position.x + image.width / 2;
+			const centerY = image.position.y + image.height / 2;
+			const dx = centerX - x;
+			const dy = centerY - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const maxDistance = Math.sqrt(image.width * image.width + image.height * image.height) / 2;
+			
+			if (distance < eraserRadius + maxDistance) {
+				shapesToDelete.images.push(image.id);
+			}
+		});
+
+		if (shapesToDelete.rectangles.length > 0 || shapesToDelete.ellipses.length > 0 ||
+			shapesToDelete.diamonds.length > 0 || shapesToDelete.lines.length > 0 ||
+			shapesToDelete.arrows.length > 0 || shapesToDelete.texts.length > 0 ||
+			shapesToDelete.images.length > 0 || pathsToUpdate.length > 0) {
+			
+			deleteShapes(
+				shapesToDelete.rectangles,
+				shapesToDelete.ellipses,
+				shapesToDelete.lines,
+				shapesToDelete.arrows,
+				shapesToDelete.diamonds,
+				shapesToDelete.texts,
+				[],
+				shapesToDelete.images
+			);
+			
+			updatePaths();
+		}
+	}
 	
 	function handleMouseDown(event: MouseEvent) {
 		if (!canvas) return;
@@ -2509,6 +2732,14 @@ function resetRotationState() {
 				activeTool.set('select');
 			}
 			scheduleRender();
+		} else if ($activeTool === 'eraser') {
+			resetRotationState();
+			clearAllSelections();
+			isErasing = true;
+			eraserPosition = { x, y };
+			eraserShadowPosition = { x, y };
+			performErase(x, y);
+			scheduleRender();
 		}
 	}
 
@@ -2645,6 +2876,31 @@ function resetRotationState() {
 				scheduleRender();
 			}
 			canvas.style.cursor = 'crosshair';
+			return;
+		}
+
+		if ($activeTool === 'eraser') {
+			if (isErasing && event.buttons !== 0) {
+				eraserPosition = { x, y };
+				if (eraserShadowPosition) {
+					const dx = x - eraserShadowPosition.x;
+					const dy = y - eraserShadowPosition.y;
+					const distance = Math.sqrt(dx * dx + dy * dy);
+					if (distance > 1) {
+						eraserShadowPosition.x += dx * 0.3;
+						eraserShadowPosition.y += dy * 0.3;
+					}
+				} else {
+					eraserShadowPosition = { x, y };
+				}
+				performErase(x, y);
+				scheduleRender();
+			} else {
+				eraserPosition = { x, y };
+				eraserShadowPosition = { x, y };
+				scheduleRender();
+			}
+			canvas.style.cursor = 'none';
 			return;
 		}
 
@@ -3886,14 +4142,23 @@ function resetRotationState() {
 			finishFreehandDrawing();
 			
 			isCreatingShape = false;
-			createStartPos = { x: 0, y: 0 };
-			createCurrentPos = { x: 0, y: 0 };
-			lineStart = null;
-			lineEnd = null;
-			arrowStart = null;
-			arrowEnd = null;
+		}
+
+		if (isErasing) {
+			if ($editorApi) {
+				$editorApi.save_snapshot();
+			}
+			isErasing = false;
 			scheduleRender();
 		}
+		
+		createStartPos = { x: 0, y: 0 };
+		createCurrentPos = { x: 0, y: 0 };
+		lineStart = null;
+		lineEnd = null;
+		arrowStart = null;
+		arrowEnd = null;
+		scheduleRender();
 		
 		isDragging = false;
 		draggedShape = null;
@@ -5134,7 +5399,6 @@ function resetRotationState() {
 			}
 		});
 		
-		// Render creation previews on top
 		if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
 			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
@@ -5216,7 +5480,7 @@ function resetRotationState() {
 			renderCtx.stroke();
 			renderCtx.globalAlpha = 1.0;
 		}
-		
+
 		if (isDrawingFreehand && freehandPoints.length > 0) {
 			renderCtx.strokeStyle = getDefaultStrokeColor();
 			renderCtx.lineWidth = 2;
@@ -5290,6 +5554,34 @@ function resetRotationState() {
 		}
 		
 		renderCtx.restore();
+		
+		if ($activeTool === 'eraser') {
+			const currentPos = eraserPosition || lastMouseWorldPos;
+			if (currentPos) {
+				const screenPos = worldToScreen(currentPos.x, currentPos.y, $viewportOffset, $zoom);
+				const screenRadius = eraserRadius * $zoom;
+				
+				if (eraserShadowPosition) {
+					const shadowScreenPos = worldToScreen(eraserShadowPosition.x, eraserShadowPosition.y, $viewportOffset, $zoom);
+					renderCtx.save();
+					renderCtx.globalAlpha = 0.2;
+					renderCtx.fillStyle = '#000000';
+					renderCtx.beginPath();
+					renderCtx.arc(shadowScreenPos.x, shadowScreenPos.y, screenRadius, 0, 2 * Math.PI);
+					renderCtx.fill();
+					renderCtx.restore();
+				}
+				
+				renderCtx.save();
+				renderCtx.strokeStyle = $theme === 'dark' ? '#ffffff' : '#000000';
+				renderCtx.lineWidth = 2;
+				renderCtx.globalAlpha = 0.8;
+				renderCtx.beginPath();
+				renderCtx.arc(screenPos.x, screenPos.y, screenRadius, 0, 2 * Math.PI);
+				renderCtx.stroke();
+				renderCtx.restore();
+			}
+		}
 	}
 
 	function scheduleRender() {
