@@ -35,6 +35,8 @@
 	import { pasteShapes } from '$lib/utils/paste-shapes';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
 	import { edgeStyle, type EdgeStyle } from '$lib/stores/edge-style';
+	import { dashPattern, type DashPattern } from '$lib/stores/dash-pattern';
+	import { activeTool } from '$lib/stores/tools';
 
 	let strokeColor = '#000000';
 	let fillColor: string | null = null;
@@ -425,6 +427,22 @@
 		$selectedRectangles.length > 0 ||
 		$selectedDiamonds.length > 0;
 
+	$: hasDashPatternShapes =
+		$selectedRectangles.length > 0 ||
+		$selectedEllipses.length > 0 ||
+		$selectedDiamonds.length > 0 ||
+		$selectedLines.length > 0 ||
+		$selectedArrows.length > 0 ||
+		$selectedImages.length > 0;
+
+	$: showDashPatternControls =
+		hasDashPatternShapes ||
+		$activeTool === 'rectangle' ||
+		$activeTool === 'ellipse' ||
+		$activeTool === 'diamond' ||
+		$activeTool === 'line' ||
+		$activeTool === 'arrow';
+
 	$: hasImagesOnly = $selectedImages.length > 0 && 
 		$selectedRectangles.length === 0 &&
 		$selectedEllipses.length === 0 &&
@@ -572,6 +590,37 @@
 		saveStateToLocalStorage();
 	}
 
+	function handleDashPatternChange(pattern: DashPattern) {
+		if (!$editorApi) return;
+
+		dashPattern.set(pattern);
+		const patternStr = pattern;
+
+		$selectedRectangles.forEach((rect) => {
+			$editorApi.set_rectangle_dash_pattern(BigInt(rect.id), patternStr, false);
+		});
+
+		$selectedEllipses.forEach((ellipse) => {
+			$editorApi.set_ellipse_dash_pattern(BigInt(ellipse.id), patternStr, false);
+		});
+
+		$selectedDiamonds.forEach((diamond) => {
+			$editorApi.set_diamond_dash_pattern(BigInt(diamond.id), patternStr, false);
+		});
+
+		$selectedLines.forEach((line) => {
+			$editorApi.set_line_dash_pattern(BigInt(line.id), patternStr, false);
+		});
+
+		$selectedArrows.forEach((arrow) => {
+			$editorApi.set_arrow_dash_pattern(BigInt(arrow.id), patternStr, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
 	$: {
 		if (hasSelection && strokeColor && $editorApi && $theme) {
 			const normalized = normalizeColorForTheme(strokeColor);
@@ -600,6 +649,44 @@
 				edgeStyle.set('sharp');
 			} else if (allRounded) {
 				edgeStyle.set('rounded');
+			}
+		}
+	}
+
+	$: {
+		if (hasDashPatternShapes) {
+			const allDashPatterns: string[] = [];
+			$selectedRectangles.forEach(r => {
+				const dp = r.dash_pattern || 'solid';
+				allDashPatterns.push(dp);
+			});
+			$selectedEllipses.forEach(e => {
+				const dp = e.dash_pattern || 'solid';
+				allDashPatterns.push(dp);
+			});
+			$selectedDiamonds.forEach(d => {
+				const dp = d.dash_pattern || 'solid';
+				allDashPatterns.push(dp);
+			});
+			$selectedLines.forEach(l => {
+				const dp = l.dash_pattern || 'solid';
+				allDashPatterns.push(dp);
+			});
+			$selectedArrows.forEach(a => {
+				const dp = a.dash_pattern || 'solid';
+				allDashPatterns.push(dp);
+			});
+			
+			const allSolid = allDashPatterns.length > 0 && allDashPatterns.every(p => p === 'solid');
+			const allDashed = allDashPatterns.length > 0 && allDashPatterns.every(p => p === 'dashed');
+			const allDotted = allDashPatterns.length > 0 && allDashPatterns.every(p => p === 'dotted');
+			
+			if (allSolid) {
+				dashPattern.set('solid');
+			} else if (allDashed) {
+				dashPattern.set('dashed');
+			} else if (allDotted) {
+				dashPattern.set('dotted');
 			}
 		}
 	}
@@ -734,6 +821,46 @@
 								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 									<rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="2 2"></rect>
 									<path d="M15 3h6v6" stroke-width="2.5" fill="none"></path>
+								</svg>
+							</button>
+						</div>
+					</fieldset>
+				</div>
+			{/if}
+
+			{#if showDashPatternControls}
+				<div class="space-y-1.5">
+					<fieldset class="space-y-1.5">
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke Style</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={() => handleDashPatternChange('solid')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$dashPattern === 'solid' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Solid"
+								aria-label="Solid line"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="3" y1="12" x2="21" y2="12"></line>
+								</svg>
+							</button>
+							<button
+								on:click={() => handleDashPatternChange('dashed')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$dashPattern === 'dashed' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Dashed"
+								aria-label="Dashed line"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4">
+									<line x1="3" y1="12" x2="21" y2="12"></line>
+								</svg>
+							</button>
+							<button
+								on:click={() => handleDashPatternChange('dotted')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$dashPattern === 'dotted' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Dotted"
+								aria-label="Dotted line"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 2">
+									<line x1="3" y1="12" x2="21" y2="12"></line>
 								</svg>
 							</button>
 						</div>

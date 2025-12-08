@@ -4288,10 +4288,20 @@ function rotateSelectedShapes(delta: number) {
 				const strokeColor = adaptColorToTheme(rect.stroke_color, getDefaultStrokeColor());
 				const fillColor = rect.fill_color ? adaptColorToTheme(rect.fill_color, rect.fill_color) : null;
 				const lineWidth = rect.line_width || 2;
+				const dashPattern = rect.dash_pattern || 'solid';
 				const borderRadius = rect.border_radius || 0;
 				const rotation = getRenderedRotation(rect, 'rectangle');
 				
 				renderCtx.lineWidth = lineWidth;
+				
+				if (dashPattern === 'dashed') {
+					renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+				} else if (dashPattern === 'dotted') {
+					renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+				} else {
+					renderCtx.setLineDash([]);
+				}
+				
 				renderCtx.save();
 				const centerX = renderX + renderWidth / 2;
 				const centerY = renderY + renderHeight / 2;
@@ -4329,6 +4339,7 @@ function rotateSelectedShapes(delta: number) {
 				renderCtx.strokeStyle = strokeColor;
 				renderCtx.stroke();
 				renderCtx.restore();
+				renderCtx.setLineDash([]);
 				
 				if (isSelected && !selectedGroupChildIds.has(rect.id)) {
 					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
@@ -4362,9 +4373,19 @@ function rotateSelectedShapes(delta: number) {
 				const strokeColor = adaptColorToTheme(ellipse.stroke_color, getDefaultStrokeColor());
 				const fillColor = ellipse.fill_color ? adaptColorToTheme(ellipse.fill_color, ellipse.fill_color) : null;
 				const lineWidth = ellipse.line_width || 2;
+				const dashPattern = ellipse.dash_pattern || 'solid';
 				const rotation = getRenderedRotation(ellipse, 'ellipse');
 				
 				renderCtx.lineWidth = lineWidth;
+				
+				if (dashPattern === 'dashed') {
+					renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+				} else if (dashPattern === 'dotted') {
+					renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+				} else {
+					renderCtx.setLineDash([]);
+				}
+				
 				renderCtx.save();
 				renderCtx.translate(renderX, renderY);
 				renderCtx.rotate(rotation);
@@ -4379,6 +4400,7 @@ function rotateSelectedShapes(delta: number) {
 				renderCtx.strokeStyle = strokeColor;
 				renderCtx.stroke();
 				renderCtx.restore();
+				renderCtx.setLineDash([]);
 				
 				if (isSelected && !selectedGroupChildIds.has(ellipse.id)) {
 					const x = renderX - renderRadiusX;
@@ -4421,9 +4443,19 @@ function rotateSelectedShapes(delta: number) {
 				const strokeColor = adaptColorToTheme(diamond.stroke_color, getDefaultStrokeColor());
 				const fillColor = diamond.fill_color ? adaptColorToTheme(diamond.fill_color, diamond.fill_color) : null;
 				const lineWidth = diamond.line_width || 2;
+				const dashPattern = diamond.dash_pattern || 'solid';
 				const rotation = getRenderedRotation(diamond, 'diamond');
 				
 				renderCtx.lineWidth = lineWidth;
+				
+				if (dashPattern === 'dashed') {
+					renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+				} else if (dashPattern === 'dotted') {
+					renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+				} else {
+					renderCtx.setLineDash([]);
+				}
+				
 				const borderRadius = diamond.border_radius || 0;
 				renderCtx.save();
 				renderCtx.translate(centerX, centerY);
@@ -4490,6 +4522,7 @@ function rotateSelectedShapes(delta: number) {
 				renderCtx.strokeStyle = strokeColor;
 				renderCtx.stroke();
 				renderCtx.restore();
+				renderCtx.setLineDash([]);
 				
 				if (isSelected && !selectedGroupChildIds.has(diamond.id)) {
 					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, renderWidth, renderHeight, $zoom, true);
@@ -4527,13 +4560,24 @@ function rotateSelectedShapes(delta: number) {
 				
 				const strokeColor = adaptColorToTheme(line.stroke_color, getDefaultStrokeColor());
 				const lineWidth = line.line_width || 2;
+				const dashPattern = line.dash_pattern || 'solid';
 				
 				renderCtx.strokeStyle = strokeColor;
 				renderCtx.lineWidth = lineWidth;
+				
+				if (dashPattern === 'dashed') {
+					renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+				} else if (dashPattern === 'dotted') {
+					renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+				} else {
+					renderCtx.setLineDash([]);
+				}
+				
 				renderCtx.beginPath();
 				renderCtx.moveTo(renderStartX, renderStartY);
 				renderCtx.lineTo(renderEndX, renderEndY);
 				renderCtx.stroke();
+				renderCtx.setLineDash([]);
 				
 				if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(line.id)) {
 					const handleSize = 8 / $zoom;
@@ -4581,9 +4625,19 @@ function rotateSelectedShapes(delta: number) {
 				
 				const strokeColor = adaptColorToTheme(arrow.stroke_color, getDefaultStrokeColor());
 				const lineWidth = arrow.line_width || 2;
+				const dashPattern = arrow.dash_pattern || 'solid';
 				
 				renderCtx.strokeStyle = strokeColor;
 				renderCtx.lineWidth = lineWidth;
+				
+				if (dashPattern === 'dashed') {
+					renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+				} else if (dashPattern === 'dotted') {
+					renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+				} else {
+					renderCtx.setLineDash([]);
+				}
+				
 				renderCtx.beginPath();
 				renderCtx.moveTo(renderStartX, renderStartY);
 				renderCtx.lineTo(renderEndX, renderEndY);
@@ -4606,6 +4660,7 @@ function rotateSelectedShapes(delta: number) {
 					renderEndY - arrowLength * Math.sin(angle + arrowAngle)
 				);
 				renderCtx.stroke();
+				renderCtx.setLineDash([]);
 				
 				if (isSelected && showIndividualHandles && !selectedGroupChildIds.has(arrow.id)) {
 					const handleSize = 8 / $zoom;

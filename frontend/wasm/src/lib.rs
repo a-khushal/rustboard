@@ -365,6 +365,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_rectangle_dash_pattern(&self, id: u64, pattern: String, save_history: bool) {
+        self.document.borrow_mut().set_rectangle_dash_pattern(id, pattern, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn set_rectangle_rotation(&self, id: u64, angle: f64, save_history: bool) {
         self.document.borrow_mut().set_rectangle_rotation(id, angle, save_history);
     }
@@ -390,6 +395,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_ellipse_dash_pattern(&self, id: u64, pattern: String, save_history: bool) {
+        self.document.borrow_mut().set_ellipse_dash_pattern(id, pattern, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn set_ellipse_rotation(&self, id: u64, angle: f64, save_history: bool) {
         self.document.borrow_mut().set_ellipse_rotation(id, angle, save_history);
     }
@@ -407,6 +417,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn set_diamond_line_width(&self, id: u64, width: f64, save_history: bool) {
         self.document.borrow_mut().set_diamond_line_width(id, width, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_diamond_dash_pattern(&self, id: u64, pattern: String, save_history: bool) {
+        self.document.borrow_mut().set_diamond_dash_pattern(id, pattern, save_history);
     }
 
     #[wasm_bindgen]
@@ -435,6 +450,11 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_line_dash_pattern(&self, id: u64, pattern: String, save_history: bool) {
+        self.document.borrow_mut().set_line_dash_pattern(id, pattern, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn set_arrow_stroke_color(&self, id: u64, color: String, save_history: bool) {
         self.document.borrow_mut().set_arrow_stroke_color(id, color, save_history);
     }
@@ -447,6 +467,11 @@ impl EditorApi {
     #[wasm_bindgen]
     pub fn set_arrow_rotation(&self, id: u64, angle: f64, save_history: bool) {
         self.document.borrow_mut().set_arrow_rotation(id, angle, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_arrow_dash_pattern(&self, id: u64, pattern: String, save_history: bool) {
+        self.document.borrow_mut().set_arrow_dash_pattern(id, pattern, save_history);
     }
 
     #[wasm_bindgen]

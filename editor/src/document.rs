@@ -239,6 +239,17 @@ impl Document {
         }
     }
 
+    pub fn set_rectangle_dash_pattern(&mut self, id: u64, pattern: String, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if rect.dash_pattern != pattern {
+                rect.dash_pattern = pattern;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn set_rectangle_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             if (rect.rotation_angle - angle).abs() > f64::EPSILON {
@@ -351,6 +362,17 @@ impl Document {
         if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
             if (diamond.line_width - width).abs() > f64::EPSILON {
                 diamond.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_diamond_dash_pattern(&mut self, id: u64, pattern: String, save_history: bool) {
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if diamond.dash_pattern != pattern {
+                diamond.dash_pattern = pattern;
                 if save_history {
                     self.save_snapshot();
                 }
@@ -477,6 +499,17 @@ impl Document {
         }
     }
 
+    pub fn set_ellipse_dash_pattern(&mut self, id: u64, pattern: String, save_history: bool) {
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            if ellipse.dash_pattern != pattern {
+                ellipse.dash_pattern = pattern;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn set_ellipse_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
         if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
             if (ellipse.rotation_angle - angle).abs() > f64::EPSILON {
@@ -556,6 +589,17 @@ impl Document {
         }
     }
 
+    pub fn set_line_dash_pattern(&mut self, id: u64, pattern: String, save_history: bool) {
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            if line.dash_pattern != pattern {
+                line.dash_pattern = pattern;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn set_line_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
         if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
             if (line.rotation_angle - angle).abs() > f64::EPSILON {
@@ -628,6 +672,17 @@ impl Document {
         if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
             if (arrow.line_width - width).abs() > f64::EPSILON {
                 arrow.line_width = width.max(0.1);
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
+    pub fn set_arrow_dash_pattern(&mut self, id: u64, pattern: String, save_history: bool) {
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            if arrow.dash_pattern != pattern {
+                arrow.dash_pattern = pattern;
                 if save_history {
                     self.save_snapshot();
                 }

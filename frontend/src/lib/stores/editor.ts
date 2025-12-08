@@ -10,6 +10,7 @@ export interface Rectangle {
 	stroke_color?: string;
 	fill_color?: string | null;
 	line_width?: number;
+	dash_pattern?: string;
 	border_radius?: number;
 	rotation_angle?: number;
 	z_index?: number;
@@ -23,6 +24,7 @@ export interface Ellipse {
 	stroke_color?: string;
 	fill_color?: string | null;
 	line_width?: number;
+	dash_pattern?: string;
 	rotation_angle?: number;
 	z_index?: number;
 }
@@ -33,6 +35,7 @@ export interface Line {
 	end: { x: number; y: number };
 	stroke_color?: string;
 	line_width?: number;
+	dash_pattern?: string;
 	rotation_angle?: number;
 	z_index?: number;
 }
@@ -43,6 +46,7 @@ export interface Arrow {
 	end: { x: number; y: number };
 	stroke_color?: string;
 	line_width?: number;
+	dash_pattern?: string;
 	rotation_angle?: number;
 	z_index?: number;
 }
@@ -55,6 +59,7 @@ export interface Diamond {
 	stroke_color?: string;
 	fill_color?: string | null;
 	line_width?: number;
+	dash_pattern?: string;
 	border_radius?: number;
 	rotation_angle?: number;
 	z_index?: number;
