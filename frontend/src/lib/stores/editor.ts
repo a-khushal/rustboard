@@ -65,17 +65,6 @@ export interface Diamond {
 	z_index?: number;
 }
 
-export interface Text {
-	id: number;
-	position: { x: number; y: number };
-	text: string;
-	fontSize: number;
-	text_color?: string;
-	boxWidth?: number;
-	rotation_angle?: number;
-	z_index?: number;
-}
-
 export interface Path {
 	id: number;
 	points: Array<{ x: number; y: number }>;
@@ -117,8 +106,6 @@ export const arrows = writable<Arrow[]>([]);
 export const selectedArrows = writable<Arrow[]>([]);
 export const diamonds = writable<Diamond[]>([]);
 export const selectedDiamonds = writable<Diamond[]>([]);
-export const texts = writable<Text[]>([]);
-export const selectedTexts = writable<Text[]>([]);
 export const paths = writable<Path[]>([]);
 export const selectedPaths = writable<Path[]>([]);
 export const images = writable<Image[]>([]);

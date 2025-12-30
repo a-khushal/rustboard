@@ -1,16 +1,16 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		lines, selectedLines, arrows, selectedArrows,
-		diamonds, selectedDiamonds, texts, selectedTexts,
+		diamonds, selectedDiamonds,
 		paths, selectedPaths,
 		images, selectedImages,
 		groups, selectedGroups,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image, type Group
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Group
 	} from '$lib/stores/editor';
 
-	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInText, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, textIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox, measureMultilineText, getFontForSize, getTextContentWidthFromBoxWidth, DEFAULT_TEXT_FONT_SIZE, TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from '$lib/utils/geometry';
+	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { 
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
@@ -18,11 +18,9 @@
 		addDiamond, moveDiamond, resizeDiamond, setDiamondRotation,
 		addLine, moveLine,
 		addArrow, moveArrow,
-		addText, moveText, setTextFontSize, setTextBoxWidth, updateTextContent, deleteTextById, setTextRotation,
 		addPath, movePath, resizePath, setPathRotation, setPathPoints,
 		moveImage, resizeImage, setImageRotation
 	} from '$lib/utils/canvas-operations/index';
-	import { updateTexts } from '$lib/utils/canvas-operations/texts';
 	import { updatePaths } from '$lib/utils/canvas-operations/path';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
@@ -45,9 +43,6 @@
 		return $theme === 'dark' ? '#ffffff' : '#000000';
 	}
 
-	function getDefaultTextColor(): string {
-		return $theme === 'dark' ? '#ffffff' : '#000000';
-	}
 
 	function getHandleFillColor(): string {
 		return $theme === 'dark' ? '#1c1917' : '#ffffff';
@@ -78,7 +73,7 @@
 	let ctx: CanvasRenderingContext2D | null = null;
 	let isDragging = false;
 	let dragStartPos = { x: 0, y: 0 };
-	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path | Image | null = null;
+	let draggedShape: Rectangle | Ellipse | Line | Arrow | Diamond | Path | Image | null = null;
 	let isSpacePressed = false;
 	let isPanning = false;
 	let panStartPos = { x: 0, y: 0 };
@@ -100,16 +95,13 @@
 	let renderRequestId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Text | Image | Path | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image' | 'path' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Image | Path | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'text' | 'image' | 'path'; id: number; fontSize?: number; baseline?: number } | null = null;
-	let resizeStartTextAscent = 0;
-	let resizeStartOriginalText: string | null = null;
-	let resizeStartBoxWidth: number | null = null;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path'; id: number } | null = null;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	let isSelectingBox = false;
 	let selectionBoxStart: { x: number; y: number } | null = null;
@@ -121,7 +113,6 @@
 		lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		paths: Map<number, { points: Array<{ x: number; y: number }>; rotation: number }>;
-		texts: Map<number, { x: number; y: number; text: string; fontSize: number; rotation: number; boxWidth?: number }>;
 		images: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 	} = {
 		rectangles: new Map(),
@@ -130,7 +121,6 @@
 		lines: new Map(),
 		arrows: new Map(),
 		paths: new Map(),
-		texts: new Map(),
 		images: new Map()
 	};
 
@@ -141,7 +131,6 @@
 		selectedShapesStartPositions.lines.clear();
 		selectedShapesStartPositions.arrows.clear();
 		selectedShapesStartPositions.paths.clear();
-		selectedShapesStartPositions.texts.clear();
 		selectedShapesStartPositions.images.clear();
 		
 	$selectedRectangles.forEach(rect => {
@@ -168,10 +157,6 @@
 		selectedShapesStartPositions.paths.set(path.id, { points: path.points.map(p => ({ x: p.x, y: p.y })), rotation: path.rotation_angle ?? 0 });
 		});
 
-		$selectedTexts.forEach(text => {
-		selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, text: text.text, fontSize: text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, rotation: text.rotation_angle ?? 0, boxWidth: text.boxWidth });
-		});
-
 		$selectedImages.forEach(image => {
 		selectedShapesStartPositions.images.set(image.id, { x: image.position.x, y: image.position.y, width: image.width, height: image.height, rotation: image.rotation_angle ?? 0 });
 		});
@@ -184,31 +169,16 @@
 	let groupResizeStartMousePos = { x: 0, y: 0 };
 	let isGroupRotating = false;
 	let groupRotationState: { center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
-	let renderDependencies: Record<string, unknown> | null = null;
 	const imageCache = new Map<number, HTMLImageElement>();
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 	const ROTATION_HANDLE_DISTANCE = 18;
 	const ROTATION_HANDLE_RADIUS = 5;
 	const ROTATION_STEP = Math.PI / 12;
-	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image' | 'path';
+	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path';
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
 
-	let isTypingText = false;
-	let typingTextId: number | null = null;
-	let typingOriginalValue = '';
-	let typingValue = '';
-	let typingWorldPos: { x: number; y: number } | null = null;
-	let typingScreenPos = { x: 0, y: 0 };
-	let typingDirty = false;
-	let typingFontSize = DEFAULT_TEXT_FONT_SIZE;
-	let typingTextColor: string | null = null;
-	let typingBoxWidth: number | null = null;
-	let typingRotation = 0;
-	let typingFixedCenter: { x: number; y: number } | null = null;
-	let textInputRef: HTMLTextAreaElement | null = null;
-	let typingLayout = measureMultilineText('', DEFAULT_TEXT_FONT_SIZE);
 
 
     function groupSelectedShapes() {
@@ -219,7 +189,6 @@
         $selectedDiamonds.forEach(d => selectedIds.push(d.id));
         $selectedLines.forEach(l => selectedIds.push(l.id));
         $selectedArrows.forEach(a => selectedIds.push(a.id));
-        $selectedTexts.forEach(t => selectedIds.push(t.id));
         $selectedPaths.forEach(p => selectedIds.push(p.id));
         $selectedImages.forEach(i => selectedIds.push(i.id));
 
@@ -258,7 +227,6 @@
         $selectedDiamonds.forEach(d => $editorApi!.bring_shape_to_front(BigInt(d.id)));
         $selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
-        $selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
         $selectedPaths.forEach(p => $editorApi!.bring_shape_to_front(BigInt(p.id)));
         $selectedImages.forEach(i => $editorApi!.bring_shape_to_front(BigInt(i.id)));
         
@@ -274,7 +242,6 @@
         $selectedDiamonds.forEach(d => $editorApi!.bring_shape_forward(BigInt(d.id)));
         $selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
-        $selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
         $selectedPaths.forEach(p => $editorApi!.bring_shape_forward(BigInt(p.id)));
         $selectedImages.forEach(i => $editorApi!.bring_shape_forward(BigInt(i.id)));
         
@@ -290,7 +257,6 @@
         $selectedDiamonds.forEach(d => $editorApi!.send_shape_backward(BigInt(d.id)));
         $selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
-        $selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
         $selectedPaths.forEach(p => $editorApi!.send_shape_backward(BigInt(p.id)));
         $selectedImages.forEach(i => $editorApi!.send_shape_backward(BigInt(i.id)));
         
@@ -306,7 +272,6 @@
         $selectedDiamonds.forEach(d => $editorApi!.send_shape_to_back(BigInt(d.id)));
         $selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
         $selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
-        $selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
         $selectedPaths.forEach(p => $editorApi!.send_shape_to_back(BigInt(p.id)));
         $selectedImages.forEach(i => $editorApi!.send_shape_to_back(BigInt(i.id)));
         
@@ -385,7 +350,6 @@
              selectedDiamonds.set([]);
              selectedLines.set([]);
              selectedArrows.set([]);
-             selectedTexts.set([]);
              selectedPaths.set([]);
              selectedImages.set([]);
         }
@@ -395,7 +359,6 @@
         const diams: Diamond[] = [];
         const lns: Line[] = [];
         const arrs: Arrow[] = [];
-        const txts: Text[] = [];
         const pths: Path[] = [];
         const imgs: Image[] = [];
 
@@ -404,7 +367,6 @@
         $diamonds.forEach(d => { if (allShapeIds.has(d.id)) diams.push(d); });
         $lines.forEach(l => { if (allShapeIds.has(l.id)) lns.push(l); });
         $arrows.forEach(a => { if (allShapeIds.has(a.id)) arrs.push(a); });
-        $texts.forEach(t => { if (allShapeIds.has(t.id)) txts.push(t); });
         $paths.forEach(p => { if (allShapeIds.has(p.id)) pths.push(p); });
         $images.forEach(i => { if (allShapeIds.has(i.id)) imgs.push(i); });
 
@@ -414,7 +376,6 @@
              selectedDiamonds.update(s => [...s, ...diams].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedLines.update(s => [...s, ...lns].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedArrows.update(s => [...s, ...arrs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
-             selectedTexts.update(s => [...s, ...txts].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedPaths.update(s => [...s, ...pths].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedImages.update(s => [...s, ...imgs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
         } else {
@@ -423,7 +384,6 @@
              selectedDiamonds.set(diams);
              selectedLines.set(lns);
              selectedArrows.set(arrs);
-             selectedTexts.set(txts);
              selectedPaths.set(pths);
              selectedImages.set(imgs);
         }
@@ -431,24 +391,6 @@
 
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (isTypingText) {
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				cancelTypingText();
-				return;
-			}
-			if ((event.key === 'Enter' || event.key === 'NumpadEnter') && (event.metaKey || event.ctrlKey)) {
-				event.preventDefault();
-				commitTypingText();
-				return;
-			}
-			if (event.key === 'Enter' || event.key === 'NumpadEnter') {
-				event.preventDefault();
-				insertTextAtCursor('\n');
-				return;
-			}
-			return;
-		}
 
 		if (event.key === 'Escape' && isRotating) {
 			event.preventDefault();
@@ -515,15 +457,6 @@
 			event.preventDefault();
 			const isPlus = event.key === '+' || event.key === '=';
 			
-			if (isTypingText && typingTextId !== null) {
-				const delta = isPlus ? 2 : -2;
-				const newSize = Math.max(4, typingFontSize + delta);
-				typingFontSize = newSize;
-				const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
-				typingLayout = measureMultilineText(typingValue, typingFontSize, ctx ?? undefined, typingContentWidth);
-				setTextFontSize(typingTextId, newSize, false);
-				return;
-			}
 
 			if (isPlus) {
 				zoomIn();
@@ -554,7 +487,7 @@
 				activeTool.set('select');
 				return;
 			}
-			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'text' || $activeTool === 'eraser') {
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'eraser') {
 				activeTool.set('select');
 			}
 			return;
@@ -563,7 +496,7 @@
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
 			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0) {
-				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedTexts, $selectedImages, $selectedPaths);
+				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedImages, $selectedPaths);
 			}
 			return;
 		}
@@ -573,7 +506,7 @@
 			event.stopPropagation();
 			if (!$editorApi) return;
 			
-			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
+			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
 			if (!hasSelection) return;
 			
 			const selectedIds = new Set([
@@ -582,7 +515,6 @@
 				...$selectedLines.map(l => l.id),
 				...$selectedArrows.map(a => a.id),
 				...$selectedDiamonds.map(d => d.id),
-				...$selectedTexts.map(t => t.id),
 				...$selectedPaths.map(p => p.id),
 				...$selectedImages.map(i => i.id)
 			]);
@@ -592,7 +524,6 @@
 			const allLines = Array.from($editorApi.get_lines() as Line[]);
 			const allArrows = Array.from($editorApi.get_arrows() as Arrow[]);
 			const allDiamonds = Array.from($editorApi.get_diamonds() as Diamond[]);
-			const allTexts = Array.from($editorApi.get_texts() as Text[]);
 			const allPaths = Array.from($editorApi.get_paths() as Path[]);
 			const allImages = Array.from($editorApi.get_images() as Image[]);
 			
@@ -601,11 +532,10 @@
 			const currentLines = allLines.filter(l => selectedIds.has(l.id));
 			const currentArrows = allArrows.filter(a => selectedIds.has(a.id));
 			const currentDiamonds = allDiamonds.filter(d => selectedIds.has(d.id));
-			const currentTexts = allTexts.filter(t => selectedIds.has(t.id));
 			const currentPaths = allPaths.filter(p => selectedIds.has(p.id));
 			const currentImages = allImages.filter(i => selectedIds.has(i.id));
 			
-			copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentTexts, currentImages, currentPaths);
+			copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentImages, currentPaths);
 			const clipboard = getClipboard();
 			
 			const bounds: Array<{ minX: number; minY: number }> = [];
@@ -614,7 +544,6 @@
 			clipboard.diamonds.forEach(d => bounds.push({ minX: d.position.x, minY: d.position.y }));
 			clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
 			clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
-			clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
 			clipboard.images.forEach(i => bounds.push({ minX: i.position.x, minY: i.position.y }));
 			clipboard.paths.forEach(p => {
 				if (p.points.length > 0) {
@@ -642,7 +571,6 @@
 			selectedLines.set([...$lines]);
 			selectedArrows.set([...$arrows]);
 			selectedDiamonds.set([...$diamonds]);
-			selectedTexts.set([...$texts]);
 			return;
 		}
 
@@ -684,11 +612,10 @@
 		const hasSelectedDiamonds = $selectedDiamonds.length > 0;
 		const hasSelectedLines = $selectedLines.length > 0;
 		const hasSelectedArrows = $selectedArrows.length > 0;
-		const hasSelectedTexts = $selectedTexts.length > 0;
 		const hasSelectedPaths = $selectedPaths.length > 0;
 		const hasSelectedImages = $selectedImages.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedTexts && !hasSelectedPaths && !hasSelectedImages) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedPaths && !hasSelectedImages) return;
 
 		event.preventDefault();
 		
@@ -697,11 +624,10 @@
 		const diamondIds = hasSelectedDiamonds ? $selectedDiamonds.map(diamond => diamond.id) : [];
 		const lineIds = hasSelectedLines ? $selectedLines.map(line => line.id) : [];
 		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
-		const textIds = hasSelectedTexts ? $selectedTexts.map(text => text.id) : [];
 		const pathIds = hasSelectedPaths ? $selectedPaths.map(path => path.id) : [];
 		const imageIds = hasSelectedImages ? $selectedImages.map(image => image.id) : [];
 		
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, [], pathIds, imageIds);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -713,8 +639,8 @@
 	function getResizeHandleAt(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Text | Image,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image',
+		shape: Rectangle | Ellipse | Diamond | Image,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image',
 		zoom: number,
 		rotation: number = 0
 	): number | null {
@@ -735,23 +661,6 @@
 			boxY = diamond.position.y - padding - gap;
 			boxWidth = diamond.width + (padding + gap) * 2;
 			boxHeight = diamond.height + (padding + gap) * 2;
-		} else if (shapeType === 'text') {
-			const text = shape as Text;
-			const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-			const layout = measureMultilineText(
-				text.text,
-				text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
-				ctx ?? undefined,
-				contentWidth
-			);
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const selectionWidth = text.boxWidth ?? (layout.width + horizontalPadding * 2);
-			const selectionHeight = layout.height + verticalPadding * 2;
-			boxX = text.position.x - horizontalPadding - gap;
-			boxY = text.position.y - layout.ascent - verticalPadding - gap;
-			boxWidth = selectionWidth + gap * 2;
-			boxHeight = selectionHeight + gap * 2;
 		} else if (shapeType === 'image') {
 			const image = shape as Image;
 			boxX = image.position.x - padding - gap;
@@ -785,232 +694,6 @@
 		);
 	}
 
-	async function startTypingSession(
-		id: number,
-		initialValue: string,
-		originalValue: string,
-		worldPosition: { x: number; y: number },
-		selectAll: boolean,
-		fontSize: number,
-		boxWidth: number | null = null,
-		rotation: number = 0
-	) {
-		const savedViewportOffset = { ...$viewportOffset };
-		const savedScrollX = window.scrollX;
-		const savedScrollY = window.scrollY;
-		
-		const restoreViewport = () => {
-			viewportOffset.set(savedViewportOffset);
-			window.scrollTo(savedScrollX, savedScrollY);
-		};
-		
-		typingTextId = id;
-		typingValue = initialValue;
-		typingOriginalValue = originalValue;
-		typingWorldPos = { ...worldPosition };
-		typingDirty = initialValue !== originalValue;
-		typingFontSize = fontSize;
-		typingBoxWidth = boxWidth;
-		typingRotation = rotation;
-		const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
-		typingLayout = measureMultilineText(initialValue || '', typingFontSize, ctx ?? undefined, typingContentWidth);
-
-		if (initialValue.trim().length > 0) {
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const initialBoxX = worldPosition.x - horizontalPadding;
-			const initialBoxY = worldPosition.y - typingLayout.ascent - verticalPadding;
-			const initialBoxWidth = typingBoxWidth ?? (typingLayout.width + horizontalPadding * 2);
-			const initialBoxHeight = typingLayout.height + verticalPadding * 2;
-			typingFixedCenter = {
-				x: initialBoxX + initialBoxWidth / 2,
-				y: initialBoxY + initialBoxHeight / 2
-			};
-		} else {
-			typingFixedCenter = null;
-		}
-		
-		isTypingText = true;
-		
-		restoreViewport();
-		
-		await tick();
-		restoreViewport();
-		
-		if (textInputRef) {
-			restoreViewport();
-			textInputRef.focus({ preventScroll: true });
-			restoreViewport();
-			
-			if (selectAll) {
-				textInputRef.select();
-			} else {
-				const caretPos = typingValue.length;
-				textInputRef.setSelectionRange(caretPos, caretPos);
-			}
-			
-			restoreViewport();
-			
-			const checkInterval = setInterval(() => {
-				if (!textInputRef || !isTypingText) {
-					clearInterval(checkInterval);
-					return;
-				}
-				if (window.scrollX !== savedScrollX || window.scrollY !== savedScrollY) {
-					window.scrollTo(savedScrollX, savedScrollY);
-				}
-				if ($viewportOffset.x !== savedViewportOffset.x || $viewportOffset.y !== savedViewportOffset.y) {
-					viewportOffset.set(savedViewportOffset);
-				}
-			}, 10);
-			
-			setTimeout(() => clearInterval(checkInterval), 500);
-		}
-	}
-
-	function resetTypingState() {
-		isTypingText = false;
-		typingTextId = null;
-		typingOriginalValue = '';
-		typingValue = '';
-		typingWorldPos = null;
-		typingDirty = false;
-		typingFontSize = DEFAULT_TEXT_FONT_SIZE;
-		typingTextColor = null;
-		typingBoxWidth = null;
-		typingRotation = 0;
-		typingFixedCenter = null;
-		typingLayout = measureMultilineText('', typingFontSize, ctx ?? undefined);
-	}
-
-	function handleTextInputInput(event: Event) {
-		if (!isTypingText || typingTextId === null) return;
-		const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-		const newValue = target.value;
-		typingValue = newValue;
-		typingDirty = newValue !== typingOriginalValue;
-		updateTextContent(typingTextId, newValue, false);
-		
-		const defaultTextColor = getDefaultTextColor();
-		if (typingTextColor && typingTextColor !== defaultTextColor && $editorApi) {
-			const updatedTexts = $texts;
-			const updatedText = updatedTexts.find(t => t.id === typingTextId);
-			if (updatedText && (!updatedText.text_color || updatedText.text_color === defaultTextColor)) {
-				$editorApi.set_text_color(BigInt(typingTextId), typingTextColor, false);
-				updateTexts();
-			}
-		}
-	}
-
-	function insertTextAtCursor(value: string) {
-		if (!textInputRef || typingTextId === null) return;
-		const start = textInputRef.selectionStart ?? typingValue.length;
-		const end = textInputRef.selectionEnd ?? typingValue.length;
-		const newValue = typingValue.slice(0, start) + value + typingValue.slice(end);
-		typingValue = newValue;
-		textInputRef.value = newValue;
-		typingDirty = newValue !== typingOriginalValue;
-		updateTextContent(typingTextId, newValue, false);
-		const cursor = start + value.length;
-		setTimeout(() => {
-			textInputRef?.setSelectionRange(cursor, cursor);
-		}, 0);
-	}
-
-	function handleTextInputKeyDown(event: KeyboardEvent) {
-		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-			event.preventDefault();
-			commitTypingText();
-		} else if (event.key === 'Escape') {
-			event.preventDefault();
-			cancelTypingText();
-		} else if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '=' || event.key === '-')) {
-			event.preventDefault();
-			const isPlus = event.key === '+' || event.key === '=';
-			if (isPlus) {
-				zoomIn();
-			} else {
-				zoomOut();
-			}
-		}
-	}
-
-	function commitTypingText() {
-		if (!isTypingText || typingTextId === null) return;
-		const currentId = typingTextId;
-		const finalValue = typingValue;
-		const originalValue = typingOriginalValue;
-		const wasDirty = typingDirty;
-
-		if (finalValue.replace(/\s+/g, '') === '') {
-			const saveHistory = originalValue.trim().length > 0;
-			deleteTextById(currentId, saveHistory);
-			resetTypingState();
-			return;
-		}
-
-		if (wasDirty) {
-			updateTextContent(currentId, finalValue, false);
-			
-			if (typingFixedCenter && typingWorldPos && ctx) {
-				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-				const verticalPadding = TEXT_VERTICAL_PADDING;
-				const contentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
-				const finalLayout = measureMultilineText(finalValue, typingFontSize, ctx, contentWidth);
-				
-				const newBoxWidth = typingBoxWidth ?? (finalLayout.width + horizontalPadding * 2);
-				const newBoxHeight = finalLayout.height + verticalPadding * 2;
-				
-				const newBoxX = typingFixedCenter.x - newBoxWidth / 2;
-				const newBoxY = typingFixedCenter.y - newBoxHeight / 2;
-
-				const newTextX = newBoxX + horizontalPadding;
-				const newTextY = newBoxY + verticalPadding + finalLayout.ascent;
-
-				moveText(currentId, newTextX, newTextY, false);
-			}
-			
-			if ($editorApi) {
-				$editorApi.save_snapshot();
-			}
-		}
-
-		resetTypingState();
-	}
-
-	function cancelTypingText() {
-		if (!isTypingText || typingTextId === null) return;
-		const currentId = typingTextId;
-		if (typingOriginalValue.trim() === '') {
-			deleteTextById(currentId, false);
-		} else if (typingDirty) {
-			updateTextContent(currentId, typingOriginalValue, false);
-		}
-		resetTypingState();
-	}
-
-	function startTypingExistingText(text: Text) {
-		resetRotationState();
-		clearAllSelections();
-		typingTextColor = adaptColorToTheme(text.text_color, getDefaultTextColor());
-		
-		const defaultTextColor = getDefaultTextColor();
-		if (typingTextColor && typingTextColor !== defaultTextColor && $editorApi) {
-			$editorApi.set_text_color(BigInt(text.id), typingTextColor, false);
-			updateTexts();
-		}
-		
-		startTypingSession(
-			text.id,
-			text.text,
-			text.text,
-			{ x: text.position.x, y: text.position.y },
-			true,
-			text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
-			text.boxWidth ?? null,
-			text.rotation_angle ?? 0
-		);
-	}
 
 	function getHandlePositions(box: { x: number; y: number; width: number; height: number }): Array<{ x: number; y: number }> {
 		const { x, y, width, height } = box;
@@ -1029,8 +712,8 @@
 	}
 
 function getShapeBoundingBox(
-	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image' | 'path',
+	shape: Rectangle | Ellipse | Diamond | Image | Path,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path',
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
 	if (shapeType === 'rectangle') {
@@ -1058,22 +741,12 @@ function getShapeBoundingBox(
 		const path = shape as Path;
 		return getPathBoundingBox(path);
 	}
-	const text = shape as Text;
-	const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-	const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-	const layout = measureMultilineText(text.text, fontSize, ctxOverride ?? undefined, contentWidth);
-	const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-	const verticalPadding = TEXT_VERTICAL_PADDING;
-	const width = (text.boxWidth ?? layout.width + horizontalPadding * 2);
-	const height = layout.height + verticalPadding * 2;
-	const x = text.position.x - horizontalPadding;
-	const y = text.position.y - layout.ascent - verticalPadding;
-	return { x, y, width, height };
+	return null;
 }
 
 function getSelectionBoundsForShape(
-	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'image' | 'path',
+	shape: Rectangle | Ellipse | Diamond | Image | Path,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path',
 	zoom: number,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
@@ -1090,7 +763,7 @@ function getSelectionBoundsForShape(
 }
 
 function getShapeCenter(
-	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
+	shape: Rectangle | Ellipse | Diamond | Image | Path,
 	shapeType: RotatableShapeType,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number } | null {
@@ -1099,7 +772,7 @@ function getShapeCenter(
 	return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 }
 
-function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image | Path, shapeType: RotatableShapeType): number {
+function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Image | Path, shapeType: RotatableShapeType): number {
 	if (shapeType === 'rectangle') {
 		return (shape as Rectangle).rotation_angle ?? 0;
 	}
@@ -1115,7 +788,7 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image | 
 	if (shapeType === 'path') {
 		return (shape as Path).rotation_angle ?? 0;
 	}
-	return (shape as Text).rotation_angle ?? 0;
+	return 0;
 }
 
 	function getRotationHandlePoints(
@@ -1155,7 +828,7 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Text | Image | 
 	function isPointOnRotationHandle(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
+		shape: Rectangle | Ellipse | Diamond | Image | Path,
 		shapeType: RotatableShapeType,
 		zoom: number,
 		ctxOverride: CanvasRenderingContext2D | null = ctx
@@ -1177,7 +850,7 @@ function normalizeAngle(angle: number): number {
 }
 
 function getRenderedRotation(
-	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
+	shape: Rectangle | Ellipse | Diamond | Image | Path,
 	shapeType: RotatableShapeType
 ): number {
 	if (rotationPreview && rotationPreview.type === shapeType && rotationPreview.id === shape.id) {
@@ -1208,11 +881,10 @@ function applyRotationToShape(type: RotatableShapeType, id: number, angle: numbe
 		setPathRotation(id, normalized, saveHistory);
 		return;
 	}
-	setTextRotation(id, normalized, saveHistory);
 }
 
 function beginRotation(
-	shape: Rectangle | Ellipse | Diamond | Text | Image | Path,
+	shape: Rectangle | Ellipse | Diamond | Image | Path,
 	shapeType: RotatableShapeType,
 	x: number,
 	y: number
@@ -1272,11 +944,10 @@ function resetRotationState() {
 	}
 
 	function rotateSelectedShapes(delta: number) {
-		const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Text | Image }> = [];
+		const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Image }> = [];
 		$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
 		$selectedEllipses.forEach(ellipse => targets.push({ type: 'ellipse', shape: ellipse }));
 		$selectedDiamonds.forEach(diamond => targets.push({ type: 'diamond', shape: diamond }));
-		$selectedTexts.forEach(text => targets.push({ type: 'text', shape: text }));
 		$selectedImages.forEach(image => targets.push({ type: 'image', shape: image }));
 		if (targets.length === 0) return;
 		targets.forEach((item, index) => {
@@ -1678,27 +1349,6 @@ function resetRotationState() {
 			moveArrow(id, newStartX, newStartY, newEndX, newEndY, saveHistory);
 		});
 
-		selectedShapesStartPositions.texts.forEach((startPos, id) => {
-			const relativeX = startPos.x - startBox.x;
-			const relativeY = startPos.y - startBox.y;
-			let newX: number;
-			let newY: number;
-			if (isFlippedX) {
-				newX = originX - relativeX * absScaleX;
-			} else {
-				newX = originX + relativeX * absScaleX;
-			}
-			if (isFlippedY) {
-				newY = originY - relativeY * absScaleY;
-			} else {
-				newY = originY + relativeY * absScaleY;
-			}
-
-			const newFontSize = (startPos.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * Math.max(absScaleX, absScaleY);
-			moveText(id, newX, newY, saveHistory);
-			setTextFontSize(id, Math.max(4, newFontSize), saveHistory);
-		});
-
 		selectedShapesStartPositions.images.forEach((startPos, id) => {
 			const relativeX = startPos.x - startBox.x;
 			const relativeY = startPos.y - startBox.y;
@@ -1763,8 +1413,8 @@ function resetRotationState() {
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond | Text | Line | Arrow | Path | Image,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'line' | 'arrow' | 'path' | 'image',
+		shape: Rectangle | Ellipse | Diamond | Line | Arrow | Path | Image,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'path' | 'image',
 		isShiftPressed: boolean,
 		x: number,
 		y: number
@@ -1797,7 +1447,6 @@ function resetRotationState() {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
-				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
@@ -1825,7 +1474,6 @@ function resetRotationState() {
 				selectedEllipses.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
-				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
@@ -1853,41 +1501,12 @@ function resetRotationState() {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
-				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
 			}
 
 			draggedShape = clickedEllipse;
-			dragStartPos = { x, y };
-			dragOffset = { x: 0, y: 0 };
-			storeSelectedShapesStartPositions();
-			isDragging = true;
-		} else if (shapeType === 'text') {
-			const clickedText = shape as Text;
-			const index = $selectedTexts.findIndex(t => t.id === clickedText.id);
-			const isAlreadySelected = index >= 0;
-			
-			if (isShiftPressed) {
-				selectedTexts.set(
-					isAlreadySelected
-					? $selectedTexts.filter(t => t.id !== clickedText.id)
-					: [...$selectedTexts, clickedText]
-				);
-			} else if (!isAlreadySelected) {
-				selectedTexts.set([clickedText]);
-				selectedRectangles.set([]);
-				selectedEllipses.set([]);
-				selectedDiamonds.set([]);
-				selectedLines.set([]);
-				selectedArrows.set([]);
-				selectedPaths.set([]);
-				selectedImages.set([]);
-				selectedGroups.set([]);
-			}
-
-			draggedShape = clickedText;
 			dragStartPos = { x, y };
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
@@ -1909,7 +1528,6 @@ function resetRotationState() {
 				selectedEllipses.set([]);
 				selectedDiamonds.set([]);
 				selectedArrows.set([]);
-				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
@@ -1937,7 +1555,6 @@ function resetRotationState() {
 				selectedEllipses.set([]);
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
-				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
@@ -1966,7 +1583,6 @@ function resetRotationState() {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
-				selectedTexts.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
 			}
@@ -1995,7 +1611,6 @@ function resetRotationState() {
 					selectedDiamonds.set([]);
 					selectedLines.set([]);
 					selectedArrows.set([]);
-					selectedTexts.set([]);
 					selectedPaths.set([]);
 					selectedGroups.set([]);
 				}
@@ -2091,7 +1706,6 @@ function resetRotationState() {
 			diamonds: number[];
 			lines: number[];
 			arrows: number[];
-			texts: number[];
 			images: number[];
 		} = {
 			rectangles: [],
@@ -2099,7 +1713,6 @@ function resetRotationState() {
 			diamonds: [],
 			lines: [],
 			arrows: [],
-			texts: [],
 			images: []
 		};
 
@@ -2170,49 +1783,6 @@ function resetRotationState() {
 			}
 		});
 
-		$texts.forEach(text => {
-			const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-			const layout = measureMultilineText(text.text, text.fontSize ?? DEFAULT_TEXT_FONT_SIZE, ctx ?? undefined, contentWidth);
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const textWidth = text.boxWidth ?? (layout.width + horizontalPadding * 2);
-			const textHeight = layout.height + verticalPadding * 2;
-			const boxX = text.position.x - horizontalPadding;
-			const boxY = text.position.y - layout.ascent - verticalPadding;
-			const boxCenterX = boxX + textWidth / 2;
-			const boxCenterY = boxY + textHeight / 2;
-			const rotation = text.rotation_angle ?? 0;
-			
-			let testX = x;
-			let testY = y;
-			if (Math.abs(rotation) > 0.0001) {
-				const rotatedPoint = rotatePointAround({ x, y }, { x: boxCenterX, y: boxCenterY }, -rotation);
-				testX = rotatedPoint.x;
-				testY = rotatedPoint.y;
-			}
-			
-			const eraserBox = {
-				x: testX - eraserRadius,
-				y: testY - eraserRadius,
-				width: eraserRadius * 2,
-				height: eraserRadius * 2
-			};
-			
-			const textBox = {
-				x: boxX,
-				y: boxY,
-				width: textWidth,
-				height: textHeight
-			};
-			
-			if (eraserBox.x < textBox.x + textBox.width &&
-				eraserBox.x + eraserBox.width > textBox.x &&
-				eraserBox.y < textBox.y + textBox.height &&
-				eraserBox.y + eraserBox.height > textBox.y) {
-				shapesToDelete.texts.push(text.id);
-			}
-		});
-
 		$images.forEach(image => {
 			const centerX = image.position.x + image.width / 2;
 			const centerY = image.position.y + image.height / 2;
@@ -2228,7 +1798,7 @@ function resetRotationState() {
 
 		if (shapesToDelete.rectangles.length > 0 || shapesToDelete.ellipses.length > 0 ||
 			shapesToDelete.diamonds.length > 0 || shapesToDelete.lines.length > 0 ||
-			shapesToDelete.arrows.length > 0 || shapesToDelete.texts.length > 0 ||
+			shapesToDelete.arrows.length > 0 ||
 			shapesToDelete.images.length > 0 || pathsToUpdate.length > 0) {
 			
 			deleteShapes(
@@ -2237,7 +1807,7 @@ function resetRotationState() {
 				shapesToDelete.lines,
 				shapesToDelete.arrows,
 				shapesToDelete.diamonds,
-				shapesToDelete.texts,
+				[],
 				[],
 				shapesToDelete.images
 			);
@@ -2256,10 +1826,6 @@ function resetRotationState() {
 			sidebarRef.closeSidebar();
 		}
 
-		if (isTypingText) {
-			commitTypingText();
-		}
-
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
 		const screenY = event.clientY - rect.top;
@@ -2274,21 +1840,10 @@ function resetRotationState() {
 
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 
-		if (event.detail === 2 && ctx) {
-			event.preventDefault();
-			for (let i = $texts.length - 1; i >= 0; i--) {
-				if (isPointInText(x, y, $texts[i], ctx)) {
-					startTypingExistingText($texts[i]);
-					return;
-				}
-			}
-		}
-
 		const isShiftPressed = event.shiftKey;
-		resizeStartBoxWidth = null;
 		
 		if ($activeTool === 'select') {
-			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length + $selectedImages.length;
+			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedPaths.length + $selectedImages.length;
 			const allowIndividualHandles = totalSelectedCount <= 1;
 			let rawGroupBox: BoundingBox | null = null;
 			let visualGroupBox: BoundingBox | null = null;
@@ -2441,50 +1996,6 @@ function resetRotationState() {
 					}
 				}
 
-				if (allowIndividualHandles && ctx) {
-					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
-						if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom, ctx)) {
-							if (beginRotation($selectedTexts[i], 'text', x, y)) {
-								return;
-							}
-						}
-						const handleIndex = getResizeHandleAt(
-							x,
-							y,
-							$selectedTexts[i],
-							'text',
-							$zoom,
-							getRenderedRotation($selectedTexts[i], 'text')
-						);
-						if (handleIndex !== null) {
-							isResizing = true;
-							resizeHandleIndex = handleIndex;
-							resizeStartShape = $selectedTexts[i];
-							resizeStartShapeType = 'text';
-							const fontSize = $selectedTexts[i].fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-							const layout = measureMultilineText($selectedTexts[i].text, fontSize, ctx);
-							const width = layout.width;
-							const height = layout.height;
-							resizeStartPos = {
-								x: $selectedTexts[i].position.x,
-								y: $selectedTexts[i].position.y,
-								width,
-								height
-							};
-							resizeStartTextAscent = layout.ascent;
-							const currentText = $selectedTexts[i].text;
-							const lines = currentText.split('\n');
-							resizeStartOriginalText = lines.join(' ');
-							const storedBoxWidth = $selectedTexts[i].boxWidth;
-							const currentBoxWidth = storedBoxWidth ?? (layout.width + TEXT_HORIZONTAL_PADDING * 2);
-							resizeStartBoxWidth = currentBoxWidth;
-							resizeStartMousePos = { x, y };
-							isShiftPressedDuringResize = isShiftPressed;
-							return;
-						}
-					}
-				}
-
 				for (let i = $selectedImages.length - 1; i >= 0; i--) {
 					if (isPointOnRotationHandle(x, y, $selectedImages[i], 'image', $zoom)) {
 						if (beginRotation($selectedImages[i], 'image', x, y)) {
@@ -2624,13 +2135,6 @@ function resetRotationState() {
 				}
 			}
 
-			for (let i = $texts.length - 1; i >= 0; i--) {
-				if (ctx && isPointInText(x, y, $texts[i], ctx)) {
-					handleShapeClick($texts[i], 'text', isShiftPressed, x, y);
-					return;
-				}
-			}
-
 			for (let i = $images.length - 1; i >= 0; i--) {
 				if (isPointInImage(x, y, $images[i])) {
 					handleShapeClick($images[i], 'image', isShiftPressed, x, y);
@@ -2651,7 +2155,6 @@ function resetRotationState() {
 					const firstSelectedLine = $selectedLines[0];
 					const firstSelectedArrow = $selectedArrows[0];
 					const firstSelectedPath = $selectedPaths[0];
-					const firstSelectedText = $selectedTexts[0];
 					const firstSelectedImage = $selectedImages[0];
 					
 					if (firstSelectedRect) {
@@ -2666,8 +2169,6 @@ function resetRotationState() {
 						draggedShape = firstSelectedArrow;
 					} else if (firstSelectedPath) {
 						draggedShape = firstSelectedPath;
-					} else if (firstSelectedText) {
-						draggedShape = firstSelectedText;
 					} else if (firstSelectedImage) {
 						draggedShape = firstSelectedImage;
 					}
@@ -2719,18 +2220,6 @@ function resetRotationState() {
 			clearAllSelections();
 			isDrawingFreehand = true;
 			freehandPoints = [{ x, y }];
-			scheduleRender();
-		} else if ($activeTool === 'text') {
-			resetRotationState();
-			clearAllSelections();
-			if (!$editorApi) {
-				return;
-			}
-			const newId = addText(x, y, '', false);
-			if (newId !== null) {
-				startTypingSession(newId, '', '', { x, y }, false, DEFAULT_TEXT_FONT_SIZE, null, 0);
-				activeTool.set('select');
-			}
 			scheduleRender();
 		} else if ($activeTool === 'eraser') {
 			resetRotationState();
@@ -2784,31 +2273,6 @@ function resetRotationState() {
 			moveArrow(id, newStart.x, newStart.y, newEnd.x, newEnd.y, saveHistory);
 		});
 
-		selectedShapesStartPositions.texts.forEach((startPos, id) => {
-			const contentWidth = getTextContentWidthFromBoxWidth(startPos.boxWidth ?? null);
-			const layout = measureMultilineText(startPos.text, startPos.fontSize, ctx ?? undefined, contentWidth);
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const width = (startPos.boxWidth ?? (layout.width + horizontalPadding * 2));
-			const height = layout.height + verticalPadding * 2;
-			
-			const boxX = startPos.x - horizontalPadding;
-			const boxY = startPos.y - layout.ascent - verticalPadding;
-			const centerX = boxX + width / 2;
-			const centerY = boxY + height / 2;
-			
-			const rotatedCenter = rotatePointAround({ x: centerX, y: centerY }, center, delta);
-			
-			const newBoxX = rotatedCenter.x - width / 2;
-			const newBoxY = rotatedCenter.y - height / 2;
-			const newX = newBoxX + horizontalPadding;
-			const newY = newBoxY + layout.ascent + verticalPadding;
-			
-			const newRotation = normalizeAngle(startPos.rotation + delta);
-			moveText(id, newX, newY, saveHistory);
-			setTextRotation(id, newRotation, saveHistory);
-		});
-
 		selectedShapesStartPositions.paths.forEach((startPos, id) => {
 			if (startPos.points.length === 0) return;
 			
@@ -2852,7 +2316,6 @@ function resetRotationState() {
 
 	function handleMouseMove(event: MouseEvent) {
 		if (!canvas) return;
-		if (isTypingText) return;
 
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
@@ -3223,157 +2686,6 @@ function resetRotationState() {
 					id: arrow.id 
 				};
 				scheduleRender();
-			} else if (resizeStartShapeType === 'text') {
-			const text = resizeStartShape as Text;
-			const isCornerHandle = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 3;
-			const isSideHandle = resizeHandleIndex === 5 || resizeHandleIndex === 7;
-			const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
-			const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
-			const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
-			const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
-			const adjustsHorizontal = affectsLeft || affectsRight;
-			const adjustsVertical = affectsTop || affectsBottom;
-
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const startTextX = resizeStartPos.x;
-			const startTextY = resizeStartPos.y;
-			const startBoxLeft = startTextX - horizontalPadding;
-			const startBoxWidth = resizeStartBoxWidth ?? (resizeStartPos.width + horizontalPadding * 2);
-			const startBoxRight = startBoxLeft + startBoxWidth;
-			const startBoxTop = startTextY - resizeStartTextAscent;
-			const startBoxHeight = resizeStartPos.height;
-			const startBoxBottom = startBoxTop + startBoxHeight;
-
-			const minWidth = horizontalPadding * 2 + 10;
-			const minHeight = 10;
-
-			let left = startBoxLeft;
-			let right = startBoxRight;
-			let top = startBoxTop;
-			let bottom = startBoxBottom;
-
-			if (isSideHandle) {
-				if (affectsLeft) {
-					left = Math.min(startBoxLeft + deltaX, startBoxRight - minWidth);
-					right = startBoxRight;
-				} else if (affectsRight) {
-					left = startBoxLeft;
-					right = Math.max(startBoxRight + deltaX, startBoxLeft + minWidth);
-				}
-				top = startBoxTop;
-				bottom = startBoxBottom;
-			} else {
-				if (affectsLeft) left = startBoxLeft + deltaX;
-				if (affectsRight) right = startBoxRight + deltaX;
-				if (affectsTop) top = startBoxTop + deltaY;
-				if (affectsBottom) bottom = startBoxBottom + deltaY;
-
-				if (isShiftPressedDuringResize && isCornerHandle && adjustsHorizontal && adjustsVertical && startBoxHeight !== 0) {
-					const aspectRatio = startBoxWidth / startBoxHeight;
-					const width = right - left;
-					const height = bottom - top;
-					const absWidth = Math.abs(width);
-					const absHeight = Math.abs(height);
-
-					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
-						const targetHeight = absWidth / aspectRatio;
-						if (height >= 0) {
-							bottom = top + targetHeight;
-						} else {
-							top = bottom + targetHeight;
-						}
-					} else {
-						const targetWidth = absHeight * aspectRatio;
-						if (width >= 0) {
-							right = left + targetWidth;
-						} else {
-							left = right + targetWidth;
-						}
-					}
-				}
-			}
-
-			let finalLeft = Math.min(left, right);
-			let finalRight = Math.max(left, right);
-			let finalTop = Math.min(top, bottom);
-			let finalBottom = Math.max(top, bottom);
-
-			const draggedLeft = affectsLeft && !affectsRight;
-			const draggedRight = affectsRight && !affectsLeft;
-			const draggedTop = affectsTop && !affectsBottom;
-			const draggedBottom = affectsBottom && !affectsTop;
-
-			let newWidth = finalRight - finalLeft;
-			if (newWidth < minWidth) {
-				if (draggedLeft) {
-					finalLeft = finalRight - minWidth;
-				} else if (draggedRight) {
-					finalRight = finalLeft + minWidth;
-				} else {
-					finalRight = finalLeft + minWidth;
-				}
-				newWidth = minWidth;
-			}
-
-			let newHeight = finalBottom - finalTop;
-			if (!isSideHandle && newHeight < minHeight) {
-				if (draggedTop) {
-					finalTop = finalBottom - minHeight;
-				} else if (draggedBottom) {
-					finalBottom = finalTop + minHeight;
-				} else {
-					finalBottom = finalTop + minHeight;
-				}
-				newHeight = minHeight;
-			}
-
-			const newTextX = finalLeft + horizontalPadding;
-
-			if (isSideHandle) {
-				const fontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-				const textWidth = Math.max(10, newWidth - horizontalPadding * 2);
-				const textToWrap = resizeStartOriginalText ?? text.text;
-
-				const unwrappedLayout = measureMultilineText(textToWrap, fontSize, ctx ?? undefined);
-				const needsWrapping = unwrappedLayout.width > textWidth;
-
-				const previewLayout = needsWrapping
-					? measureMultilineText(textToWrap, fontSize, ctx ?? undefined, textWidth)
-					: unwrappedLayout;
-				const newBaseline = finalTop + previewLayout.ascent;
-
-				resizePreview = {
-					x: newTextX,
-					y: finalTop,
-					width: newWidth,
-					height: previewLayout.height,
-					type: 'text',
-					id: text.id,
-					fontSize: fontSize,
-					baseline: newBaseline
-				};
-			} else {
-				const startWidth = Math.max(1, resizeStartPos.width);
-				const startHeight = Math.max(1, resizeStartPos.height);
-				const widthScale = newWidth / startWidth;
-				const heightScale = newHeight / startHeight;
-				const scale = Math.max(Math.abs(widthScale), Math.abs(heightScale));
-				const newFontSize = Math.max(4, (text.fontSize ?? DEFAULT_TEXT_FONT_SIZE) * (isFinite(scale) ? scale : 1));
-				const previewLayout = measureMultilineText(text.text, newFontSize, ctx ?? undefined);
-				const newBaseline = finalTop + previewLayout.ascent;
-
-				resizePreview = {
-					x: newTextX,
-					y: finalTop,
-					width: newWidth,
-					height: newHeight,
-					type: 'text',
-					id: text.id,
-					fontSize: newFontSize,
-					baseline: newBaseline
-				};
-			}
-			scheduleRender();
 			} else if (resizeStartShapeType === 'image') {
 				const image = resizeStartShape as Image;
 				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
@@ -3505,15 +2817,13 @@ function resetRotationState() {
 			}
 		} else if ($activeTool === 'freehand') {
 			canvas.style.cursor = 'crosshair';
-		} else if ($activeTool === 'text') {
-			canvas.style.cursor = 'text';
 		} else if ($activeTool === 'select') {
 			if (isResizing) {
 				canvas.style.cursor = resizeHandleIndex !== null ? resizeCursors[resizeHandleIndex] : 'default';
 			} else if (isDragging && draggedShape) {
 				canvas.style.cursor = 'move';
 			} else {
-				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length + $selectedImages.length;
+				const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedPaths.length + $selectedImages.length;
 				const selectionPaddingValue = getSelectionPaddingValue($zoom);
 				const rawGroupBoxForCursor =
 					totalSelectedCount > 1 ? groupResizeCurrentBox ?? calculateGroupBoundingBox() : null;
@@ -3543,14 +2853,6 @@ function resetRotationState() {
 						if (isPointOnRotationHandle(x, y, $selectedDiamonds[i], 'diamond', $zoom)) {
 							canvas.style.cursor = 'grab';
 							return;
-						}
-					}
-					if (ctx) {
-						for (let i = $selectedTexts.length - 1; i >= 0; i--) {
-							if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom, ctx)) {
-								canvas.style.cursor = 'grab';
-								return;
-							}
 						}
 					}
 					for (let i = $selectedPaths.length - 1; i >= 0; i--) {
@@ -3615,21 +2917,6 @@ function resetRotationState() {
 						const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
 						if (handleIndex !== null) {
 							canvas.style.cursor = 'pointer';
-							return;
-						}
-					}
-					
-					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
-						const handleIndex = getResizeHandleAt(
-							x,
-							y,
-							$selectedTexts[i],
-							'text',
-							$zoom,
-							getRenderedRotation($selectedTexts[i], 'text')
-						);
-						if (handleIndex !== null) {
-							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
 						}
 					}
@@ -3718,14 +3005,6 @@ function resetRotationState() {
 					return;
 				}
 			}
-			if (ctx) {
-				for (let i = $texts.length - 1; i >= 0; i--) {
-					if (isPointInText(x, y, $texts[i], ctx)) {
-						canvas.style.cursor = 'move';
-						return;
-					}
-				}
-			}
 			for (let i = $images.length - 1; i >= 0; i--) {
 				const image = $images[i];
 				const isSelected = $selectedImages.some(selected => selected.id === image.id);
@@ -3751,20 +3030,7 @@ function resetRotationState() {
 
 	function handleCanvasDoubleClick(event: MouseEvent) {
 		if (!canvas || !ctx) return;
-		if (isTypingText) return;
 		event.preventDefault();
-
-		const rect = canvas.getBoundingClientRect();
-		const screenX = event.clientX - rect.left;
-		const screenY = event.clientY - rect.top;
-		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
-
-		for (let i = $texts.length - 1; i >= 0; i--) {
-			if (isPointInText(x, y, $texts[i], ctx)) {
-				startTypingExistingText($texts[i]);
-				return;
-			}
-		}
 	}
 	
 	function handleMouseUp() {
@@ -3816,41 +3082,6 @@ function resetRotationState() {
 				const newEndX = resizePreview.x + resizePreview.width;
 				const newEndY = resizePreview.y + resizePreview.height;
 				moveArrow(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
-			} else if (resizePreview.type === 'text') {
-				const preview = resizePreview;
-				const targetY = preview.baseline ?? resizeStartPos.y;
-				const text = $texts.find(t => t.id === preview.id);
-				let shouldDeferSnapshot = false;
-				if (text && ctx) {
-					const originalFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-					const isSideResize = preview.fontSize === originalFontSize && preview.width !== undefined;
-					
-					if (isSideResize && preview.width) {
-						const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-						const textWidth = Math.max(10, preview.width - horizontalPadding * 2);
-						const textToWrap = resizeStartOriginalText ?? text.text;
-						
-						const unwrappedLayout = measureMultilineText(textToWrap, originalFontSize, ctx);
-						const needsWrapping = unwrappedLayout.width > textWidth;
-						
-						const finalText = needsWrapping 
-							? measureMultilineText(textToWrap, originalFontSize, ctx, textWidth).lines.join('\n')
-							: textToWrap;
-						
-						if (finalText !== text.text) {
-							updateTextContent(preview.id, finalText, false);
-						}
-						setTextBoxWidth(preview.id, preview.width, false);
-						resizeStartOriginalText = null;
-						shouldDeferSnapshot = true;
-					} else if (preview.fontSize && preview.fontSize !== originalFontSize) {
-						setTextFontSize(preview.id, preview.fontSize, false);
-					}
-				}
-				moveText(preview.id, preview.x, targetY, !shouldDeferSnapshot);
-				if (shouldDeferSnapshot) {
-					$editorApi.save_snapshot();
-				}
 			} else if (resizePreview.type === 'image') {
 				moveImage(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
@@ -3858,7 +3089,6 @@ function resetRotationState() {
 				resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
 			}
 			resizePreview = null;
-			resizeStartBoxWidth = null;
 		}
 		
 		if (isSelectingBox && selectionBoxStart && selectionBoxEnd) {
@@ -3875,8 +3105,6 @@ function resetRotationState() {
 				const selectedDias: Diamond[] = [];
 				const selectedLinesArray: Line[] = [];
 				const selectedArrs: Arrow[] = [];
-				const selectedTextsArray: Text[] = [];
-				
 				$rectangles.forEach(rect => {
 					if (rectangleIntersectsBox(rect, box)) {
 						selectedRects.push(rect);
@@ -3907,12 +3135,6 @@ function resetRotationState() {
 					}
 				});
 				
-				$texts.forEach(text => {
-					if (textIntersectsBox(text, box, ctx ?? undefined)) {
-						selectedTextsArray.push(text);
-					}
-				});
-				
 				const selectedPathsArray: Path[] = [];
 				$paths.forEach(path => {
 					if (pathIntersectsBox(path, box)) {
@@ -3932,7 +3154,6 @@ function resetRotationState() {
 				selectedDiamonds.set(selectedDias);
 				selectedLines.set(selectedLinesArray);
 				selectedArrows.set(selectedArrs);
-				selectedTexts.set(selectedTextsArray);
 				selectedPaths.set(selectedPathsArray);
 				selectedImages.set(selectedImagesArray);
 			}
@@ -3952,7 +3173,6 @@ function resetRotationState() {
 			resizeStartMousePos = { x: 0, y: 0 };
 			isShiftPressedDuringResize = false;
 			resizePreview = null;
-			resizeStartTextAscent = 0;
 		}
 		
 		if (isGroupResizing) {
@@ -4005,12 +3225,6 @@ function resetRotationState() {
 				const newEndX = startPos.end.x + dragOffset.x;
 				const newEndY = startPos.end.y + dragOffset.y;
 				moveArrow(id, newStartX, newStartY, newEndX, newEndY, false);
-			});
-			
-			selectedShapesStartPositions.texts.forEach((startPos, id) => {
-				const newX = startPos.x + dragOffset.x;
-				const newY = startPos.y + dragOffset.y;
-				moveText(id, newX, newY, false);
 			});
 			
 			selectedShapesStartPositions.paths.forEach((startPos, id) => {
@@ -4252,45 +3466,6 @@ function resetRotationState() {
 		ctx.restore();
 	}
 
-	function renderTextHandles(
-		ctx: CanvasRenderingContext2D,
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-		zoom: number,
-		includePadding: boolean = true,
-		rotation: number = 0
-	) {
-		const handleSize = 8 / zoom;
-		const halfHandle = handleSize / 2;
-		const bounds = getSelectionOutlineBounds(x, y, width, height, zoom, includePadding);
-		const halfWidth = bounds.width / 2;
-		const halfHeight = bounds.height / 2;
-		
-		ctx.fillStyle = getHandleFillColor();
-		ctx.strokeStyle = getHandleStrokeColor();
-		ctx.lineWidth = 2 / zoom;
-		
-		const cornerHandles = [
-			{ x: -halfWidth, y: -halfHeight },
-			{ x: halfWidth, y: -halfHeight },
-			{ x: halfWidth, y: halfHeight },
-			{ x: -halfWidth, y: halfHeight }
-		];
-		
-		ctx.save();
-		ctx.translate(bounds.x + halfWidth, bounds.y + halfHeight);
-		ctx.rotate(rotation);
-		cornerHandles.forEach((handle) => {
-			ctx.beginPath();
-			ctx.rect(handle.x - halfHandle, handle.y - halfHandle, handleSize, handleSize);
-			ctx.fill();
-			ctx.stroke();
-		});
-		ctx.restore();
-	}
-
 	function calculateGroupBoundingBox(): { x: number; y: number; width: number; height: number } | null {
 		const allSelectedShapes: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = [];
 		
@@ -4439,40 +3614,6 @@ function resetRotationState() {
 			});
 		});
 		
-		if (ctx) {
-			$selectedTexts.forEach(text => {
-				const isDragged = isDragging && selectedShapesStartPositions.texts.has(text.id);
-				let x: number, y: number;
-				if (isDragged) {
-					const startPos = selectedShapesStartPositions.texts.get(text.id)!;
-					x = startPos.x + dragOffset.x;
-					y = startPos.y + dragOffset.y;
-				} else {
-					x = text.position.x;
-					y = text.position.y;
-				}
-				const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-				const layout = measureMultilineText(
-					text.text,
-					text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
-					ctx ?? undefined,
-					contentWidth
-				);
-				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-				const verticalPadding = TEXT_VERTICAL_PADDING;
-				const boxX = x - horizontalPadding;
-				const boxY = y - layout.ascent - verticalPadding;
-				const boxWidth = (text.boxWidth ?? (layout.width + horizontalPadding * 2));
-				const boxHeight = layout.height + verticalPadding * 2;
-				allSelectedShapes.push({
-					minX: boxX,
-					minY: boxY,
-					maxX: boxX + boxWidth,
-					maxY: boxY + boxHeight
-				});
-			});
-		}
-		
 		$selectedPaths.forEach(path => {
 			const isDragged = isDragging && selectedShapesStartPositions.paths.has(path.id);
 			const pathBounds = getPathBoundingBox(path);
@@ -4612,32 +3753,6 @@ function resetRotationState() {
 				}
 			}
 		});
-		
-		if (ctx) {
-			$texts.forEach(text => {
-				if (shapeIds.includes(text.id)) {
-					const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-					const layout = measureMultilineText(
-						text.text,
-						text.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
-						ctx ?? undefined,
-						contentWidth
-					);
-					const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-					const verticalPadding = TEXT_VERTICAL_PADDING;
-					const boxX = text.position.x - horizontalPadding;
-					const boxY = text.position.y - layout.ascent - verticalPadding;
-					const boxWidth = (text.boxWidth ?? (layout.width + horizontalPadding * 2));
-					const boxHeight = layout.height + verticalPadding * 2;
-					allShapeBounds.push({
-						minX: boxX,
-						minY: boxY,
-						maxX: boxX + boxWidth,
-						maxY: boxY + boxHeight
-					});
-				}
-			});
-		}
 
 		$images.forEach(image => {
 			if (shapeIds.includes(image.id)) {
@@ -4720,7 +3835,6 @@ function resetRotationState() {
 			$selectedDiamonds.length +
 			$selectedLines.length +
 			$selectedArrows.length +
-			$selectedTexts.length +
 			$selectedPaths.length +
 			$selectedImages.length;
 		
@@ -4740,7 +3854,6 @@ function resetRotationState() {
 			...$lines.map(l => ({ type: 'line', data: l })),
 			...$arrows.map(a => ({ type: 'arrow', data: a })),
 			...$paths.map(p => ({ type: 'path', data: p })),
-			...$texts.map(t => ({ type: 'text', data: t })),
 			...$images.map(i => ({ type: 'image', data: i }))
 		];
 
@@ -5263,85 +4376,6 @@ function resetRotationState() {
 						}
 					}
 				}
-			} else if (item.type === 'text') {
-				const text = item.data as Text;
-				if (isTypingText && text.id === typingTextId) return;
-				const isSelected = $selectedTexts.some(selected => selected.id === text.id);
-				const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts.has(text.id);
-				const isResizedText = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id && resizePreview.fontSize;
-				
-				let renderX: number, renderY: number;
-				if (isDragged) {
-					const startPos = selectedShapesStartPositions.texts.get(text.id)!;
-					renderX = startPos.x + dragOffset.x;
-					renderY = startPos.y + dragOffset.y;
-				} else {
-					renderX = text.position.x;
-					renderY = text.position.y;
-				}
-				if (isResizedText) {
-					renderX = resizePreview!.x;
-					renderY = resizePreview!.baseline ?? renderY;
-				}
-
-				const baseFontSize = text.fontSize ?? DEFAULT_TEXT_FONT_SIZE;
-				const fontSize = isResizedText ? resizePreview!.fontSize! : baseFontSize;
-				const textColor = adaptColorToTheme(text.text_color, getDefaultTextColor());
-				renderCtx.fillStyle = textColor;
-				renderCtx.font = getFontForSize(fontSize);
-				const rotation = getRenderedRotation(text, 'text');
-				
-				let layout;
-				let constrainedWidth: number | undefined = undefined;
-				const storedBoxWidth = text.boxWidth ?? null;
-				if (isResizedText && resizePreview!.width) {
-					constrainedWidth = resizePreview!.width;
-					const textWidth = Math.max(10, resizePreview!.width - TEXT_HORIZONTAL_PADDING * 2);
-					const unwrappedLayout = measureMultilineText(text.text, fontSize, renderCtx);
-					const needsWrapping = unwrappedLayout.width > textWidth;
-					layout = needsWrapping 
-						? measureMultilineText(text.text, fontSize, renderCtx, textWidth)
-						: unwrappedLayout;
-				} else {
-					const contentWidth = getTextContentWidthFromBoxWidth(storedBoxWidth);
-					if (contentWidth) {
-						constrainedWidth = storedBoxWidth ?? undefined;
-						layout = measureMultilineText(text.text, fontSize, renderCtx, contentWidth);
-					} else {
-						layout = measureMultilineText(text.text, fontSize, renderCtx);
-					}
-				}
-
-				const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-				const verticalPadding = TEXT_VERTICAL_PADDING;
-				const textTop = renderY - layout.ascent;
-				const textBottom = renderY + layout.descent + (layout.lines.length - 1) * layout.lineHeight;
-				const boxX = renderX - horizontalPadding;
-				const boxY = textTop - verticalPadding;
-				const selectionWidth = constrainedWidth ? constrainedWidth : (layout.width + horizontalPadding * 2);
-				const selectionHeight = (textBottom - textTop) + verticalPadding * 2;
-				const originX = boxX + selectionWidth / 2;
-				const originY = boxY + selectionHeight / 2;
-
-				renderCtx.save();
-				renderCtx.translate(originX, originY);
-				renderCtx.rotate(rotation);
-				const textStartX = -selectionWidth / 2 + horizontalPadding;
-				const textStartY = -selectionHeight / 2 + verticalPadding + layout.ascent;
-				layout.lines.forEach((line, index) => {
-					const baselineY = textStartY + index * layout.lineHeight;
-					renderCtx.fillText(line || ' ', textStartX, baselineY);
-				});
-				renderCtx.restore();
-				
-				if (isSelected && !selectedGroupChildIds.has(text.id)) {
-					const outlineBounds = getSelectionOutlineBounds(boxX, boxY, selectionWidth, selectionHeight, $zoom, false);
-					renderSelectionOutline(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
-					if (showIndividualHandles) {
-						renderTextHandles(renderCtx, boxX, boxY, selectionWidth, selectionHeight, $zoom, false, rotation);
-						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
-					}
-				}
 			} else if (item.type === 'image') {
 				const image = item.data as Image;
 				const isSelected = $selectedImages.some(selected => selected.id === image.id);
@@ -5603,36 +4637,13 @@ function resetRotationState() {
 		if (ctx) ctx.scale(dpr, dpr);
 	}
 
-	$: if (isTypingText) {
-		const typingContentWidth = getTextContentWidthFromBoxWidth(typingBoxWidth);
-		typingLayout = measureMultilineText(typingValue || '', typingFontSize, ctx ?? undefined, typingContentWidth);
-	}
-
-	$: if (isTypingText && typingWorldPos) {
-		const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-		const verticalPadding = TEXT_VERTICAL_PADDING;
-		const boxWidth = typingBoxWidth ? typingBoxWidth * $zoom : (typingLayout.width + horizontalPadding * 2) * $zoom;
-		const boxHeight = (typingLayout.height + verticalPadding * 2) * $zoom;
-		
-		if (typingFixedCenter) {
-			const screenCenter = worldToScreen(typingFixedCenter.x, typingFixedCenter.y, $viewportOffset, $zoom);
-			typingScreenPos = {
-				x: screenCenter.x - boxWidth / 2,
-				y: screenCenter.y - boxHeight / 2
-			};
-		} else {
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const ascent = typingLayout.ascent || typingFontSize * 0.8;
-			const textTop = typingWorldPos.y - ascent;
-			const boxY = textTop - verticalPadding;
-			const screenPos = worldToScreen(typingWorldPos.x - horizontalPadding, boxY, $viewportOffset, $zoom);
-			typingScreenPos = {
-				x: screenPos.x,
-				y: screenPos.y
-			};
+	$: {
+		if ($activeTool && $activeTool !== 'select' && isDragging && !draggedShape) {
+			isDragging = false;
+			dragOffset = { x: 0, y: 0 };
 		}
 	}
+
 
 	onMount(() => {
 		initCanvas();
@@ -5692,8 +4703,6 @@ function resetRotationState() {
 		$selectedArrows;
 		$diamonds;
 		$selectedDiamonds;
-		$texts;
-		$selectedTexts;
 		$paths;
 		$selectedPaths;
 		$images;
@@ -5711,22 +4720,6 @@ function resetRotationState() {
 	<ZoomControls />
 	<UndoRedoControls />
 	<StylePanel />
-	{#if isTypingText && typingWorldPos}
-		<textarea
-			bind:this={textInputRef}
-			class={`absolute z-50 bg-transparent border-none outline-none p-0 m-0 resize-none whitespace-pre-wrap overflow-hidden appearance-none pointer-events-auto ${$theme === 'dark' ? 'caret-white' : 'caret-black'}`}
-			style={`left:${typingScreenPos.x}px; top:${typingScreenPos.y}px; font-size:${typingFontSize * $zoom}px; font-family:'Lucida Console', monospace; line-height:${typingLayout.lineHeight * $zoom}px; width:${Math.max(getTextContentWidthFromBoxWidth(typingBoxWidth) ?? typingLayout.width, 2) * $zoom}px; height:${Math.max(typingLayout.height, typingFontSize * 1.2) * $zoom}px; contain: layout style paint; color:${typingTextColor || getDefaultTextColor()}; transform: rotate(${typingRotation}rad); transform-origin: center center;`}
-			spellcheck="false"
-			autocomplete="off"
-			autocapitalize="off"
-			tabindex="0"
-			rows="1"
-			bind:value={typingValue}
-			on:input={handleTextInputInput}
-			on:keydown={handleTextInputKeyDown}
-			on:blur={commitTypingText}
-		></textarea>
-	{/if}
 	<canvas
 		on:mousedown={handleMouseDown}
 		on:mousemove={handleMouseMove}

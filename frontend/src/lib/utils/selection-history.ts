@@ -11,8 +11,6 @@ import {
 	selectedArrows,
 	selectedDiamonds,
 	editorApi,
-	selectedTexts,
-	texts,
 	paths,
 	images,
 	selectedPaths,
@@ -25,7 +23,6 @@ export type SelectionSnapshot = {
 	diamonds: number[];
 	lines: number[];
 	arrows: number[];
-	texts: number[];
 	paths: number[];
 	images: number[];
 	historyIndex: number;
@@ -49,7 +46,6 @@ function snapshotEquals(a: SelectionSnapshot, b: SelectionSnapshot): boolean {
 		arraysEqual(a.diamonds, b.diamonds) &&
 		arraysEqual(a.lines, b.lines) &&
 		arraysEqual(a.arrows, b.arrows) &&
-		arraysEqual(a.texts, b.texts) &&
 		arraysEqual(a.paths, b.paths) &&
 		arraysEqual(a.images, b.images)
 	);
@@ -78,7 +74,6 @@ export function getCurrentSelectionSnapshot(): SelectionSnapshot {
 		diamonds: get(selectedDiamonds).map((diamond) => diamond.id),
 		lines: get(selectedLines).map((line) => line.id),
 		arrows: get(selectedArrows).map((arrow) => arrow.id),
-		texts: get(selectedTexts).map((text) => text.id),
 		paths: get(selectedPaths).map((path) => path.id),
 		images: get(selectedImages).map((image) => image.id),
 		historyIndex: currentHistoryIndex()
@@ -106,14 +101,13 @@ export function initSelectionHistory(): void {
 	initialized = true;
 
 	const selectionSnapshotStore = derived(
-		[selectedRectangles, selectedEllipses, selectedDiamonds, selectedLines, selectedArrows, selectedTexts, selectedPaths, selectedImages],
-		([$rects, $ells, $dias, $lines, $arrows, $texts, $paths, $images]) => ({
+		[selectedRectangles, selectedEllipses, selectedDiamonds, selectedLines, selectedArrows, selectedPaths, selectedImages],
+		([$rects, $ells, $dias, $lines, $arrows, $paths, $images]) => ({
 			rectangles: $rects.map((rect) => rect.id),
 			ellipses: $ells.map((ellipse) => ellipse.id),
 			diamonds: $dias.map((diamond) => diamond.id),
 			lines: $lines.map((line) => line.id),
 			arrows: $arrows.map((arrow) => arrow.id),
-			texts: $texts.map((text) => text.id),
 			paths: $paths.map((path) => path.id),
 			images: $images.map((image) => image.id),
 			historyIndex: currentHistoryIndex()
@@ -165,7 +159,6 @@ export function restoreSelectionForHistoryIndex(historyIndex: number): void {
 	const availableDiamonds = get(diamonds);
 	const availableLines = get(lines);
 	const availableArrows = get(arrows);
-	const availableTexts = get(texts);
 	const availablePaths = get(paths);
 	const availableImages = get(images);
 
@@ -174,7 +167,6 @@ export function restoreSelectionForHistoryIndex(historyIndex: number): void {
 	selectedDiamonds.set(filterByIds(availableDiamonds, snapshot.diamonds));
 	selectedLines.set(filterByIds(availableLines, snapshot.lines));
 	selectedArrows.set(filterByIds(availableArrows, snapshot.arrows));
-	selectedTexts.set(filterByIds(availableTexts, snapshot.texts));
 	selectedPaths.set(filterByIds(availablePaths, snapshot.paths));
 	selectedImages.set(filterByIds(availableImages, snapshot.images));
 	isSuppressed = false;

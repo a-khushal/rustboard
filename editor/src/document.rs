@@ -1,8 +1,5 @@
-const DEFAULT_TEXT_FONT_SIZE: f64 = 16.0;
-
 use crate::elements::{Arrow, Diamond, Ellipse, Group, Image, Line, Rectangle, Path};
 use crate::geometry::Point;
-use crate::Text;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -12,7 +9,6 @@ struct DocumentSnapshot {
     lines: Vec<Line>,
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
-    texts: Vec<Text>,
     paths: Vec<Path>,
     images: Vec<Image>,
     groups: Vec<Group>,
@@ -25,7 +21,6 @@ pub struct Document {
     lines: Vec<Line>,
     arrows: Vec<Arrow>,
     diamonds: Vec<Diamond>,
-    texts: Vec<Text>,
     paths: Vec<Path>,
     images: Vec<Image>,
     groups: Vec<Group>,
@@ -43,7 +38,6 @@ impl Document {
             lines: Vec::new(),
             arrows: Vec::new(),
             diamonds: Vec::new(),
-            texts: Vec::new(),
             paths: Vec::new(),
             images: Vec::new(),
             groups: Vec::new(),
@@ -63,7 +57,6 @@ impl Document {
             lines: self.lines.clone(),
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
-            texts: self.texts.clone(),
             paths: self.paths.clone(),
             images: self.images.clone(),
             groups: self.groups.clone(),
@@ -77,7 +70,6 @@ impl Document {
                 && last_snapshot.lines == snapshot.lines
                 && last_snapshot.arrows == snapshot.arrows
                 && last_snapshot.diamonds == snapshot.diamonds
-                && last_snapshot.texts == snapshot.texts
                 && last_snapshot.paths == snapshot.paths
                 && last_snapshot.images == snapshot.images
                 && last_snapshot.groups == snapshot.groups
@@ -103,7 +95,6 @@ impl Document {
         self.lines = snapshot.lines.clone();
         self.arrows = snapshot.arrows.clone();
         self.diamonds = snapshot.diamonds.clone();
-        self.texts = snapshot.texts.clone();
         self.paths = snapshot.paths.clone();
         self.images = snapshot.images.clone();
         self.groups = snapshot.groups.clone();
@@ -701,130 +692,6 @@ impl Document {
         }
     }
 
-    pub fn add_text(&mut self, position: Point, text: String) -> u64 {
-        self.add_text_with_size(position, text, DEFAULT_TEXT_FONT_SIZE, true)
-    }
-
-    pub fn add_text_without_snapshot(&mut self, position: Point, text: String) -> u64 {
-        self.add_text_with_size(position, text, DEFAULT_TEXT_FONT_SIZE, false)
-    }
-
-    pub fn add_text_with_size_without_snapshot(&mut self, position: Point, text: String, font_size: f64) -> u64 {
-        self.add_text_with_size(position, text, font_size, false)
-    }
-
-    fn add_text_with_size(&mut self, position: Point, text: String, font_size: f64, save_snapshot: bool) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
-        let mut text_elem = Text::new(id, position, text, font_size);
-        text_elem.z_index = self.get_max_z_index() + 1;
-        self.texts.push(text_elem);
-        if save_snapshot {
-            self.save_snapshot();
-        }
-        id
-    }
-
-    pub fn get_texts(&self) -> &[Text] {
-        &self.texts
-    }
-
-    pub fn move_text(&mut self, id: u64, new_position: Point, save_history: bool) {
-        if let Some(text) = self.texts.iter().find(|t| t.id == id) {
-            if text.position != new_position {
-                if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-                    text.position = new_position;
-                }
-                if save_history {
-                    self.save_snapshot();
-                }
-            }
-        }
-    }
-
-    pub fn update_text(&mut self, id: u64, new_text: String, save_history: bool) {
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            if text.text != new_text {
-                text.text = new_text;
-                if save_history {
-                    self.save_snapshot();
-                }
-            }
-        }
-    }
-
-    pub fn delete_text(&mut self, id: u64) {
-        let existed = self.delete_text_without_snapshot(id);
-        if existed {
-            self.save_snapshot();
-        }
-    }
-
-    pub fn delete_text_without_snapshot(&mut self, id: u64) -> bool {
-        let existed = self.texts.iter().any(|t| t.id == id);
-        self.texts.retain(|t| t.id != id);
-        existed
-    }
-
-    pub fn resize_text(&mut self, id: u64, new_font_size: f64, save_history: bool) {
-        let clamped = new_font_size.max(4.0);
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            if (text.font_size - clamped).abs() > f64::EPSILON {
-                text.font_size = clamped;
-                if save_history {
-                    self.save_snapshot();
-                }
-            }
-        }
-    }
-
-    pub fn resize_text_without_snapshot(&mut self, id: u64, new_font_size: f64) {
-        let clamped = new_font_size.max(4.0);
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            text.font_size = clamped;
-        }
-    }
-
-    pub fn set_text_color(&mut self, id: u64, color: String, save_history: bool) {
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            if text.text_color != color {
-                text.text_color = color;
-                if save_history {
-                    self.save_snapshot();
-                }
-            }
-        }
-    }
-
-    pub fn set_text_box_width(&mut self, id: u64, width: Option<f64>, save_history: bool) {
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            let normalized = width.and_then(|w| {
-                if w.is_finite() && w > 0.0 {
-                    Some(w)
-                } else {
-                    None
-                }
-            });
-            if text.box_width != normalized {
-                text.box_width = normalized;
-                if save_history {
-                    self.save_snapshot();
-                }
-            }
-        }
-    }
-
-    pub fn set_text_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            if (text.rotation_angle - angle).abs() > f64::EPSILON {
-                text.rotation_angle = angle;
-                if save_history {
-                    self.save_snapshot();
-                }
-            }
-        }
-    }
-
     pub fn add_path(&mut self, points: Vec<Point>) -> u64 {
         let id = self.add_path_without_snapshot(points);
         self.save_snapshot();
@@ -1070,11 +937,6 @@ impl Document {
             self.save_snapshot();
             return;
         }
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            text.z_index = new_z;
-            self.save_snapshot();
-            return;
-        }
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.z_index = new_z;
             self.save_snapshot();
@@ -1124,11 +986,6 @@ impl Document {
                 next_z = Some(next_z.map_or(arrow.z_index, |z: i32| z.min(arrow.z_index)));
             }
         }
-        for text in &self.texts {
-            if text.id != id && text.z_index > current_z {
-                next_z = Some(next_z.map_or(text.z_index, |z: i32| z.min(text.z_index)));
-            }
-        }
         for path in &self.paths {
             if path.id != id && path.z_index > current_z {
                 next_z = Some(next_z.map_or(path.z_index, |z: i32| z.min(path.z_index)));
@@ -1172,12 +1029,6 @@ impl Document {
                 break;
             }
         }
-        for text in &mut self.texts {
-            if text.id != id && text.z_index == new_z {
-                text.z_index = current_z;
-                break;
-            }
-        }
         for path in &mut self.paths {
             if path.id != id && path.z_index == new_z {
                 path.z_index = current_z;
@@ -1213,11 +1064,6 @@ impl Document {
         }
         if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
             arrow.z_index = new_z;
-            self.save_snapshot();
-            return;
-        }
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            text.z_index = new_z;
             self.save_snapshot();
             return;
         }
@@ -1269,11 +1115,6 @@ impl Document {
                 prev_z = Some(prev_z.map_or(arrow.z_index, |z: i32| z.max(arrow.z_index)));
             }
         }
-        for text in &self.texts {
-            if text.id != id && text.z_index < current_z {
-                prev_z = Some(prev_z.map_or(text.z_index, |z: i32| z.max(text.z_index)));
-            }
-        }
         for path in &self.paths {
             if path.id != id && path.z_index < current_z {
                 prev_z = Some(prev_z.map_or(path.z_index, |z: i32| z.max(path.z_index)));
@@ -1317,12 +1158,6 @@ impl Document {
                 break;
             }
         }
-        for text in &mut self.texts {
-            if text.id != id && text.z_index == new_z {
-                text.z_index = current_z;
-                break;
-            }
-        }
         for path in &mut self.paths {
             if path.id != id && path.z_index == new_z {
                 path.z_index = current_z;
@@ -1358,11 +1193,6 @@ impl Document {
         }
         if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
             arrow.z_index = new_z;
-            self.save_snapshot();
-            return;
-        }
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            text.z_index = new_z;
             self.save_snapshot();
             return;
         }
@@ -1410,11 +1240,6 @@ impl Document {
                 arrow.z_index += 1;
             }
         }
-        for text in &mut self.texts {
-            if text.id != id && text.z_index < current_z.unwrap() {
-                text.z_index += 1;
-            }
-        }
         for path in &mut self.paths {
             if path.id != id && path.z_index < current_z.unwrap() {
                 path.z_index += 1;
@@ -1451,11 +1276,6 @@ impl Document {
             self.save_snapshot();
             return;
         }
-        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
-            text.z_index = new_z;
-            self.save_snapshot();
-            return;
-        }
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.z_index = new_z;
             self.save_snapshot();
@@ -1483,9 +1303,6 @@ impl Document {
         if let Some(arrow) = self.arrows.iter().find(|a| a.id == id) {
             return Some(arrow.z_index);
         }
-        if let Some(text) = self.texts.iter().find(|t| t.id == id) {
-            return Some(text.z_index);
-        }
         if let Some(path) = self.paths.iter().find(|p| p.id == id) {
             return Some(path.z_index);
         }
@@ -1511,9 +1328,6 @@ impl Document {
         }
         for arrow in &self.arrows {
             max_z = max_z.max(arrow.z_index);
-        }
-        for text in &self.texts {
-            max_z = max_z.max(text.z_index);
         }
         for path in &self.paths {
             max_z = max_z.max(path.z_index);
@@ -1543,9 +1357,6 @@ impl Document {
         }
         for arrow in &self.arrows {
             shapes.push((arrow.id, arrow.z_index));
-        }
-        for text in &self.texts {
-            shapes.push((text.id, text.z_index));
         }
         for path in &self.paths {
             shapes.push((path.id, path.z_index));
@@ -1586,11 +1397,6 @@ impl Document {
                 arrow.z_index = new_z;
             }
         }
-        for text in &mut self.texts {
-            if let Some(&new_z) = id_to_new_z.get(&text.id) {
-                text.z_index = new_z;
-            }
-        }
         for path in &mut self.paths {
             if let Some(&new_z) = id_to_new_z.get(&path.id) {
                 path.z_index = new_z;
@@ -1610,7 +1416,6 @@ impl Document {
             lines: self.lines.clone(),
             arrows: self.arrows.clone(),
             diamonds: self.diamonds.clone(),
-            texts: self.texts.clone(),
             paths: self.paths.clone(),
             images: self.images.clone(),
             groups: self.groups.clone(),

@@ -182,42 +182,6 @@ impl Diamond {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Text {
-    pub id: u64,
-    pub position: Point,
-    pub text: String,
-	#[serde(rename = "fontSize", default = "default_font_size")]
-	pub font_size: f64,
-    #[serde(default = "default_stroke_color")]
-    pub text_color: String,
-	#[serde(rename = "boxWidth", default)]
-	pub box_width: Option<f64>,
-    #[serde(default = "default_rotation")]
-    pub rotation_angle: f64,
-    #[serde(default = "default_z_index")]
-    pub z_index: i32,
-}
-
-impl Text {
-	pub fn new(id: u64, position: Point, text: String, font_size: f64) -> Self {
-		Self { 
-            id, 
-            position, 
-            text, 
-            font_size,
-            text_color: default_stroke_color(),
-			box_width: None,
-            rotation_angle: default_rotation(),
-            z_index: default_z_index(),
-        }
-    }
-}
-
-fn default_font_size() -> f64 {
-	16.0
-}
-
 fn default_stroke_color() -> String {
     "#000000".to_string()
 }

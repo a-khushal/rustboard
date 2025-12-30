@@ -2,9 +2,9 @@
 	import { get } from 'svelte/store';
 	import { theme } from '$lib/stores/theme';
 	import { 
-		rectangles, ellipses, diamonds, lines, arrows, texts, paths, images,
+		rectangles, ellipses, diamonds, lines, arrows, paths, images,
 		editorApi,
-		type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image
+		type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image
 	} from '$lib/stores/editor';
 	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
@@ -59,11 +59,10 @@
 		const diamondIds = $diamonds.map(d => d.id);
 		const lineIds = $lines.map(l => l.id);
 		const arrowIds = $arrows.map(a => a.id);
-		const textIds = $texts.map(t => t.id);
 		const pathIds = $paths.map(p => p.id);
 		const imageIds = $images.map(i => i.id);
 
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, [], pathIds, imageIds);
 		clearAllSelections();
 		closeResetModal();
 	}
@@ -81,7 +80,7 @@
 			$diamonds,
 			$lines,
 			$arrows,
-			$texts,
+			[],
 			$paths,
 			$images,
 			ctx,
@@ -128,7 +127,6 @@
 				const updatedLines = api.get_lines() as Line[];
 				const updatedArrows = api.get_arrows() as Arrow[];
 				const updatedDiamonds = api.get_diamonds() as Diamond[];
-				const updatedTexts = api.get_texts() as Text[];
 				const updatedPaths = api.get_paths() as Path[];
 				const updatedImages = api.get_images() as Image[];
 				
@@ -137,7 +135,6 @@
 				lines.set(updatedLines);
 				arrows.set(updatedArrows);
 				diamonds.set(updatedDiamonds);
-				texts.set(updatedTexts);
 				paths.set(updatedPaths);
 				images.set(updatedImages);
 				

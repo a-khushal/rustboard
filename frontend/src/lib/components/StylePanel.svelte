@@ -6,7 +6,6 @@
 		selectedLines,
 		selectedArrows,
 		selectedDiamonds,
-		selectedTexts,
 		selectedImages,
 		selectedPaths,
 		editorApi,
@@ -15,7 +14,6 @@
 		lines,
 		arrows,
 		diamonds,
-		texts,
 		images,
 		paths,
 		type Rectangle,
@@ -23,7 +21,6 @@
 		type Line,
 		type Arrow,
 		type Diamond,
-		type Text,
 		type Image,
 		type Path
 	} from '$lib/stores/editor';
@@ -42,8 +39,9 @@
 	let strokeColor = '#000000';
 	let fillColor: string | null = null;
 	let lineWidth = 2;
-	let textColor = '#000000';
 	let unifiedColor = '#000000';
+
+	$: displayStrokeColor = normalizeColorForTheme(strokeColor);
 
 	$: strokeColors = $theme === 'dark' 
 		? ['#ffffff', '#60a5fa', '#34d399', '#fb7185', '#d97706']
@@ -68,7 +66,7 @@
 		
 		const input = document.createElement('input');
 		input.type = 'color';
-		input.value = getDisplayStrokeColor();
+		input.value = displayStrokeColor;
 		input.style.position = 'fixed';
 		input.style.left = `${panelRect.left - 250}px`;
 		input.style.top = `${buttonRect.top}px`;
@@ -159,7 +157,6 @@
 				$selectedDiamonds.length +
 				$selectedLines.length +
 				$selectedArrows.length +
-				$selectedTexts.length +
 				$selectedImages.length +
 				$selectedPaths.length;
 
@@ -167,15 +164,13 @@
 				strokeColor = '#000000';
 				fillColor = null;
 				lineWidth = 2;
-				textColor = '#000000';
 			} else {
-				const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path> = [
+				const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Path> = [
 					...$selectedRectangles,
 					...$selectedEllipses,
 					...$selectedDiamonds,
 					...$selectedLines,
 					...$selectedArrows,
-					...$selectedTexts,
 					...$selectedPaths
 				];
 
@@ -200,10 +195,6 @@
 					defaultStrokeWidth.set(lineWidths[0]);
 				}
 
-				const textColors = $selectedTexts
-					.map((t) => t.text_color || '#000000')
-					.filter((c, i, arr) => arr.indexOf(c) === i);
-				textColor = textColors.length === 1 ? textColors[0] : '#000000';
 			}
 		}
 	}
@@ -351,18 +342,6 @@
 		saveStateToLocalStorage();
 	}
 
-	function updateTextColor(color: string) {
-		textColor = color;
-		if (!$editorApi) return;
-
-		$selectedTexts.forEach((text) => {
-			$editorApi.set_text_color(BigInt(text.id), color, false);
-		});
-
-		$editorApi.save_snapshot();
-		updateStores();
-		saveStateToLocalStorage();
-	}
 
 	function bringToFront() {
 		if (!$editorApi) return;
@@ -371,7 +350,6 @@
 		$selectedDiamonds.forEach(d => $editorApi!.bring_shape_to_front(BigInt(d.id)));
 		$selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
 		$selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
-		$selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
 		$selectedPaths.forEach(p => $editorApi!.bring_shape_to_front(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.bring_shape_to_front(BigInt(i.id)));
 		updateStores();
@@ -385,7 +363,6 @@
 		$selectedDiamonds.forEach(d => $editorApi!.bring_shape_forward(BigInt(d.id)));
 		$selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
 		$selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
-		$selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
 		$selectedPaths.forEach(p => $editorApi!.bring_shape_forward(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.bring_shape_forward(BigInt(i.id)));
 		updateStores();
@@ -399,7 +376,6 @@
 		$selectedDiamonds.forEach(d => $editorApi!.send_shape_backward(BigInt(d.id)));
 		$selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
 		$selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
-		$selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
 		$selectedPaths.forEach(p => $editorApi!.send_shape_backward(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.send_shape_backward(BigInt(i.id)));
 		updateStores();
@@ -413,7 +389,6 @@
 		$selectedDiamonds.forEach(d => $editorApi!.send_shape_to_back(BigInt(d.id)));
 		$selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
 		$selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
-		$selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
 		$selectedPaths.forEach(p => $editorApi!.send_shape_to_back(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.send_shape_to_back(BigInt(i.id)));
 		updateStores();
@@ -429,7 +404,6 @@
 		const selectedLineIds = new Set($selectedLines.map(l => l.id));
 		const selectedArrowIds = new Set($selectedArrows.map(a => a.id));
 		const selectedDiamondIds = new Set($selectedDiamonds.map(d => d.id));
-		const selectedTextIds = new Set($selectedTexts.map(t => t.id));
 		const selectedImageIds = new Set($selectedImages.map(i => i.id));
 		const selectedPathIds = new Set($selectedPaths.map(p => p.id));
 		
@@ -438,7 +412,6 @@
 		const allLines = api.get_lines() as Line[];
 		const allArrows = api.get_arrows() as Arrow[];
 		const allDiamonds = api.get_diamonds() as Diamond[];
-		const allTexts = api.get_texts() as Text[];
 		const allImages = api.get_images() as Image[];
 		const allPaths = api.get_paths() as Path[];
 		
@@ -447,7 +420,6 @@
 		lines.set(allLines);
 		arrows.set(allArrows);
 		diamonds.set(allDiamonds);
-		texts.set(allTexts);
 		images.set(allImages);
 		paths.set(allPaths);
 		
@@ -456,7 +428,6 @@
 		selectedLines.set(allLines.filter(l => selectedLineIds.has(l.id)));
 		selectedArrows.set(allArrows.filter(a => selectedArrowIds.has(a.id)));
 		selectedDiamonds.set(allDiamonds.filter(d => selectedDiamondIds.has(d.id)));
-		selectedTexts.set(allTexts.filter(t => selectedTextIds.has(t.id)));
 		selectedImages.set(allImages.filter(i => selectedImageIds.has(i.id)));
 		selectedPaths.set(allPaths.filter(p => selectedPathIds.has(p.id)));
 	}
@@ -467,7 +438,6 @@
 		$selectedDiamonds.length > 0 ||
 		$selectedLines.length > 0 ||
 		$selectedArrows.length > 0 ||
-		$selectedTexts.length > 0 ||
 		$selectedImages.length > 0 ||
 		$selectedPaths.length > 0;
 
@@ -502,10 +472,7 @@
 		$selectedDiamonds.length === 0 &&
 		$selectedLines.length === 0 &&
 		$selectedArrows.length === 0 &&
-		$selectedTexts.length === 0 &&
 		$selectedPaths.length === 0;
-
-	$: hasText = $selectedTexts.length > 0;
 
 	$: hasShapes = 
 		$selectedRectangles.length > 0 ||
@@ -517,22 +484,7 @@
 
 	$: isSingleSelection = 
 		($selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + 
-		 $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length) === 1;
-
-	$: {
-		if (hasShapes && hasText) {
-			const allColors = [
-				...$selectedRectangles.map(r => (r as any).stroke_color || '#000000'),
-				...$selectedEllipses.map(e => (e as any).stroke_color || '#000000'),
-				...$selectedDiamonds.map(d => (d as any).stroke_color || '#000000'),
-				...$selectedLines.map(l => (l as any).stroke_color || '#000000'),
-				...$selectedArrows.map(a => (a as any).stroke_color || '#000000'),
-				...$selectedPaths.map(p => (p as any).stroke_color || '#000000'),
-				...$selectedTexts.map(t => (t as any).text_color || '#000000')
-			].filter((c, i, arr) => arr.indexOf(c) === i);
-			unifiedColor = allColors.length === 1 ? allColors[0] : '#000000';
-		}
-	}
+		 $selectedLines.length + $selectedArrows.length + $selectedPaths.length) === 1;
 
 	async function updateUnifiedColor(color: string) {
 		unifiedColor = color;
@@ -544,8 +496,6 @@
 		const selectedLns = get(selectedLines);
 		const selectedArrs = get(selectedArrows);
 		const selectedPths = get(selectedPaths);
-		const selectedTxts = get(selectedTexts);
-
 		selectedRects.forEach((rect) => {
 			$editorApi.set_rectangle_stroke_color(BigInt(rect.id), color, false);
 		});
@@ -564,9 +514,6 @@
 		selectedPths.forEach((path) => {
 			$editorApi.set_path_stroke_color(BigInt(path.id), color, false);
 		});
-		selectedTxts.forEach((text) => {
-			$editorApi.set_text_color(BigInt(text.id), color, false);
-		});
 
 		$editorApi.save_snapshot();
 		updateStores();
@@ -577,7 +524,7 @@
 	function handleDuplicate() {
 		if (!$editorApi) return;
 
-		const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
+		const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
 		if (!hasSelection) return;
 
 		const selectedIds = new Set([
@@ -586,7 +533,6 @@
 			...$selectedLines.map(l => l.id),
 			...$selectedArrows.map(a => a.id),
 			...$selectedDiamonds.map(d => d.id),
-			...$selectedTexts.map(t => t.id),
 			...$selectedPaths.map(p => p.id),
 			...$selectedImages.map(i => i.id)
 		]);
@@ -596,20 +542,18 @@
 		const allLines = Array.from($editorApi.get_lines() as Line[]);
 		const allArrows = Array.from($editorApi.get_arrows() as Arrow[]);
 		const allDiamonds = Array.from($editorApi.get_diamonds() as Diamond[]);
-		const allTexts = Array.from($editorApi.get_texts() as Text[]);
 		const allPaths = Array.from($editorApi.get_paths() as Path[]);
 		const allImages = Array.from($editorApi.get_images() as Image[]);
-
+		
 		const currentRectangles = allRectangles.filter(r => selectedIds.has(r.id));
 		const currentEllipses = allEllipses.filter(e => selectedIds.has(e.id));
 		const currentLines = allLines.filter(l => selectedIds.has(l.id));
 		const currentArrows = allArrows.filter(a => selectedIds.has(a.id));
 		const currentDiamonds = allDiamonds.filter(d => selectedIds.has(d.id));
-		const currentTexts = allTexts.filter(t => selectedIds.has(t.id));
 		const currentPaths = allPaths.filter(p => selectedIds.has(p.id));
 		const currentImages = allImages.filter(i => selectedIds.has(i.id));
 
-		copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentTexts, currentImages, currentPaths);
+		copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentImages, currentPaths);
 		const clipboard = getClipboard();
 
 		const bounds: Array<{ minX: number; minY: number }> = [];
@@ -618,7 +562,6 @@
 		clipboard.diamonds.forEach(d => bounds.push({ minX: d.position.x, minY: d.position.y }));
 		clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
 		clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
-		clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
 		clipboard.images.forEach(i => bounds.push({ minX: i.position.x, minY: i.position.y }));
 		clipboard.paths.forEach(p => {
 			if (p.points.length > 0) {
@@ -646,11 +589,10 @@
 		const diamondIds = $selectedDiamonds.map(diamond => diamond.id);
 		const lineIds = $selectedLines.map(line => line.id);
 		const arrowIds = $selectedArrows.map(arrow => arrow.id);
-		const textIds = $selectedTexts.map(text => text.id);
 		const pathIds = $selectedPaths.map(path => path.id);
 		const imageIds = $selectedImages.map(image => image.id);
 
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, [], pathIds, imageIds);
 	}
 
 	function handleEdgeStyleChange(style: EdgeStyle) {
@@ -778,9 +720,7 @@
 	<div bind:this={stylePanelRef} class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[240px] min-w-[240px] min-h-[100px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
 		<div class="space-y-2.5 min-w-0">
 			{#if !hasImagesOnly}
-				{#if hasShapes && hasText}
-					<ColorPicker label="Color" bind:value={unifiedColor} onInput={(val: string) => updateUnifiedColor(val)} />
-				{:else if hasShapes}
+				{#if hasShapes}
 					<div class="space-y-1.5">
 						<fieldset class="flex flex-col gap-2 w-full min-w-0">
 							<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke</legend>
@@ -790,7 +730,7 @@
 									bind:this={strokeColorPickerButton}
 									on:click={openStrokeColorPicker}
 									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-									style="background-color: {strokeColor};"
+									style="background-color: {displayStrokeColor};"
 									title="Current color - click to change"
 								>
 								</button>
@@ -798,8 +738,8 @@
 									<button
 										type="button"
 										on:click={() => updateStrokeColor(color)}
-										class={`rounded-full border transition-all hover:scale-105 ${strokeColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
-										style="background-color: {color};"
+										class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === normalizeColorForTheme(color) ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+										style="background-color: {normalizeColorForTheme(color)};"
 										title={color}
 									>
 									</button>
@@ -807,8 +747,6 @@
 							</div>
 						</fieldset>
 					</div>
-				{:else if hasText}
-					<ColorPicker label="Text" bind:value={textColor} onInput={(val: string) => updateTextColor(val)} />
 				{/if}
 			{/if}
 

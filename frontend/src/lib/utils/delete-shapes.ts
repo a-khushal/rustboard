@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, paths, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedPaths, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, paths, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image } from '$lib/stores/editor';
 import { updatePaths } from '$lib/utils/canvas-operations/path';
 
 export function deleteShapes(
@@ -15,7 +15,7 @@ export function deleteShapes(
     const api = get(editorApi);
     if (!api) return;
 
-    const hasAnySelection = rectangleIds.length > 0 || ellipseIds.length > 0 || lineIds.length > 0 || arrowIds.length > 0 || diamondIds.length > 0 || textIds.length > 0 || pathIds.length > 0 || imageIds.length > 0;
+    const hasAnySelection = rectangleIds.length > 0 || ellipseIds.length > 0 || lineIds.length > 0 || arrowIds.length > 0 || diamondIds.length > 0 || pathIds.length > 0 || imageIds.length > 0;
     if (!hasAnySelection) return;
 
     api.save_snapshot();
@@ -40,10 +40,6 @@ export function deleteShapes(
         api.delete_diamond_without_snapshot(BigInt(id));
     });
 
-    textIds.forEach(id => {
-        api.delete_text_without_snapshot(BigInt(id));
-    });
-
     pathIds.forEach(id => {
         api.delete_path_without_snapshot(BigInt(id));
     });
@@ -59,14 +55,12 @@ export function deleteShapes(
     const updatedLines = Array.from(api.get_lines() as Line[]);
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
     const updatedDiamonds = Array.from(api.get_diamonds() as Diamond[]);
-    const updatedTexts = Array.from(api.get_texts() as Text[]);
     const updatedImages = Array.from(api.get_images() as Image[]);
     rectangles.set(updatedRectangles);
     ellipses.set(updatedEllipses);
     lines.set(updatedLines);
     arrows.set(updatedArrows);
     diamonds.set(updatedDiamonds);
-    texts.set(updatedTexts);
     images.set(updatedImages);
 
     updatePaths();
@@ -76,7 +70,6 @@ export function deleteShapes(
     selectedLines.set([]);
     selectedArrows.set([]);
     selectedDiamonds.set([]);
-    selectedTexts.set([]);
     selectedPaths.set([]);
     selectedImages.set([]);
 }

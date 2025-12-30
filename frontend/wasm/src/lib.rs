@@ -217,53 +217,6 @@ impl EditorApi {
         self.document.borrow_mut().delete_arrow_without_snapshot(id)
     }
 
-    // text
-    #[wasm_bindgen]
-    pub fn add_text(&self, x: f64, y: f64, text: String) -> u64 {
-        self.document.borrow_mut().add_text(Point::new(x, y), text)
-    }
-
-    #[wasm_bindgen]
-    pub fn add_text_without_snapshot(&self, x: f64, y: f64, text: String) -> u64 {
-        self.document.borrow_mut().add_text_without_snapshot(Point::new(x, y), text)
-    }
-
-    #[wasm_bindgen]
-    pub fn get_texts(&self) -> JsValue {
-        let texts = self.document.borrow().get_texts().to_vec();
-        to_value(&texts).unwrap()
-    }
-
-    #[wasm_bindgen]
-    pub fn move_text(&self, id: u64, x: f64, y: f64, save_history: bool) {
-        self.document.borrow_mut().move_text(id, Point::new(x, y), save_history);
-    }
-
-    #[wasm_bindgen]
-    pub fn update_text(&self, id: u64, text: String, save_history: bool) {
-        self.document.borrow_mut().update_text(id, text, save_history);
-    }
-
-    #[wasm_bindgen]
-    pub fn resize_text(&self, id: u64, font_size: f64, save_history: bool) {
-        self.document.borrow_mut().resize_text(id, font_size, save_history);
-    }
-
-    #[wasm_bindgen]
-    pub fn resize_text_without_snapshot(&self, id: u64, font_size: f64) {
-        self.document.borrow_mut().resize_text_without_snapshot(id, font_size);
-    }
-
-    #[wasm_bindgen]
-    pub fn delete_text(&self, id: u64) {
-        self.document.borrow_mut().delete_text(id);
-    }
-
-    #[wasm_bindgen]
-    pub fn delete_text_without_snapshot(&self, id: u64) -> bool {
-        self.document.borrow_mut().delete_text_without_snapshot(id)
-    }
-
     #[wasm_bindgen]
     pub fn add_path(&self, points: JsValue) -> u64 {
         let points: Vec<Point> = serde_wasm_bindgen::from_value(points).unwrap();
@@ -489,20 +442,6 @@ impl EditorApi {
         self.document.borrow_mut().set_arrow_dash_pattern(id, pattern, save_history);
     }
 
-    #[wasm_bindgen]
-    pub fn set_text_color(&self, id: u64, color: String, save_history: bool) {
-        self.document.borrow_mut().set_text_color(id, color, save_history);
-    }
-
-    #[wasm_bindgen]
-    pub fn set_text_box_width(&self, id: u64, width: Option<f64>, save_history: bool) {
-        self.document.borrow_mut().set_text_box_width(id, width, save_history);
-    }
-
-    #[wasm_bindgen]
-    pub fn set_text_rotation(&self, id: u64, angle: f64, save_history: bool) {
-        self.document.borrow_mut().set_text_rotation(id, angle, save_history);
-    }
 
     #[wasm_bindgen]
     pub fn group_elements(&self, ids: JsValue) -> u64 {

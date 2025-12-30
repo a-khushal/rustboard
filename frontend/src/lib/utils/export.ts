@@ -1,6 +1,5 @@
-import type { Rectangle, Ellipse, Diamond, Line, Arrow, Text, Path, Image } from '$lib/stores/editor';
-import { TEXT_HORIZONTAL_PADDING, TEXT_VERTICAL_PADDING } from './geometry';
-import { measureMultilineText, getTextContentWidthFromBoxWidth, getPathBoundingBox } from './geometry';
+import type { Rectangle, Ellipse, Diamond, Line, Arrow, Path, Image } from '$lib/stores/editor';
+import { getPathBoundingBox } from './geometry';
 
 export async function exportToPNG(
 	canvas: HTMLCanvasElement,
@@ -19,7 +18,6 @@ export function exportToSVG(
 	diamonds: Diamond[],
 	lines: Line[],
 	arrows: Arrow[],
-	texts: Text[],
 	paths: Path[],
 	images: Image[],
 	ctx: CanvasRenderingContext2D | null,
@@ -32,7 +30,6 @@ export function exportToSVG(
 		...lines.map(l => ({ type: 'line', data: l, z_index: l.z_index || 0 })),
 		...arrows.map(a => ({ type: 'arrow', data: a, z_index: a.z_index || 0 })),
 		...paths.map(p => ({ type: 'path', data: p, z_index: p.z_index || 0 })),
-		...texts.map(t => ({ type: 'text', data: t, z_index: t.z_index || 0 })),
 		...images.map(i => ({ type: 'image', data: i, z_index: i.z_index || 0 }))
 	];
 
@@ -95,27 +92,6 @@ export function exportToSVG(
 		maxY = Math.max(maxY, image.position.y + image.height);
 	});
 
-	if (ctx) {
-		texts.forEach(text => {
-			const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-			const layout = measureMultilineText(
-				text.text,
-				text.fontSize ?? 16,
-				ctx,
-				contentWidth
-			);
-			const horizontalPadding = TEXT_HORIZONTAL_PADDING;
-			const verticalPadding = TEXT_VERTICAL_PADDING;
-			const boxX = text.position.x - horizontalPadding;
-			const boxY = text.position.y - layout.ascent - verticalPadding;
-			const boxWidth = text.boxWidth ?? (layout.width + horizontalPadding * 2);
-			const boxHeight = layout.height + verticalPadding * 2;
-			minX = Math.min(minX, boxX);
-			minY = Math.min(minY, boxY);
-			maxX = Math.max(maxX, boxX + boxWidth);
-			maxY = Math.max(maxY, boxY + boxHeight);
-		});
-	}
 
 	if (minX === Infinity) {
 		minX = 0;
@@ -232,36 +208,6 @@ export function exportToSVG(
 					pathData += ` L ${path.points[i].x + offsetX} ${path.points[i].y + offsetY}`;
 				}
 				svg += `<path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>\n`;
-			}
-		} else if (item.type === 'text') {
-			const text = item.data as Text;
-			if (!ctx) return;
-			const contentWidth = getTextContentWidthFromBoxWidth(text.boxWidth ?? null);
-			const layout = measureMultilineText(
-				text.text,
-				text.fontSize ?? 16,
-				ctx,
-				contentWidth
-			);
-			const x = text.position.x + offsetX;
-			const y = text.position.y + offsetY;
-			const rotation = text.rotation_angle ?? 0;
-			const textColor = text.text_color || '#000000';
-			const fontSize = text.fontSize ?? 16;
-			const lines = layout.lines;
-
-			if (rotation !== 0) {
-				svg += `<g transform="translate(${x},${y}) rotate(${(rotation * 180) / Math.PI})">\n`;
-				lines.forEach((line, index) => {
-					const lineY = index * layout.lineHeight - layout.ascent;
-					svg += `  <text x="0" y="${lineY}" font-family="'Lucida Console', monospace" font-size="${fontSize}" fill="${textColor}">${escapeXml(line)}</text>\n`;
-				});
-				svg += `</g>\n`;
-			} else {
-				lines.forEach((line, index) => {
-					const lineY = y + index * layout.lineHeight - layout.ascent;
-					svg += `<text x="${x}" y="${lineY}" font-family="'Lucida Console', monospace" font-size="${fontSize}" fill="${textColor}">${escapeXml(line)}</text>\n`;
-				});
 			}
 		} else if (item.type === 'image') {
 			const image = item.data as Image;

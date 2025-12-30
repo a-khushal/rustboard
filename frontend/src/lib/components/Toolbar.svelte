@@ -56,7 +56,6 @@
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
 		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
 		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' },
-		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
 		{ id: 'image' as Tool, label: 'Image', icon: 'image' },
 		{ id: 'eraser' as Tool, label: 'Eraser', icon: 'eraser' }
 	];
@@ -106,11 +105,6 @@
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="2" y1="8" x2="12" y2="8"/>
 					<polyline points="9,5 12,8 9,11"/>
-				</svg>
-			{:else if tool.icon === 'text'}
-				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-					<line x1="4" y1="3" x2="12" y2="3" />
-					<line x1="8" y1="3" x2="8" y2="13" />
 				</svg>
 			{:else if tool.icon === 'freehand'}
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">

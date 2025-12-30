@@ -1,6 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, images, paths, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedImages, selectedPaths, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Image, type Path } from '$lib/stores/editor';
-import { DEFAULT_TEXT_FONT_SIZE, measureMultilineText } from '$lib/utils/geometry';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, images, paths, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedImages, selectedPaths, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Image, type Path } from '$lib/stores/editor';
 import { updatePaths } from '$lib/utils/canvas-operations/path';
 import type { ClipboardData } from './clipboard';
 
@@ -33,12 +32,6 @@ function calculateBoundingBox(clipboard: ClipboardData, fallbackX: number, fallb
         minYValues.push(Math.min(a.start.y, a.end.y));
     });
 
-    clipboard.texts.forEach(t => {
-        const layout = measureMultilineText(t.text, t.fontSize ?? DEFAULT_TEXT_FONT_SIZE);
-        minXValues.push(t.position.x);
-        minYValues.push(t.position.y - layout.ascent);
-    });
-
     clipboard.images.forEach(i => {
         minXValues.push(i.position.x);
         minYValues.push(i.position.y);
@@ -66,12 +59,11 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     lines: number[];
     arrows: number[];
     diamonds: number[];
-    texts: number[];
     images: number[];
     paths: number[];
 } {
     const api = get(editorApi);
-    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], texts: [], images: [], paths: [] };
+    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], images: [], paths: [] };
 
     const { minX, minY } = calculateBoundingBox(clipboard, offsetX, offsetY);
 
@@ -83,7 +75,6 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         lines: [] as number[],
         arrows: [] as number[],
         diamonds: [] as number[],
-        texts: [] as number[],
         images: [] as number[],
         paths: [] as number[]
     };
@@ -202,17 +193,6 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         pastedIds.arrows.push(Number(newId));
     });
 
-    clipboard.texts.forEach(text => {
-        const newX = text.position.x - minX + offsetX;
-        const newY = text.position.y - minY + offsetY;
-        const newId = Number(api.add_text_without_snapshot(newX, newY, text.text));
-        api.resize_text_without_snapshot(BigInt(newId), text.fontSize ?? DEFAULT_TEXT_FONT_SIZE);
-        if (text.rotation_angle !== undefined) {
-            api.set_text_rotation(BigInt(newId), text.rotation_angle, false);
-        }
-        pastedIds.texts.push(newId);
-    });
-
     clipboard.images.forEach(image => {
         const newX = image.position.x - minX + offsetX;
         const newY = image.position.y - minY + offsetY;
@@ -250,7 +230,6 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     const updatedLines = Array.from(api.get_lines() as Line[]);
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
     const updatedDiamonds = Array.from(api.get_diamonds() as Diamond[]);
-    const updatedTexts = Array.from(api.get_texts() as Text[]);
     const updatedImages = Array.from(api.get_images() as Image[]);
 
     rectangles.set(updatedRectangles);
@@ -258,7 +237,6 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     lines.set(updatedLines);
     arrows.set(updatedArrows);
     diamonds.set(updatedDiamonds);
-    texts.set(updatedTexts);
     images.set(updatedImages);
 
     updatePaths();
@@ -270,7 +248,6 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     selectedLines.set(updatedLines.filter(l => pastedIds.lines.includes(l.id)));
     selectedArrows.set(updatedArrows.filter(a => pastedIds.arrows.includes(a.id)));
     selectedDiamonds.set(updatedDiamonds.filter(d => pastedIds.diamonds.includes(d.id)));
-    selectedTexts.set(updatedTexts.filter(t => pastedIds.texts.includes(t.id)));
     selectedImages.set(updatedImages.filter(i => pastedIds.images.includes(i.id)));
     selectedPaths.set(updatedPaths.filter(p => pastedIds.paths.includes(p.id)));
 

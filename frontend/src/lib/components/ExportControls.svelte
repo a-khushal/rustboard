@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { theme } from '$lib/stores/theme';
 	import { 
-		rectangles, ellipses, diamonds, lines, arrows, texts, paths
+		rectangles, ellipses, diamonds, lines, arrows, paths, images
 	} from '$lib/stores/editor';
 	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 
@@ -21,8 +21,8 @@
 			$diamonds,
 			$lines,
 			$arrows,
-			$texts,
 			$paths,
+			$images,
 			ctx,
 			'rustboard.svg'
 		);
