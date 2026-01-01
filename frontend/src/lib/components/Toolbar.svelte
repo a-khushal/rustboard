@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
-	import { viewportOffset, zoom, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, selectedGroups } from '$lib/stores/editor';
+	import { viewportOffset, zoom, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, selectedTexts, selectedGroups } from '$lib/stores/editor';
 	import { addImage } from '$lib/utils/canvas-operations/index';
 	import { screenToWorld } from '$lib/utils/viewport';
 
@@ -53,6 +53,7 @@
 				selectedDiamonds.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
+				selectedTexts.set([]);
 				selectedGroups.set([]);
 			}
 		}
@@ -66,6 +67,7 @@
 		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
 		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
 		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' },
+		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
 		{ id: 'image' as Tool, label: 'Image', icon: 'image' },
 		{ id: 'eraser' as Tool, label: 'Eraser', icon: 'eraser' }
 	];
@@ -131,6 +133,11 @@
 			{:else if tool.icon === 'eraser'}
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eraser" viewBox="0 0 16 16">
 					<path d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828zm2.121.707a1 1 0 0 0-1.414 0L4.16 7.547l5.293 5.293 4.633-4.633a1 1 0 0 0 0-1.414zM8.746 13.547 3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293z"/>
+				</svg>
+			{:else if tool.icon === 'text'}
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="2" y1="2" x2="14" y2="2"/>
+					<line x1="8" y1="2" x2="8" y2="15"/>
 				</svg>
 			{/if}
 		</button>

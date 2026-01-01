@@ -1,4 +1,4 @@
-import type { Rectangle, Ellipse, Diamond, Line, Arrow, Path, Image } from '$lib/stores/editor';
+import type { Rectangle, Ellipse, Diamond, Line, Arrow, Path, Image, Text } from '$lib/stores/editor';
 import { getPathBoundingBox } from './geometry';
 
 export async function exportToPNG(
@@ -20,6 +20,7 @@ export function exportToSVG(
 	arrows: Arrow[],
 	paths: Path[],
 	images: Image[],
+	texts: Text[],
 	ctx: CanvasRenderingContext2D | null,
 	filename: string = 'rustboard.svg'
 ): void {
@@ -30,7 +31,8 @@ export function exportToSVG(
 		...lines.map(l => ({ type: 'line', data: l, z_index: l.z_index || 0 })),
 		...arrows.map(a => ({ type: 'arrow', data: a, z_index: a.z_index || 0 })),
 		...paths.map(p => ({ type: 'path', data: p, z_index: p.z_index || 0 })),
-		...images.map(i => ({ type: 'image', data: i, z_index: i.z_index || 0 }))
+		...images.map(i => ({ type: 'image', data: i, z_index: i.z_index || 0 })),
+		...texts.map(t => ({ type: 'text', data: t, z_index: t.z_index || 0 }))
 	];
 
 	allShapes.sort((a, b) => a.z_index - b.z_index);
@@ -90,6 +92,13 @@ export function exportToSVG(
 		minY = Math.min(minY, image.position.y);
 		maxX = Math.max(maxX, image.position.x + image.width);
 		maxY = Math.max(maxY, image.position.y + image.height);
+	});
+
+	texts.forEach(text => {
+		minX = Math.min(minX, text.position.x);
+		minY = Math.min(minY, text.position.y);
+		maxX = Math.max(maxX, text.position.x + text.width);
+		maxY = Math.max(maxY, text.position.y + text.height);
 	});
 
 
@@ -223,6 +232,31 @@ export function exportToSVG(
 				svg += `</g>\n`;
 			} else {
 				svg += `<image x="${x}" y="${y}" width="${image.width}" height="${image.height}" href="${image.image_data}"/>\n`;
+			}
+		} else if (item.type === 'text') {
+			const text = item.data as Text;
+			const x = text.position.x + offsetX;
+			const y = text.position.y + offsetY;
+			const fontSize = text.font_size || 16;
+			const fontFamily = text.font_family || 'Arial';
+			const fontWeight = text.font_weight || 'normal';
+			const textAlign = text.text_align || 'left';
+			const color = text.color || '#000000';
+			const rotation = text.rotation_angle ?? 0;
+
+			let textAnchor = 'start';
+			if (textAlign === 'center') textAnchor = 'middle';
+			else if (textAlign === 'right') textAnchor = 'end';
+
+			const textX = textAlign === 'center' ? x + text.width / 2 : textAlign === 'right' ? x + text.width : x;
+			const textY = y + text.height / 2;
+
+			if (rotation !== 0) {
+				svg += `<g transform="translate(${textX},${textY}) rotate(${(rotation * 180) / Math.PI})">\n`;
+				svg += `  <text x="0" y="0" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}" dominant-baseline="middle">${escapeXml(text.content)}</text>\n`;
+				svg += `</g>\n`;
+			} else {
+				svg += `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}" dominant-baseline="middle">${escapeXml(text.content)}</text>\n`;
 			}
 		}
 	});

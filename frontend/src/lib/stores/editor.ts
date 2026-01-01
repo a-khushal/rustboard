@@ -79,7 +79,22 @@ export interface Image {
 	position: { x: number; y: number };
 	width: number;
 	height: number;
-	image_data: string; // base64 data URL or URL
+	image_data: string;
+	rotation_angle?: number;
+	z_index?: number;
+}
+
+export interface Text {
+	id: number;
+	position: { x: number; y: number };
+	width: number;
+	height: number;
+	content: string;
+	font_family?: string;
+	font_size?: number;
+	font_weight?: string;
+	text_align?: 'left' | 'center' | 'right';
+	color?: string;
 	rotation_angle?: number;
 	z_index?: number;
 }
@@ -110,5 +125,7 @@ export const paths = writable<Path[]>([]);
 export const selectedPaths = writable<Path[]>([]);
 export const images = writable<Image[]>([]);
 export const selectedImages = writable<Image[]>([]);
+export const texts = writable<Text[]>([]);
+export const selectedTexts = writable<Text[]>([]);
 export const groups = writable<Group[]>([]);
 export const selectedGroups = writable<Group[]>([]);

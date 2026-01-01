@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
 	import { theme } from '$lib/stores/theme';
-	import { 
-		rectangles, ellipses, diamonds, lines, arrows, paths, images,
+	import {
+		rectangles, ellipses, diamonds, lines, arrows, paths, images, texts,
 		editorApi,
-		type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image
+		type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text
 	} from '$lib/stores/editor';
 	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
@@ -80,9 +80,9 @@
 			$diamonds,
 			$lines,
 			$arrows,
-			[],
 			$paths,
 			$images,
+			$texts,
 			ctx,
 			'rustboard.svg'
 		);

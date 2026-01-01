@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, paths, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, paths, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedPaths, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image } from '$lib/stores/editor';
 import { updatePaths } from '$lib/utils/canvas-operations/path';
 
 export function deleteShapes(
@@ -15,7 +15,7 @@ export function deleteShapes(
     const api = get(editorApi);
     if (!api) return;
 
-    const hasAnySelection = rectangleIds.length > 0 || ellipseIds.length > 0 || lineIds.length > 0 || arrowIds.length > 0 || diamondIds.length > 0 || pathIds.length > 0 || imageIds.length > 0;
+    const hasAnySelection = rectangleIds.length > 0 || ellipseIds.length > 0 || lineIds.length > 0 || arrowIds.length > 0 || diamondIds.length > 0 || textIds.length > 0 || pathIds.length > 0 || imageIds.length > 0;
     if (!hasAnySelection) return;
 
     api.save_snapshot();
@@ -46,6 +46,10 @@ export function deleteShapes(
 
     imageIds.forEach(id => {
         api.delete_image_without_snapshot(BigInt(id));
+    });
+
+    textIds.forEach(id => {
+        api.delete_text_without_snapshot(id);
     });
 
     api.save_snapshot();

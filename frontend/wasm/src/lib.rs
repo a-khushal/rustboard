@@ -317,6 +317,78 @@ impl EditorApi {
         self.document.borrow_mut().delete_image_without_snapshot(id)
     }
 
+    // text
+    #[wasm_bindgen]
+    pub fn add_text(&self, x: f64, y: f64, width: f64, height: f64, content: String) -> u64 {
+        self.document.borrow_mut().add_text(Point::new(x, y), width, height, content)
+    }
+
+    #[wasm_bindgen]
+    pub fn add_text_without_snapshot(&self, x: f64, y: f64, width: f64, height: f64, content: String) -> u64 {
+        self.document.borrow_mut().add_text_without_snapshot(Point::new(x, y), width, height, content)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_texts(&self) -> JsValue {
+        let texts = self.document.borrow().get_texts().to_vec();
+        to_value(&texts).unwrap()
+    }
+
+    #[wasm_bindgen]
+    pub fn move_text(&self, id: u64, x: f64, y: f64, save_history: bool) {
+        self.document.borrow_mut().move_text(id, Point::new(x, y), save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn resize_text(&self, id: u64, width: f64, height: f64, save_history: bool) {
+        self.document.borrow_mut().resize_text(id, width, height, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_text(&self, id: u64) {
+        self.document.borrow_mut().delete_text(id);
+    }
+
+    #[wasm_bindgen]
+    pub fn delete_text_without_snapshot(&self, id: u64) -> bool {
+        self.document.borrow_mut().delete_text_without_snapshot(id)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_content(&self, id: u64, content: String, save_history: bool) {
+        self.document.borrow_mut().set_text_content(id, content, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_font_family(&self, id: u64, font_family: String, save_history: bool) {
+        self.document.borrow_mut().set_text_font_family(id, font_family, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_font_size(&self, id: u64, font_size: f64, save_history: bool) {
+        self.document.borrow_mut().set_text_font_size(id, font_size, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_font_weight(&self, id: u64, font_weight: String, save_history: bool) {
+        self.document.borrow_mut().set_text_font_weight(id, font_weight, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_text_align(&self, id: u64, text_align: String, save_history: bool) {
+        self.document.borrow_mut().set_text_text_align(id, text_align, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_color(&self, id: u64, color: String, save_history: bool) {
+        self.document.borrow_mut().set_text_color(id, color, save_history);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_text_rotation(&self, id: u64, angle: f64, save_history: bool) {
+        self.document.borrow_mut().set_text_rotation(id, angle, save_history);
+    }
+
     #[wasm_bindgen]
     pub fn set_rectangle_stroke_color(&self, id: u64, color: String, save_history: bool) {
         self.document.borrow_mut().set_rectangle_stroke_color(id, color, save_history);

@@ -23,6 +23,7 @@
 			$arrows,
 			$paths,
 			$images,
+			$texts,
 			ctx,
 			'rustboard.svg'
 		);

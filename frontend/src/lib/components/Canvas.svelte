@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import { 
 		rectangles, selectedRectangles, ellipses, selectedEllipses,
 		lines, selectedLines, arrows, selectedArrows,
 		diamonds, selectedDiamonds,
 		paths, selectedPaths,
 		images, selectedImages,
+		texts, selectedTexts,
 		groups, selectedGroups,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Group
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text, type Group
 	} from '$lib/stores/editor';
 
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox } from '$lib/utils/geometry';
@@ -113,6 +115,7 @@
 		diamonds: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 		lines: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
 		arrows: Map<number, { start: { x: number; y: number }; end: { x: number; y: number }; rotation: number }>;
+		texts: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 		paths: Map<number, { points: Array<{ x: number; y: number }>; rotation: number }>;
 		images: Map<number, { x: number; y: number; width: number; height: number; rotation: number }>;
 	} = {
@@ -121,6 +124,7 @@
 		diamonds: new Map(),
 		lines: new Map(),
 		arrows: new Map(),
+		texts: new Map(),
 		paths: new Map(),
 		images: new Map()
 	};
@@ -131,6 +135,7 @@
 		selectedShapesStartPositions.diamonds.clear();
 		selectedShapesStartPositions.lines.clear();
 		selectedShapesStartPositions.arrows.clear();
+		selectedShapesStartPositions.texts.clear();
 		selectedShapesStartPositions.paths.clear();
 		selectedShapesStartPositions.images.clear();
 		
@@ -152,6 +157,10 @@
 		
 		$selectedArrows.forEach(arrow => {
 		selectedShapesStartPositions.arrows.set(arrow.id, { start: { x: arrow.start.x, y: arrow.start.y }, end: { x: arrow.end.x, y: arrow.end.y }, rotation: arrow.rotation_angle ?? 0 });
+		});
+
+		$selectedTexts.forEach(text => {
+		selectedShapesStartPositions.texts.set(text.id, { x: text.position.x, y: text.position.y, width: text.width, height: text.height, rotation: text.rotation_angle ?? 0 });
 		});
 
 		$selectedPaths.forEach(path => {
@@ -488,7 +497,7 @@
 				activeTool.set('select');
 				return;
 			}
-			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'eraser') {
+			if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'text' || $activeTool === 'eraser') {
 				activeTool.set('select');
 			}
 			return;
@@ -496,8 +505,8 @@
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
-			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0) {
-				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedImages, $selectedPaths);
+			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0) {
+				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedImages, $selectedTexts, $selectedPaths);
 			}
 			return;
 		}
@@ -525,6 +534,7 @@
 			const allLines = Array.from($editorApi.get_lines() as Line[]);
 			const allArrows = Array.from($editorApi.get_arrows() as Arrow[]);
 			const allDiamonds = Array.from($editorApi.get_diamonds() as Diamond[]);
+			const allTexts = [...$texts];
 			const allPaths = Array.from($editorApi.get_paths() as Path[]);
 			const allImages = Array.from($editorApi.get_images() as Image[]);
 			
@@ -533,10 +543,11 @@
 			const currentLines = allLines.filter(l => selectedIds.has(l.id));
 			const currentArrows = allArrows.filter(a => selectedIds.has(a.id));
 			const currentDiamonds = allDiamonds.filter(d => selectedIds.has(d.id));
+			const currentTexts = allTexts.filter((t: Text) => selectedIds.has(t.id));
 			const currentPaths = allPaths.filter(p => selectedIds.has(p.id));
 			const currentImages = allImages.filter(i => selectedIds.has(i.id));
 			
-			copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentImages, currentPaths);
+			copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentImages, currentTexts, currentPaths);
 			const clipboard = getClipboard();
 			
 			const bounds: Array<{ minX: number; minY: number }> = [];
@@ -1414,8 +1425,8 @@ function resetRotationState() {
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond | Line | Arrow | Path | Image,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'path' | 'image',
+		shape: Rectangle | Ellipse | Diamond | Line | Arrow | Text | Path | Image,
+		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'path' | 'image',
 		isShiftPressed: boolean,
 		x: number,
 		y: number
@@ -1448,6 +1459,7 @@ function resetRotationState() {
 				selectedDiamonds.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
@@ -1475,6 +1487,7 @@ function resetRotationState() {
 				selectedEllipses.set([]);
 				selectedLines.set([]);
 				selectedArrows.set([]);
+				selectedTexts.set([]);
 				selectedPaths.set([]);
 				selectedImages.set([]);
 				selectedGroups.set([]);
@@ -1562,6 +1575,34 @@ function resetRotationState() {
 			}
 
 			draggedShape = clickedArrow;
+			dragStartPos = { x, y };
+			dragOffset = { x: 0, y: 0 };
+			storeSelectedShapesStartPositions();
+			isDragging = true;
+		} else if (shapeType === 'text') {
+			const clickedText = shape as Text;
+			const index = $selectedTexts.findIndex(t => t.id === clickedText.id);
+			const isAlreadySelected = index >= 0;
+
+			if (isShiftPressed) {
+				selectedTexts.set(
+					isAlreadySelected
+						? $selectedTexts.filter(t => t.id !== clickedText.id)
+						: [...$selectedTexts, clickedText]
+				);
+			} else if (!isAlreadySelected) {
+				selectedTexts.set([clickedText]);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
+			}
+
+			draggedShape = clickedText;
 			dragStartPos = { x, y };
 			dragOffset = { x: 0, y: 0 };
 			storeSelectedShapesStartPositions();
@@ -1852,7 +1893,7 @@ function resetRotationState() {
 		const isShiftPressed = event.shiftKey;
 		
 		if ($activeTool === 'select') {
-			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedPaths.length + $selectedImages.length;
+			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length + $selectedImages.length;
 			const allowIndividualHandles = totalSelectedCount <= 1;
 			let rawGroupBox: BoundingBox | null = null;
 			let visualGroupBox: BoundingBox | null = null;
@@ -2144,6 +2185,15 @@ function resetRotationState() {
 				}
 			}
 
+		for (let i = $texts.length - 1; i >= 0; i--) {
+			const text: Text = $texts[i];
+			if (x >= text.position.x && x <= text.position.x + text.width &&
+				y >= text.position.y && y <= text.position.y + text.height) {
+				handleShapeClick(text, 'text', isShiftPressed, x, y);
+				return;
+			}
+		}
+
 			for (let i = $images.length - 1; i >= 0; i--) {
 				if (isPointInImage(x, y, $images[i])) {
 					handleShapeClick($images[i], 'image', isShiftPressed, x, y);
@@ -2230,6 +2280,17 @@ function resetRotationState() {
 			isDrawingFreehand = true;
 			freehandPoints = [{ x, y }];
 			scheduleRender();
+		} else if ($activeTool === 'text') {
+			resetRotationState();
+			clearAllSelections();
+			const newId = $editorApi.add_text(x, y, 100, 30, 'Text');
+			const allTexts = Array.from($editorApi.get_texts() as Text[]);
+			const newText = allTexts.find(t => t.id === Number(newId));
+			if (newText) {
+				selectedTexts.set([newText]);
+			}
+			activeTool.set('select');
+			updateStores();
 		} else if ($activeTool === 'eraser') {
 			resetRotationState();
 			clearAllSelections();
@@ -2239,6 +2300,103 @@ function resetRotationState() {
 			performErase(x, y);
 			scheduleRender();
 		}
+	}
+
+	function enterTextEditingMode(text: Text) {
+		if (!canvas) return;
+
+		const canvasRect = canvas.getBoundingClientRect();
+		const textScreenX = (text.position.x * $zoom) + $viewportOffset.x + canvasRect.left;
+		const textScreenY = (text.position.y * $zoom) + $viewportOffset.y + canvasRect.top;
+		const textScreenWidth = text.width * $zoom;
+		const textScreenHeight = text.height * $zoom;
+
+		const input = document.createElement('input');
+		input.type = 'text';
+		input.value = text.content;
+		input.style.position = 'fixed';
+		input.style.left = `${textScreenX}px`;
+		input.style.top = `${textScreenY}px`;
+		input.style.width = `${textScreenWidth}px`;
+		input.style.height = `${textScreenHeight}px`;
+		input.style.fontSize = `${(text.font_size || 16) * $zoom}px`;
+		input.style.fontFamily = text.font_family || 'Arial';
+		input.style.fontWeight = text.font_weight || 'normal';
+		input.style.textAlign = text.text_align || 'left';
+		input.style.color = text.color || getDefaultStrokeColor();
+		input.style.background = 'transparent';
+		input.style.border = '1px dashed #007acc';
+		input.style.outline = 'none';
+		input.style.padding = '2px';
+		input.style.zIndex = '9999';
+
+		document.body.appendChild(input);
+		input.focus();
+		input.select();
+
+		const finishEditing = () => {
+			const newContent = input.value.trim();
+			if (newContent !== text.content) {
+				$editorApi.set_text_content(BigInt(text.id), newContent, true);
+				updateStores();
+			}
+
+			if (document.body.contains(input)) {
+				document.body.removeChild(input);
+			}
+		};
+
+		input.onblur = finishEditing;
+		input.onkeydown = (e) => {
+			if (e.key === 'Enter') {
+				finishEditing();
+			} else if (e.key === 'Escape') {
+				if (document.body.contains(input)) {
+					document.body.removeChild(input);
+				}
+			}
+		};
+	}
+
+	function updateStores() {
+		if (!$editorApi) return;
+		const api = get(editorApi);
+
+		const selectedRectIds = new Set($selectedRectangles.map(r => r.id));
+		const selectedEllipseIds = new Set($selectedEllipses.map(e => e.id));
+		const selectedLineIds = new Set($selectedLines.map(l => l.id));
+		const selectedArrowIds = new Set($selectedArrows.map(a => a.id));
+		const selectedDiamondIds = new Set($selectedDiamonds.map(d => d.id));
+		const selectedImageIds = new Set($selectedImages.map(i => i.id));
+		const selectedPathIds = new Set($selectedPaths.map(p => p.id));
+		const selectedTextIds = new Set($selectedTexts.map(t => t.id));
+
+		const allRectangles = api.get_rectangles() as Rectangle[];
+		const allEllipses = api.get_ellipses() as Ellipse[];
+		const allLines = api.get_lines() as Line[];
+		const allArrows = api.get_arrows() as Arrow[];
+		const allDiamonds = api.get_diamonds() as Diamond[];
+		const allImages = api.get_images() as Image[];
+		const allPaths = api.get_paths() as Path[];
+		const allTexts = api.get_texts() as Text[];
+
+		rectangles.set(allRectangles);
+		ellipses.set(allEllipses);
+		lines.set(allLines);
+		arrows.set(allArrows);
+		diamonds.set(allDiamonds);
+		images.set(allImages);
+		paths.set(allPaths);
+		texts.set(allTexts);
+
+		selectedRectangles.set(allRectangles.filter(r => selectedRectIds.has(r.id)));
+		selectedEllipses.set(allEllipses.filter(e => selectedEllipseIds.has(e.id)));
+		selectedLines.set(allLines.filter(l => selectedLineIds.has(l.id)));
+		selectedArrows.set(allArrows.filter(a => selectedArrowIds.has(a.id)));
+		selectedDiamonds.set(allDiamonds.filter(d => selectedDiamondIds.has(d.id)));
+		selectedImages.set(allImages.filter(i => selectedImageIds.has(i.id)));
+		selectedPaths.set(allPaths.filter(p => selectedPathIds.has(p.id)));
+		selectedTexts.set(allTexts.filter(t => selectedTextIds.has(t.id)));
 	}
 
 	function rotateGroup(delta: number, saveHistory: boolean) {
@@ -3042,6 +3200,20 @@ function resetRotationState() {
 	function handleCanvasDoubleClick(event: MouseEvent) {
 		if (!canvas || !ctx) return;
 		event.preventDefault();
+
+		const rect = canvas.getBoundingClientRect();
+		const screenX = event.clientX - rect.left;
+		const screenY = event.clientY - rect.top;
+		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+
+		for (let i = $texts.length - 1; i >= 0; i--) {
+			const text = $texts[i];
+			if (x >= text.position.x && x <= text.position.x + text.width &&
+				y >= text.position.y && y <= text.position.y + text.height) {
+				enterTextEditingMode(text);
+				return;
+			}
+		}
 	}
 	
 	function handleMouseUp() {
@@ -3846,6 +4018,7 @@ function resetRotationState() {
 			$selectedDiamonds.length +
 			$selectedLines.length +
 			$selectedArrows.length +
+			$selectedTexts.length +
 			$selectedPaths.length +
 			$selectedImages.length;
 		
@@ -3864,6 +4037,7 @@ function resetRotationState() {
 			...$diamonds.map(d => ({ type: 'diamond', data: d })),
 			...$lines.map(l => ({ type: 'line', data: l })),
 			...$arrows.map(a => ({ type: 'arrow', data: a })),
+			...$texts.map(t => ({ type: 'text', data: t })),
 			...$paths.map(p => ({ type: 'path', data: p })),
 			...$images.map(i => ({ type: 'image', data: i }))
 		];
@@ -3960,6 +4134,59 @@ function resetRotationState() {
 						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, rotation);
 					}
 				}
+			} else if (item.type === 'text') {
+				const text = item.data as Text;
+				const isSelected = $selectedTexts.some(selected => selected.id === text.id);
+				const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts?.has(text.id);
+
+				let renderX: number, renderY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.texts?.get(text.id)!;
+					renderX = startPos.x + dragOffset.x;
+					renderY = startPos.y + dragOffset.y;
+				} else {
+					renderX = text.position.x;
+					renderY = text.position.y;
+				}
+
+				const renderWidth = text.width;
+				const renderHeight = text.height;
+				const fontSize = text.font_size || 16;
+				const fontFamily = text.font_family || 'Arial';
+				const fontWeight = text.font_weight || 'normal';
+				const textAlign = text.text_align || 'left';
+				const color = adaptColorToTheme(text.color, getDefaultStrokeColor());
+				const rotation = text.rotation_angle || 0;
+
+				renderCtx.save();
+				renderCtx.translate(renderX + renderWidth / 2, renderY + renderHeight / 2);
+				renderCtx.rotate(rotation);
+
+				renderCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+				renderCtx.fillStyle = color;
+				renderCtx.textAlign = textAlign;
+				renderCtx.textBaseline = 'middle';
+
+				const textX = textAlign === 'center' ? 0 : textAlign === 'right' ? renderWidth / 2 : -renderWidth / 2;
+				const textY = 0;
+
+				renderCtx.fillText(text.content, textX, textY);
+
+				if (isSelected) {
+					const outlineBounds = {
+						x: -renderWidth / 2,
+						y: -renderHeight / 2,
+						width: renderWidth,
+						height: renderHeight
+					};
+					renderSelectionOutline(renderCtx, outlineBounds.x, outlineBounds.y, outlineBounds.width, outlineBounds.height, $zoom, true, 0);
+					if (showIndividualHandles) {
+						renderCornerHandles(renderCtx, outlineBounds.x, outlineBounds.y, outlineBounds.width, outlineBounds.height, $zoom, true, 0);
+						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, 0);
+					}
+				}
+
+				renderCtx.restore();
 			} else if (item.type === 'ellipse') {
 				const ellipse = item.data as Ellipse;
 				const isSelected = $selectedEllipses.some(selected => selected.id === ellipse.id);

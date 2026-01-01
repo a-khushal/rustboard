@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, images, paths, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedImages, selectedPaths, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Image, type Path } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, images, texts, paths, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedImages, selectedTexts, selectedPaths, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Image, type Text, type Path } from '$lib/stores/editor';
 import { updatePaths } from '$lib/utils/canvas-operations/path';
 import type { ClipboardData } from './clipboard';
 
@@ -37,6 +37,11 @@ function calculateBoundingBox(clipboard: ClipboardData, fallbackX: number, fallb
         minYValues.push(i.position.y);
     });
 
+    clipboard.texts.forEach(t => {
+        minXValues.push(t.position.x);
+        minYValues.push(t.position.y);
+    });
+
     clipboard.paths.forEach(p => {
         if (p.points.length > 0) {
             const minX = Math.min(...p.points.map(pt => pt.x));
@@ -60,10 +65,11 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     arrows: number[];
     diamonds: number[];
     images: number[];
+    texts: number[];
     paths: number[];
 } {
     const api = get(editorApi);
-    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], images: [], paths: [] };
+    if (!api) return { rectangles: [], ellipses: [], lines: [], arrows: [], diamonds: [], images: [], texts: [], paths: [] };
 
     const { minX, minY } = calculateBoundingBox(clipboard, offsetX, offsetY);
 
@@ -76,6 +82,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         arrows: [] as number[],
         diamonds: [] as number[],
         images: [] as number[],
+        texts: [] as number[],
         paths: [] as number[]
     };
 
@@ -201,6 +208,31 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
             api.set_image_rotation(BigInt(newId), image.rotation_angle, false);
         }
         pastedIds.images.push(Number(newId));
+    });
+
+    clipboard.texts.forEach(text => {
+        const newX = text.position.x - minX + offsetX;
+        const newY = text.position.y - minY + offsetY;
+        const newId = api.add_text_without_snapshot(newX, newY, text.width, text.height, text.content);
+        if (text.font_family !== 'Arial') {
+            api.set_text_font_family(BigInt(newId), text.font_family, false);
+        }
+        if (text.font_size !== 16.0) {
+            api.set_text_font_size(BigInt(newId), text.font_size, false);
+        }
+        if (text.font_weight !== 'normal') {
+            api.set_text_font_weight(BigInt(newId), text.font_weight, false);
+        }
+        if (text.text_align !== 'left') {
+            api.set_text_text_align(BigInt(newId), text.text_align, false);
+        }
+        if (text.color !== '#000000') {
+            api.set_text_color(BigInt(newId), text.color, false);
+        }
+        if (text.rotation_angle !== 0.0) {
+            api.set_text_rotation(BigInt(newId), text.rotation_angle, false);
+        }
+        pastedIds.texts.push(Number(newId));
     });
 
     clipboard.paths.forEach(path => {

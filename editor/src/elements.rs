@@ -243,7 +243,7 @@ pub struct Image {
     pub position: Point,
     pub width: f64,
     pub height: f64,
-    pub image_data: String, // base64 data URL or URL
+    pub image_data: String,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
@@ -262,6 +262,64 @@ impl Image {
             z_index: default_z_index(),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Text {
+    pub id: u64,
+    pub position: Point,
+    pub width: f64,
+    pub height: f64,
+    pub content: String,
+    #[serde(default = "default_font_family")]
+    pub font_family: String,
+    #[serde(default = "default_font_size")]
+    pub font_size: f64,
+    #[serde(default = "default_font_weight")]
+    pub font_weight: String,
+    #[serde(default = "default_text_align")]
+    pub text_align: String,
+    #[serde(default = "default_stroke_color")]
+    pub color: String,
+    #[serde(default = "default_rotation")]
+    pub rotation_angle: f64,
+    #[serde(default = "default_z_index")]
+    pub z_index: i32,
+}
+
+impl Text {
+    pub fn new(id: u64, position: Point, width: f64, height: f64, content: String) -> Self {
+        Self {
+            id,
+            position,
+            width,
+            height,
+            content,
+            font_family: default_font_family(),
+            font_size: default_font_size(),
+            font_weight: default_font_weight(),
+            text_align: default_text_align(),
+            color: default_stroke_color(),
+            rotation_angle: default_rotation(),
+            z_index: default_z_index(),
+        }
+    }
+}
+
+fn default_font_family() -> String {
+    "Arial".to_string()
+}
+
+fn default_font_size() -> f64 {
+    16.0
+}
+
+fn default_font_weight() -> String {
+    "normal".to_string()
+}
+
+fn default_text_align() -> String {
+    "left".to_string()
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

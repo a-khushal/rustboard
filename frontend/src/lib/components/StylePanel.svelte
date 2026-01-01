@@ -7,6 +7,7 @@
 		selectedArrows,
 		selectedDiamonds,
 		selectedImages,
+		selectedTexts,
 		selectedPaths,
 		selectedGroups,
 		editorApi,
@@ -23,6 +24,7 @@
 		type Arrow,
 		type Diamond,
 		type Image,
+		type Text,
 		type Path
 	} from '$lib/stores/editor';
 	import { theme } from '$lib/stores/theme';
@@ -164,6 +166,7 @@
 				$selectedLines.length +
 				$selectedArrows.length +
 				$selectedImages.length +
+				$selectedTexts.length +
 				$selectedPaths.length;
 
 			if (totalSelected === 0 && $selectedGroups.length === 0) {
@@ -171,12 +174,13 @@
 				fillColor = null;
 				lineWidth = 2;
 			} else {
-				const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Path> = [
+				const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path> = [
 					...$selectedRectangles,
 					...$selectedEllipses,
 					...$selectedDiamonds,
 					...$selectedLines,
 					...$selectedArrows,
+					...$selectedTexts,
 					...$selectedPaths
 				];
 
@@ -231,22 +235,22 @@
 		const selectedArrs = get(selectedArrows);
 		const selectedPths = get(selectedPaths);
 
-		selectedRects.forEach((rect) => {
+		selectedRects.forEach((rect: Rectangle) => {
 			$editorApi.set_rectangle_stroke_color(BigInt(rect.id), color, false);
 		});
-		selectedElls.forEach((ellipse) => {
+		selectedElls.forEach((ellipse: Ellipse) => {
 			$editorApi.set_ellipse_stroke_color(BigInt(ellipse.id), color, false);
 		});
-		selectedDias.forEach((diamond) => {
+		selectedDias.forEach((diamond: Diamond) => {
 			$editorApi.set_diamond_stroke_color(BigInt(diamond.id), color, false);
 		});
-		selectedLns.forEach((line) => {
+		selectedLns.forEach((line: Line) => {
 			$editorApi.set_line_stroke_color(BigInt(line.id), color, false);
 		});
-		selectedArrs.forEach((arrow) => {
+		selectedArrs.forEach((arrow: Arrow) => {
 			$editorApi.set_arrow_stroke_color(BigInt(arrow.id), color, false);
 		});
-		selectedPths.forEach((path) => {
+		selectedPths.forEach((path: Path) => {
 			$editorApi.set_path_stroke_color(BigInt(path.id), color, false);
 		});
 
@@ -306,6 +310,54 @@
 		});
 		$selectedPaths.forEach((path) => {
 			$editorApi.set_path_line_width(BigInt(path.id), lineWidth, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function updateFontFamily(fontFamily: string) {
+		if (!$editorApi) return;
+
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_text_font_family(BigInt(text.id), fontFamily, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function updateFontSize(fontSize: number) {
+		if (!$editorApi) return;
+
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_text_font_size(BigInt(text.id), fontSize, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function updateFontWeight(fontWeight: string) {
+		if (!$editorApi) return;
+
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_text_font_weight(BigInt(text.id), fontWeight, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function updateTextAlign(textAlign: string) {
+		if (!$editorApi) return;
+
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_text_text_align(BigInt(text.id), textAlign, false);
 		});
 
 		$editorApi.save_snapshot();
@@ -439,6 +491,7 @@
 		$selectedLines.length > 0 ||
 		$selectedArrows.length > 0 ||
 		$selectedImages.length > 0 ||
+		$selectedTexts.length > 0 ||
 		$selectedPaths.length > 0;
 
 	$: hasFillableShapes =
@@ -466,25 +519,29 @@
 		$activeTool === 'line' ||
 		$activeTool === 'arrow';
 
-	$: hasImagesOnly = $selectedImages.length > 0 && 
+	$: hasImagesOnly = $selectedImages.length > 0 &&
 		$selectedRectangles.length === 0 &&
 		$selectedEllipses.length === 0 &&
 		$selectedDiamonds.length === 0 &&
 		$selectedLines.length === 0 &&
 		$selectedArrows.length === 0 &&
+		$selectedTexts.length === 0 &&
 		$selectedPaths.length === 0;
 
-	$: hasShapes = 
+	$: hasTexts = $selectedTexts.length > 0;
+
+	$: hasShapes =
 		$selectedRectangles.length > 0 ||
 		$selectedEllipses.length > 0 ||
 		$selectedDiamonds.length > 0 ||
 		$selectedLines.length > 0 ||
 		$selectedArrows.length > 0 ||
+		$selectedTexts.length > 0 ||
 		$selectedPaths.length > 0;
 
-	$: isSingleSelection = 
-		($selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + 
-		 $selectedLines.length + $selectedArrows.length + $selectedPaths.length) === 1;
+	$: isSingleSelection =
+		($selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length +
+		 $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length) === 1;
 
 	async function updateUnifiedColor(color: string) {
 		unifiedColor = color;
@@ -496,22 +553,22 @@
 		const selectedLns = get(selectedLines);
 		const selectedArrs = get(selectedArrows);
 		const selectedPths = get(selectedPaths);
-		selectedRects.forEach((rect) => {
+		selectedRects.forEach((rect: Rectangle) => {
 			$editorApi.set_rectangle_stroke_color(BigInt(rect.id), color, false);
 		});
-		selectedElls.forEach((ellipse) => {
+		selectedElls.forEach((ellipse: Ellipse) => {
 			$editorApi.set_ellipse_stroke_color(BigInt(ellipse.id), color, false);
 		});
-		selectedDias.forEach((diamond) => {
+		selectedDias.forEach((diamond: Diamond) => {
 			$editorApi.set_diamond_stroke_color(BigInt(diamond.id), color, false);
 		});
-		selectedLns.forEach((line) => {
+		selectedLns.forEach((line: Line) => {
 			$editorApi.set_line_stroke_color(BigInt(line.id), color, false);
 		});
-		selectedArrs.forEach((arrow) => {
+		selectedArrs.forEach((arrow: Arrow) => {
 			$editorApi.set_arrow_stroke_color(BigInt(arrow.id), color, false);
 		});
-		selectedPths.forEach((path) => {
+		selectedPths.forEach((path: Path) => {
 			$editorApi.set_path_stroke_color(BigInt(path.id), color, false);
 		});
 
@@ -524,7 +581,7 @@
 	function handleDuplicate() {
 		if (!$editorApi) return;
 
-		const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
+		const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
 		if (!hasSelection) return;
 
 		const selectedIds = new Set([
@@ -533,6 +590,7 @@
 			...$selectedLines.map(l => l.id),
 			...$selectedArrows.map(a => a.id),
 			...$selectedDiamonds.map(d => d.id),
+			...$selectedTexts.map(t => t.id),
 			...$selectedPaths.map(p => p.id),
 			...$selectedImages.map(i => i.id)
 		]);
@@ -542,18 +600,20 @@
 		const allLines = Array.from($editorApi.get_lines() as Line[]);
 		const allArrows = Array.from($editorApi.get_arrows() as Arrow[]);
 		const allDiamonds = Array.from($editorApi.get_diamonds() as Diamond[]);
+		const allTexts = Array.from($editorApi.get_texts() as Text[]);
 		const allPaths = Array.from($editorApi.get_paths() as Path[]);
 		const allImages = Array.from($editorApi.get_images() as Image[]);
-		
+
 		const currentRectangles = allRectangles.filter(r => selectedIds.has(r.id));
 		const currentEllipses = allEllipses.filter(e => selectedIds.has(e.id));
 		const currentLines = allLines.filter(l => selectedIds.has(l.id));
 		const currentArrows = allArrows.filter(a => selectedIds.has(a.id));
 		const currentDiamonds = allDiamonds.filter(d => selectedIds.has(d.id));
+		const currentTexts = allTexts.filter((t: Text) => selectedIds.has(t.id));
 		const currentPaths = allPaths.filter(p => selectedIds.has(p.id));
 		const currentImages = allImages.filter(i => selectedIds.has(i.id));
 
-		copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentImages, currentPaths);
+		copyToClipboard(currentRectangles, currentEllipses, currentLines, currentArrows, currentDiamonds, currentImages, currentTexts, currentPaths);
 		const clipboard = getClipboard();
 
 		const bounds: Array<{ minX: number; minY: number }> = [];
@@ -563,6 +623,7 @@
 		clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
 		clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
 		clipboard.images.forEach(i => bounds.push({ minX: i.position.x, minY: i.position.y }));
+		clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
 		clipboard.paths.forEach(p => {
 			if (p.points.length > 0) {
 				const minX = Math.min(...p.points.map(pt => pt.x));
@@ -872,6 +933,110 @@
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
 									<line x1="3" y1="12" x2="21" y2="12"></line>
+								</svg>
+							</button>
+						</div>
+					</fieldset>
+				</div>
+			{/if}
+
+			{#if hasTexts}
+				<div class="space-y-1.5">
+					<fieldset class="flex flex-col gap-2 w-full min-w-0">
+						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Family</legend>
+						<div class="flex items-center gap-1.5 w-full overflow-x-auto">
+							{#each ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia'] as font}
+								<button
+									type="button"
+									on:click={() => updateFontFamily(font)}
+									class={`px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+									title={font}
+								>
+									{font}
+								</button>
+							{/each}
+						</div>
+					</fieldset>
+				</div>
+
+				<div class="space-y-1.5">
+					<fieldset class="flex flex-col gap-2 w-full min-w-0">
+						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Size</legend>
+						<div class="flex items-center gap-1">
+							{#each [12, 14, 16, 18, 24, 32] as size}
+								<button
+									type="button"
+									on:click={() => updateFontSize(size)}
+									class={`px-2 py-1 text-xs rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+									title={`Font size ${size}px`}
+								>
+									{size}
+								</button>
+							{/each}
+						</div>
+					</fieldset>
+				</div>
+
+				<div class="space-y-1.5">
+					<fieldset class="flex flex-col gap-2 w-full min-w-0">
+						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Weight</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={() => updateFontWeight('normal')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Normal"
+							>
+								<span class="font-normal">Normal</span>
+							</button>
+							<button
+								on:click={() => updateFontWeight('bold')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Bold"
+							>
+								<span class="font-bold">Bold</span>
+							</button>
+						</div>
+					</fieldset>
+				</div>
+
+				<div class="space-y-1.5">
+					<fieldset class="flex flex-col gap-2 w-full min-w-0">
+						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Text Align</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={() => updateTextAlign('left')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Left align"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="17" y1="10" x2="3" y2="10"></line>
+									<line x1="21" y1="6" x2="3" y2="6"></line>
+									<line x1="21" y1="14" x2="3" y2="14"></line>
+									<line x1="17" y1="18" x2="3" y2="18"></line>
+								</svg>
+							</button>
+							<button
+								on:click={() => updateTextAlign('center')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Center align"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="18" y1="10" x2="6" y2="10"></line>
+									<line x1="21" y1="6" x2="3" y2="6"></line>
+									<line x1="21" y1="14" x2="3" y2="14"></line>
+									<line x1="18" y1="18" x2="6" y2="18"></line>
+								</svg>
+							</button>
+							<button
+								on:click={() => updateTextAlign('right')}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Right align"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="21" y1="10" x2="7" y2="10"></line>
+									<line x1="21" y1="6" x2="3" y2="6"></line>
+									<line x1="21" y1="14" x2="3" y2="14"></line>
+									<line x1="21" y1="18" x2="7" y2="18"></line>
 								</svg>
 							</button>
 						</div>
