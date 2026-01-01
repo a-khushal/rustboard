@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
-	import { viewportOffset, zoom } from '$lib/stores/editor';
+	import { viewportOffset, zoom, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, selectedGroups } from '$lib/stores/editor';
 	import { addImage } from '$lib/utils/canvas-operations/index';
 	import { screenToWorld } from '$lib/utils/viewport';
 
@@ -45,6 +45,16 @@
 			fileInput.click();
 		} else {
 			activeTool.set(tool);
+			if (tool === 'eraser') {
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+				selectedDiamonds.set([]);
+				selectedPaths.set([]);
+				selectedImages.set([]);
+				selectedGroups.set([]);
+			}
 		}
 	}
 

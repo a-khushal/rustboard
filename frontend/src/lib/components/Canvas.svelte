@@ -32,9 +32,10 @@
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
+	// @ts-ignore
 	import StylePanel from './StylePanel.svelte';
 	import Sidebar from './Sidebar.svelte';
-	
+
 	let sidebarRef: Sidebar;
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
@@ -1645,61 +1646,6 @@ function resetRotationState() {
 	function performErase(x: number, y: number) {
 		if (!$editorApi) return;
 
-		const pathsToUpdate: Array<{ id: number; points: Array<{ x: number; y: number }> }> = [];
-		$paths.forEach(path => {
-			if (path.points.length === 0) return;
-			
-			let hasIntersection = false;
-			const remainingPoints: Array<{ x: number; y: number }> = [];
-			
-			for (let i = 0; i < path.points.length; i++) {
-				const point = path.points[i];
-				const dx = point.x - x;
-				const dy = point.y - y;
-				const distance = Math.sqrt(dx * dx + dy * dy);
-				
-				if (distance <= eraserRadius) {
-					hasIntersection = true;
-					continue;
-				}
-				
-				if (i > 0) {
-					const prevPoint = path.points[i - 1];
-					const segDx = prevPoint.x - point.x;
-					const segDy = prevPoint.y - point.y;
-					const segLength = Math.sqrt(segDx * segDx + segDy * segDy);
-					
-					if (segLength > 0) {
-						const t = Math.max(0, Math.min(1, ((x - prevPoint.x) * segDx + (y - prevPoint.y) * segDy) / (segLength * segLength)));
-						const closestX = prevPoint.x + t * segDx;
-						const closestY = prevPoint.y + t * segDy;
-						const closestDx = closestX - x;
-						const closestDy = closestY - y;
-						const closestDistance = Math.sqrt(closestDx * closestDx + closestDy * closestDy);
-						
-						if (closestDistance <= eraserRadius) {
-							hasIntersection = true;
-							continue;
-						}
-					}
-				}
-				
-				remainingPoints.push(point);
-			}
-			
-			if (hasIntersection) {
-				if (remainingPoints.length > 1) {
-					pathsToUpdate.push({ id: path.id, points: remainingPoints });
-				} else {
-					$editorApi.delete_path_without_snapshot(BigInt(path.id));
-				}
-			}
-		});
-
-		pathsToUpdate.forEach(({ id, points }) => {
-			setPathPoints(id, points, false);
-		});
-
 		const shapesToDelete: {
 			rectangles: number[];
 			ellipses: number[];
@@ -1707,14 +1653,53 @@ function resetRotationState() {
 			lines: number[];
 			arrows: number[];
 			images: number[];
+			paths: number[];
 		} = {
 			rectangles: [],
 			ellipses: [],
 			diamonds: [],
 			lines: [],
 			arrows: [],
-			images: []
+			images: [],
+			paths: []
 		};
+
+		$paths.forEach(path => {
+			if (path.points.length === 0) return;
+
+			for (let i = 0; i < path.points.length; i++) {
+				const point = path.points[i];
+				const dx = point.x - x;
+				const dy = point.y - y;
+				const distance = Math.sqrt(dx * dx + dy * dy);
+
+				if (distance <= eraserRadius) {
+					shapesToDelete.paths.push(path.id);
+					break;
+				}
+
+				if (i > 0) {
+					const prevPoint = path.points[i - 1];
+					const segDx = prevPoint.x - point.x;
+					const segDy = prevPoint.y - point.y;
+					const segLength = Math.sqrt(segDx * segDx + segDy * segDy);
+
+					if (segLength > 0) {
+						const t = Math.max(0, Math.min(1, ((x - prevPoint.x) * segDx + (y - prevPoint.y) * segDy) / (segLength * segLength)));
+						const closestX = prevPoint.x + t * segDx;
+						const closestY = prevPoint.y + t * segDy;
+						const closestDx = closestX - x;
+						const closestDy = closestY - y;
+						const closestDistance = Math.sqrt(closestDx * closestDx + closestDy * closestDy);
+
+						if (closestDistance <= eraserRadius) {
+							shapesToDelete.paths.push(path.id);
+							break;
+						}
+					}
+				}
+			}
+		});
 
 		$rectangles.forEach(rect => {
 			const centerX = rect.position.x + rect.width / 2;
@@ -1754,32 +1739,56 @@ function resetRotationState() {
 		});
 
 		$lines.forEach(line => {
-			const midX = (line.start.x + line.end.x) / 2;
-			const midY = (line.start.y + line.end.y) / 2;
-			const dx = midX - x;
-			const dy = midY - y;
-			const distance = Math.sqrt(dx * dx + dy * dy);
-			const lineLength = Math.sqrt(
-				Math.pow(line.end.x - line.start.x, 2) + Math.pow(line.end.y - line.start.y, 2)
-			);
-			
-			if (distance < eraserRadius + lineLength / 2) {
-				shapesToDelete.lines.push(line.id);
+			const dx = line.end.x - line.start.x;
+			const dy = line.end.y - line.start.y;
+			const length = Math.sqrt(dx * dx + dy * dy);
+
+			if (length > 0) {
+				const t = Math.max(0, Math.min(1, ((x - line.start.x) * dx + (y - line.start.y) * dy) / (length * length)));
+				const closestX = line.start.x + t * dx;
+				const closestY = line.start.y + t * dy;
+				const distX = closestX - x;
+				const distY = closestY - y;
+				const distance = Math.sqrt(distX * distX + distY * distY);
+
+				if (distance <= eraserRadius) {
+					shapesToDelete.lines.push(line.id);
+				}
+			} else {
+				const distX = line.start.x - x;
+				const distY = line.start.y - y;
+				const distance = Math.sqrt(distX * distX + distY * distY);
+
+				if (distance <= eraserRadius) {
+					shapesToDelete.lines.push(line.id);
+				}
 			}
 		});
 
 		$arrows.forEach(arrow => {
-			const midX = (arrow.start.x + arrow.end.x) / 2;
-			const midY = (arrow.start.y + arrow.end.y) / 2;
-			const dx = midX - x;
-			const dy = midY - y;
-			const distance = Math.sqrt(dx * dx + dy * dy);
-			const arrowLength = Math.sqrt(
-				Math.pow(arrow.end.x - arrow.start.x, 2) + Math.pow(arrow.end.y - arrow.start.y, 2)
-			);
-			
-			if (distance < eraserRadius + arrowLength / 2) {
-				shapesToDelete.arrows.push(arrow.id);
+			const dx = arrow.end.x - arrow.start.x;
+			const dy = arrow.end.y - arrow.start.y;
+			const length = Math.sqrt(dx * dx + dy * dy);
+
+			if (length > 0) {
+				const t = Math.max(0, Math.min(1, ((x - arrow.start.x) * dx + (y - arrow.start.y) * dy) / (length * length)));
+				const closestX = arrow.start.x + t * dx;
+				const closestY = arrow.start.y + t * dy;
+				const distX = closestX - x;
+				const distY = closestY - y;
+				const distance = Math.sqrt(distX * distX + distY * distY);
+
+				if (distance <= eraserRadius) {
+					shapesToDelete.arrows.push(arrow.id);
+				}
+			} else {
+				const distX = arrow.start.x - x;
+				const distY = arrow.start.y - y;
+				const distance = Math.sqrt(distX * distX + distY * distY);
+
+				if (distance <= eraserRadius) {
+					shapesToDelete.arrows.push(arrow.id);
+				}
 			}
 		});
 
@@ -1799,8 +1808,8 @@ function resetRotationState() {
 		if (shapesToDelete.rectangles.length > 0 || shapesToDelete.ellipses.length > 0 ||
 			shapesToDelete.diamonds.length > 0 || shapesToDelete.lines.length > 0 ||
 			shapesToDelete.arrows.length > 0 ||
-			shapesToDelete.images.length > 0 || pathsToUpdate.length > 0) {
-			
+			shapesToDelete.images.length > 0 || shapesToDelete.paths.length > 0) {
+
 			deleteShapes(
 				shapesToDelete.rectangles,
 				shapesToDelete.ellipses,
@@ -1808,7 +1817,7 @@ function resetRotationState() {
 				shapesToDelete.arrows,
 				shapesToDelete.diamonds,
 				[],
-				[],
+				shapesToDelete.paths,
 				shapesToDelete.images
 			);
 			
@@ -2356,7 +2365,9 @@ function resetRotationState() {
 				} else {
 					eraserShadowPosition = { x, y };
 				}
+
 				performErase(x, y);
+
 				scheduleRender();
 			} else {
 				eraserPosition = { x, y };
@@ -4593,7 +4604,7 @@ function resetRotationState() {
 			const currentPos = eraserPosition || lastMouseWorldPos;
 			if (currentPos) {
 				const screenPos = worldToScreen(currentPos.x, currentPos.y, $viewportOffset, $zoom);
-				const screenRadius = eraserRadius * $zoom;
+				const screenRadius = eraserRadius;
 				
 				if (eraserShadowPosition) {
 					const shadowScreenPos = worldToScreen(eraserShadowPosition.x, eraserShadowPosition.y, $viewportOffset, $zoom);
@@ -4732,3 +4743,4 @@ function resetRotationState() {
 		tabindex="0"
 	></canvas>
 </div>
+
