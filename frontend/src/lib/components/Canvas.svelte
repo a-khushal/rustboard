@@ -3187,6 +3187,21 @@ function resetRotationState() {
 					return;
 				}
 			}
+			for (let i = $texts.length - 1; i >= 0; i--) {
+				const text = $texts[i];
+				const isSelected = $selectedTexts.some(selected => selected.id === text.id);
+				if (isSelected) {
+					if (x >= text.position.x && x <= text.position.x + text.width && y >= text.position.y && y <= text.position.y + text.height) {
+						canvas.style.cursor = 'move';
+						return;
+					}
+				} else {
+					if (x >= text.position.x && x <= text.position.x + text.width && y >= text.position.y && y <= text.position.y + text.height) {
+						canvas.style.cursor = 'move';
+						return;
+					}
+				}
+			}
 			canvas.style.cursor = 'default';
 		}
 		}
