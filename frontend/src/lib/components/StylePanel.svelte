@@ -46,7 +46,8 @@
 	let lineWidth = 2;
 	let unifiedColor = '#000000';
 
-	$: displayStrokeColor = normalizeColorForTheme(strokeColor);
+	$: displayStrokeColor = strokeColor;
+
 
 	$: strokeColors = $theme === 'dark' 
 		? ['#ffffff', '#60a5fa', '#34d399', '#fb7185', '#d97706']
@@ -155,7 +156,7 @@
 	let isUpdatingColor = false;
 
 	$: {
-		if (!isUpdatingColor) {
+		if (!isUpdatingColor && $theme) {
 			const totalSelected =
 				$selectedRectangles.length +
 				$selectedEllipses.length +
@@ -183,7 +184,15 @@
 					.map((s) => (s as any).stroke_color || getDefaultStrokeColor())
 					.filter((c, i, arr) => arr.indexOf(c) === i);
 				if (strokeColors.length === 1) {
-					const newStrokeColor = strokeColors[0];
+					let newStrokeColor = strokeColors[0];
+
+					const oppositeThemeDefault = $theme === 'dark' ? '#000000' : '#ffffff';
+					const currentThemeDefault = getDefaultStrokeColor();
+
+					if (newStrokeColor === oppositeThemeDefault) {
+						newStrokeColor = currentThemeDefault;
+					}
+
 					if (newStrokeColor !== strokeColor) {
 						strokeColor = newStrokeColor;
 					}
@@ -206,22 +215,6 @@
 		}
 	}
 
-	function normalizeColorForTheme(color: string): string {
-		if ($theme === 'dark') {
-			if (color.toLowerCase() === '#ffffff' || color.toLowerCase() === '#fff' || color === 'white') {
-				return '#000000';
-			}
-		} else {
-			if (color.toLowerCase() === '#000000' || color.toLowerCase() === '#000' || color === 'black') {
-				return '#ffffff';
-			}
-		}
-		return color;
-	}
-
-	function getDisplayStrokeColor(): string {
-		return normalizeColorForTheme(strokeColor);
-	}
 
 	async function updateStrokeColor(color: string) {
 		isUpdatingColor = true;
@@ -736,8 +729,8 @@
 									<button
 										type="button"
 										on:click={() => updateStrokeColor(color)}
-										class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === normalizeColorForTheme(color) ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
-										style="background-color: {normalizeColorForTheme(color)};"
+										class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+										style="background-color: {color};"
 										title={color}
 									>
 									</button>
