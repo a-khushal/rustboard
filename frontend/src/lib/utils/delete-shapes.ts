@@ -60,12 +60,14 @@ export function deleteShapes(
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
     const updatedDiamonds = Array.from(api.get_diamonds() as Diamond[]);
     const updatedImages = Array.from(api.get_images() as Image[]);
+    const updatedTexts = Array.from(api.get_texts() as Text[]);
     rectangles.set(updatedRectangles);
     ellipses.set(updatedEllipses);
     lines.set(updatedLines);
     arrows.set(updatedArrows);
     diamonds.set(updatedDiamonds);
     images.set(updatedImages);
+    texts.set(updatedTexts);
 
     updatePaths();
 
@@ -76,4 +78,5 @@ export function deleteShapes(
     selectedDiamonds.set([]);
     selectedPaths.set([]);
     selectedImages.set([]);
+    selectedTexts.set([]);
 }

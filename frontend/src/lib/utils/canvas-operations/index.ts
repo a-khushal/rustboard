@@ -5,3 +5,4 @@ export * from './arrow';
 export * from './diamond';
 export * from './path';
 export * from './image';
+export * from './text';

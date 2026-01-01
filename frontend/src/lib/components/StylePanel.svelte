@@ -652,8 +652,9 @@
 		const arrowIds = $selectedArrows.map(arrow => arrow.id);
 		const pathIds = $selectedPaths.map(path => path.id);
 		const imageIds = $selectedImages.map(image => image.id);
+		const textIds = $selectedTexts.map(text => text.id);
 
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, [], pathIds, imageIds);
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
 	}
 
 	function handleEdgeStyleChange(style: EdgeStyle) {

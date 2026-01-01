@@ -14,14 +14,15 @@
 
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox } from '$lib/utils/geometry';
 	import { screenToWorld } from '$lib/utils/viewport';
-	import { 
+	import {
 		addRectangle, moveRectangle, resizeRectangle, setRectangleRotation,
 		addEllipse, moveEllipse, resizeEllipse, setEllipseRotation,
 		addDiamond, moveDiamond, resizeDiamond, setDiamondRotation,
 		addLine, moveLine,
 		addArrow, moveArrow,
 		addPath, movePath, resizePath, setPathRotation, setPathPoints,
-		moveImage, resizeImage, setImageRotation
+		moveImage, resizeImage, setImageRotation,
+		moveText, resizeText, setTextContent, setTextFontSize, setTextFontFamily, setTextTextAlign, setTextColor, setTextRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updatePaths } from '$lib/utils/canvas-operations/path';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
@@ -626,8 +627,9 @@
 		const hasSelectedArrows = $selectedArrows.length > 0;
 		const hasSelectedPaths = $selectedPaths.length > 0;
 		const hasSelectedImages = $selectedImages.length > 0;
+		const hasSelectedTexts = $selectedTexts.length > 0;
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedPaths && !hasSelectedImages) return;
+		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedPaths && !hasSelectedImages && !hasSelectedTexts) return;
 
 		event.preventDefault();
 		
@@ -638,8 +640,9 @@
 		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
 		const pathIds = hasSelectedPaths ? $selectedPaths.map(path => path.id) : [];
 		const imageIds = hasSelectedImages ? $selectedImages.map(image => image.id) : [];
-		
-		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, [], pathIds, imageIds);
+		const textIds = hasSelectedTexts ? $selectedTexts.map(text => text.id) : [];
+
+		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -2344,6 +2347,10 @@ function resetRotationState() {
 			if (document.body.contains(input)) {
 				document.body.removeChild(input);
 			}
+
+			if (canvas) {
+				canvas.focus({ preventScroll: true });
+			}
 		};
 
 		input.onblur = finishEditing;
@@ -3446,6 +3453,12 @@ function resetRotationState() {
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveImage(id, newX, newY, false);
+			});
+
+			selectedShapesStartPositions.texts.forEach((startPos, id) => {
+				const newX = startPos.x + dragOffset.x;
+				const newY = startPos.y + dragOffset.y;
+				moveText(id, newX, newY, false);
 			});
 			
 			$editorApi.save_snapshot();
