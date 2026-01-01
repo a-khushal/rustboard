@@ -3332,6 +3332,18 @@ function resetRotationState() {
 					}
 				});
 				
+				const selectedTextsArray: Text[] = [];
+				$texts.forEach(text => {
+					const textRight = text.position.x + text.width;
+					const textBottom = text.position.y + text.height;
+					if (text.position.x >= box.x &&
+						textRight <= box.x + box.width &&
+						text.position.y >= box.y &&
+						textBottom <= box.y + box.height) {
+						selectedTextsArray.push(text);
+					}
+				});
+
 				selectedRectangles.set(selectedRects);
 				selectedEllipses.set(selectedElls);
 				selectedDiamonds.set(selectedDias);
@@ -3339,6 +3351,7 @@ function resetRotationState() {
 				selectedArrows.set(selectedArrs);
 				selectedPaths.set(selectedPathsArray);
 				selectedImages.set(selectedImagesArray);
+				selectedTexts.set(selectedTextsArray);
 			}
 			
 			isSelectingBox = false;
@@ -4173,12 +4186,26 @@ function resetRotationState() {
 				renderCtx.fillText(text.content, textX, textY);
 
 				if (isSelected) {
+					const metrics = renderCtx.measureText(text.content);
+					const textWidth = Math.max(metrics.width, 20);
+					const textHeight = fontSize * 1.2;
+
+					let outlineX;
+					if (textAlign === 'left') {
+						outlineX = textX;
+					} else if (textAlign === 'center') {
+						outlineX = textX - textWidth / 2;
+					} else {
+						outlineX = textX - textWidth;
+					}
+
 					const outlineBounds = {
-						x: -renderWidth / 2,
-						y: -renderHeight / 2,
-						width: renderWidth,
-						height: renderHeight
+						x: outlineX,
+						y: -textHeight / 2,
+						width: textWidth,
+						height: textHeight
 					};
+
 					renderSelectionOutline(renderCtx, outlineBounds.x, outlineBounds.y, outlineBounds.width, outlineBounds.height, $zoom, true, 0);
 					if (showIndividualHandles) {
 						renderCornerHandles(renderCtx, outlineBounds.x, outlineBounds.y, outlineBounds.width, outlineBounds.height, $zoom, true, 0);
