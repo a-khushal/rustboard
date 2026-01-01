@@ -97,6 +97,7 @@
 	let eraserPosition: { x: number; y: number } | null = null;
 	let eraserShadowPosition: { x: number; y: number } | null = null;
 	let renderRequestId: number | null = null;
+	let isTextEditing = false;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
 	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Image | Path | null = null;
@@ -619,6 +620,9 @@
 		}
 
 		if (!$editorApi || event.key !== 'Delete') return;
+
+		// Don't delete shapes when text editing is active
+		if (isTextEditing) return;
 
 		const hasSelectedRectangles = $selectedRectangles.length > 0;
 		const hasSelectedEllipses = $selectedEllipses.length > 0;
@@ -2307,6 +2311,7 @@ function resetRotationState() {
 
 	function enterTextEditingMode(text: Text) {
 		if (!canvas) return;
+		isTextEditing = true;
 
 		const canvasRect = canvas.getBoundingClientRect();
 		const textScreenX = (text.position.x * $zoom) + $viewportOffset.x + canvasRect.left;
@@ -2351,6 +2356,7 @@ function resetRotationState() {
 			if (canvas) {
 				canvas.focus({ preventScroll: true });
 			}
+			isTextEditing = false;
 		};
 
 		input.onblur = finishEditing;
@@ -2361,6 +2367,7 @@ function resetRotationState() {
 				if (document.body.contains(input)) {
 					document.body.removeChild(input);
 				}
+				isTextEditing = false;
 			}
 		};
 	}

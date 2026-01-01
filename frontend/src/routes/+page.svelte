@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, images, paths } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, images, paths, texts } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
@@ -12,6 +12,7 @@
 	let unsubscribeLines: (() => void) | null = null;
 	let unsubscribeArrows: (() => void) | null = null;
 	let unsubscribeDiamonds: (() => void) | null = null;
+	let unsubscribeTexts: (() => void) | null = null;
 	let unsubscribeImages: (() => void) | null = null;
 	let unsubscribePaths: (() => void) | null = null;
 	let unsubscribeZoom: (() => void) | null = null;
@@ -31,9 +32,11 @@
 			lines.set(api.get_lines());
 			arrows.set(api.get_arrows());
 			diamonds.set(api.get_diamonds());
+			texts.set(api.get_texts());
 			images.set(api.get_images());
 			paths.set(api.get_paths());
 		} else {
+			texts.set(api.get_texts());
 			images.set(api.get_images());
 			paths.set(api.get_paths());
 		}
@@ -54,6 +57,7 @@
 			unsubscribeLines = lines.subscribe(saveState);
 			unsubscribeArrows = arrows.subscribe(saveState);
 			unsubscribeDiamonds = diamonds.subscribe(saveState);
+			unsubscribeTexts = texts.subscribe(saveState);
 			unsubscribeImages = images.subscribe(saveState);
 			unsubscribePaths = paths.subscribe(saveState);
 
@@ -76,6 +80,7 @@
 		if (unsubscribeLines) unsubscribeLines();
 		if (unsubscribeArrows) unsubscribeArrows();
 		if (unsubscribeDiamonds) unsubscribeDiamonds();
+		if (unsubscribeTexts) unsubscribeTexts();
 		if (unsubscribeImages) unsubscribeImages();
 		if (unsubscribePaths) unsubscribePaths();
 		if (unsubscribeZoom) unsubscribeZoom();

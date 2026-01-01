@@ -49,7 +49,7 @@ export function deleteShapes(
     });
 
     textIds.forEach(id => {
-        api.delete_text_without_snapshot(id);
+        api.delete_text_without_snapshot(BigInt(id));
     });
 
     api.save_snapshot();
