@@ -8,6 +8,7 @@
 		selectedDiamonds,
 		selectedImages,
 		selectedPaths,
+		selectedGroups,
 		editorApi,
 		rectangles,
 		ellipses,
@@ -35,6 +36,10 @@
 	import { dashPattern, type DashPattern } from '$lib/stores/dash-pattern';
 	import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 	import { activeTool } from '$lib/stores/tools';
+
+	function getDefaultStrokeColor(): string {
+		return $theme === 'dark' ? '#ffffff' : '#000000';
+	}
 
 	let strokeColor = '#000000';
 	let fillColor: string | null = null;
@@ -160,8 +165,8 @@
 				$selectedImages.length +
 				$selectedPaths.length;
 
-			if (totalSelected === 0) {
-				strokeColor = '#000000';
+			if (totalSelected === 0 && $selectedGroups.length === 0) {
+				strokeColor = getDefaultStrokeColor();
 				fillColor = null;
 				lineWidth = 2;
 			} else {
@@ -175,11 +180,13 @@
 				];
 
 				const strokeColors = shapes
-					.map((s) => (s as any).stroke_color || '#000000')
+					.map((s) => (s as any).stroke_color || getDefaultStrokeColor())
 					.filter((c, i, arr) => arr.indexOf(c) === i);
-				const newStrokeColor = strokeColors.length === 1 ? strokeColors[0] : '#000000';
-				if (newStrokeColor !== strokeColor) {
-					strokeColor = newStrokeColor;
+				if (strokeColors.length === 1) {
+					const newStrokeColor = strokeColors[0];
+					if (newStrokeColor !== strokeColor) {
+						strokeColor = newStrokeColor;
+					}
 				}
 
 				const fillColors = shapes
@@ -645,14 +652,6 @@
 		saveStateToLocalStorage();
 	}
 
-	$: {
-		if (!isUpdatingColor && hasSelection && strokeColor && $editorApi && $theme) {
-			const normalized = normalizeColorForTheme(strokeColor);
-			if (normalized !== strokeColor) {
-				updateStrokeColor(normalized);
-			}
-		}
-	}
 
 	$: {
 		if (hasEditableEdges) {
@@ -665,10 +664,10 @@
 				const br = d.border_radius ?? 0;
 				allBorderRadii.push(br);
 			});
-			
+
 			const allSharp = allBorderRadii.length > 0 && allBorderRadii.every(r => r === 0);
 			const allRounded = allBorderRadii.length > 0 && allBorderRadii.every(r => r > 0);
-			
+
 			if (allSharp) {
 				edgeStyle.set('sharp');
 			} else if (allRounded) {
@@ -700,11 +699,11 @@
 				const dp = a.dash_pattern || 'solid';
 				allDashPatterns.push(dp);
 			});
-			
+
 			const allSolid = allDashPatterns.length > 0 && allDashPatterns.every(p => p === 'solid');
 			const allDashed = allDashPatterns.length > 0 && allDashPatterns.every(p => p === 'dashed');
 			const allDotted = allDashPatterns.length > 0 && allDashPatterns.every(p => p === 'dotted');
-			
+
 			if (allSolid) {
 				dashPattern.set('solid');
 			} else if (allDashed) {
@@ -713,8 +712,7 @@
 				dashPattern.set('dotted');
 			}
 		}
-	}
-</script>
+	}</script>
 
 {#if hasSelection}
 	<div bind:this={stylePanelRef} class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[240px] min-w-[240px] min-h-[100px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
