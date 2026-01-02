@@ -98,6 +98,7 @@
 	let eraserShadowPosition: { x: number; y: number } | null = null;
 	let renderRequestId: number | null = null;
 	let isTextEditing = false;
+	let editingTextId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
 	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Image | Path | null = null;
@@ -2312,11 +2313,21 @@ function resetRotationState() {
 	function enterTextEditingMode(text: Text) {
 		if (!canvas) return;
 		isTextEditing = true;
+		editingTextId = text.id;
 
 		const canvasRect = canvas.getBoundingClientRect();
 		const textScreenX = (text.position.x * $zoom) + $viewportOffset.x + canvasRect.left;
 		const textScreenY = (text.position.y * $zoom) + $viewportOffset.y + canvasRect.top;
-		const textScreenWidth = text.width * $zoom;
+
+		const tempCanvas = document.createElement('canvas');
+		const tempCtx = tempCanvas.getContext('2d');
+		if (tempCtx) {
+			tempCtx.font = `${text.font_weight || 'normal'} ${text.font_size || 16}px ${text.font_family || 'Arial'}`;
+			const metrics = tempCtx.measureText(text.content);
+			var textScreenWidth = Math.max(metrics.width + 20, text.width * $zoom);
+		} else {
+			var textScreenWidth = text.width * $zoom;
+		}
 		const textScreenHeight = text.height * $zoom;
 
 		const input = document.createElement('input');
@@ -2332,10 +2343,10 @@ function resetRotationState() {
 		input.style.fontWeight = text.font_weight || 'normal';
 		input.style.textAlign = text.text_align || 'left';
 		input.style.color = text.color || getDefaultStrokeColor();
-		input.style.background = 'transparent';
-		input.style.border = '1px dashed #007acc';
+		input.style.background = text.color ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.95)';
+		input.style.border = '1px solid #007acc';
 		input.style.outline = 'none';
-		input.style.padding = '2px';
+		input.style.padding = '1px 2px';
 		input.style.zIndex = '9999';
 
 		document.body.appendChild(input);
@@ -2357,6 +2368,7 @@ function resetRotationState() {
 				canvas.focus({ preventScroll: true });
 			}
 			isTextEditing = false;
+			editingTextId = null;
 		};
 
 		input.onblur = finishEditing;
@@ -2368,6 +2380,7 @@ function resetRotationState() {
 					document.body.removeChild(input);
 				}
 				isTextEditing = false;
+				editingTextId = null;
 			}
 		};
 	}
@@ -4187,7 +4200,9 @@ function resetRotationState() {
 				const isSelected = $selectedTexts.some(selected => selected.id === text.id);
 				const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts?.has(text.id);
 
-				let renderX: number, renderY: number;
+				// Skip rendering text that's currently being edited
+				if (!(isTextEditing && editingTextId === text.id)) {
+					let renderX: number, renderY: number;
 				if (isDragged) {
 					const startPos = selectedShapesStartPositions.texts?.get(text.id)!;
 					renderX = startPos.x + dragOffset.x;
@@ -4246,6 +4261,7 @@ function resetRotationState() {
 						renderCornerHandles(renderCtx, outlineBounds.x, outlineBounds.y, outlineBounds.width, outlineBounds.height, $zoom, true, 0);
 						renderRotationHandleFromBounds(renderCtx, outlineBounds, $zoom, 0);
 					}
+				}
 				}
 
 				renderCtx.restore();
