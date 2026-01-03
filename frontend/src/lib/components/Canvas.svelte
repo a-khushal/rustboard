@@ -9,7 +9,7 @@
 		images, selectedImages,
 		texts, selectedTexts,
 		groups, selectedGroups,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text, type Group
+		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text as EditorText, type Group
 	} from '$lib/stores/editor';
 
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox } from '$lib/utils/geometry';
@@ -101,13 +101,13 @@
 	let editingTextId: number | null = null;
 	let isResizing = false;
 	let resizeHandleIndex: number | null = null;
-	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Image | Path | null = null;
-	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path' | null = null;
+	let resizeStartShape: Rectangle | Ellipse | Line | Arrow | Diamond | Image | Path | EditorText | null = null;
+	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path' | 'text' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
-	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path'; id: number } | null = null;
+	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path' | 'text'; id: number } | null = null;
 	let lastMouseWorldPos: { x: number; y: number } | null = null;
 	let isSelectingBox = false;
 	let selectionBoxStart: { x: number; y: number } | null = null;
@@ -187,7 +187,7 @@
 	const ROTATION_HANDLE_DISTANCE = 18;
 	const ROTATION_HANDLE_RADIUS = 5;
 	const ROTATION_STEP = Math.PI / 12;
-	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path';
+	type RotatableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path' | 'text';
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
@@ -546,7 +546,7 @@
 			const currentLines = allLines.filter(l => selectedIds.has(l.id));
 			const currentArrows = allArrows.filter(a => selectedIds.has(a.id));
 			const currentDiamonds = allDiamonds.filter(d => selectedIds.has(d.id));
-			const currentTexts = allTexts.filter((t: Text) => selectedIds.has(t.id));
+			const currentTexts = allTexts.filter((t: EditorText) => selectedIds.has(t.id));
 			const currentPaths = allPaths.filter(p => selectedIds.has(p.id));
 			const currentImages = allImages.filter(i => selectedIds.has(i.id));
 			
@@ -622,7 +622,6 @@
 
 		if (!$editorApi || event.key !== 'Delete') return;
 
-		// Don't delete shapes when text editing is active
 		if (isTextEditing) return;
 
 		const hasSelectedRectangles = $selectedRectangles.length > 0;
@@ -659,8 +658,8 @@
 	function getResizeHandleAt(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Image,
-		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image',
+		shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
+		shapeType: RotatableShapeType,
 		zoom: number,
 		rotation: number = 0
 	): number | null {
@@ -669,34 +668,62 @@
 		
 		let boxX: number, boxY: number, boxWidth: number, boxHeight: number;
 		
-		if (shapeType === 'rectangle') {
-			const rect = shape as Rectangle;
-			boxX = rect.position.x - padding - gap;
-			boxY = rect.position.y - padding - gap;
-			boxWidth = rect.width + (padding + gap) * 2;
-			boxHeight = rect.height + (padding + gap) * 2;
-		} else if (shapeType === 'diamond') {
-			const diamond = shape as Diamond;
-			boxX = diamond.position.x - padding - gap;
-			boxY = diamond.position.y - padding - gap;
-			boxWidth = diamond.width + (padding + gap) * 2;
-			boxHeight = diamond.height + (padding + gap) * 2;
-		} else if (shapeType === 'image') {
-			const image = shape as Image;
-			boxX = image.position.x - padding - gap;
-			boxY = image.position.y - padding - gap;
-			boxWidth = image.width + (padding + gap) * 2;
-			boxHeight = image.height + (padding + gap) * 2;
-		} else {
-			const ellipse = shape as Ellipse;
-			const x = ellipse.position.x - ellipse.radius_x;
-			const y = ellipse.position.y - ellipse.radius_y;
-			const width = ellipse.radius_x * 2;
-			const height = ellipse.radius_y * 2;
-			boxX = x - padding - gap;
-			boxY = y - padding - gap;
-			boxWidth = width + (padding + gap) * 2;
-			boxHeight = height + (padding + gap) * 2;
+		switch (shapeType) {
+			case 'rectangle': {
+				const rect = shape as Rectangle;
+				boxX = rect.position.x - padding - gap;
+				boxY = rect.position.y - padding - gap;
+				boxWidth = rect.width + (padding + gap) * 2;
+				boxHeight = rect.height + (padding + gap) * 2;
+				break;
+			}
+			case 'diamond': {
+				const diamond = shape as Diamond;
+				boxX = diamond.position.x - padding - gap;
+				boxY = diamond.position.y - padding - gap;
+				boxWidth = diamond.width + (padding + gap) * 2;
+				boxHeight = diamond.height + (padding + gap) * 2;
+				break;
+			}
+			case 'image': {
+				const image = shape as Image;
+				boxX = image.position.x - padding - gap;
+				boxY = image.position.y - padding - gap;
+				boxWidth = image.width + (padding + gap) * 2;
+				boxHeight = image.height + (padding + gap) * 2;
+				break;
+			}
+			case 'text': {
+				const text = shape as EditorText;
+				boxX = text.position.x - padding - gap;
+				boxY = text.position.y - padding - gap;
+				boxWidth = text.width + (padding + gap) * 2;
+				boxHeight = text.height + (padding + gap) * 2;
+				break;
+			}
+			case 'path': {
+				const path = shape as Path;
+				const bounds = getPathBoundingBox(path);
+				if (!bounds) return null;
+				boxX = bounds.x - padding - gap;
+				boxY = bounds.y - padding - gap;
+				boxWidth = bounds.width + (padding + gap) * 2;
+				boxHeight = bounds.height + (padding + gap) * 2;
+				break;
+			}
+			case 'ellipse':
+			default: {
+				const ellipse = shape as Ellipse;
+				const x = ellipse.position.x - ellipse.radius_x;
+				const y = ellipse.position.y - ellipse.radius_y;
+				const width = ellipse.radius_x * 2;
+				const height = ellipse.radius_y * 2;
+				boxX = x - padding - gap;
+				boxY = y - padding - gap;
+				boxWidth = width + (padding + gap) * 2;
+				boxHeight = height + (padding + gap) * 2;
+				break;
+			}
 		}
 		
 		const bounds = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
@@ -732,8 +759,8 @@
 	}
 
 function getShapeBoundingBox(
-	shape: Rectangle | Ellipse | Diamond | Image | Path,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path',
+	shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path' | 'text',
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
 	if (shapeType === 'rectangle') {
@@ -757,6 +784,10 @@ function getShapeBoundingBox(
 		const image = shape as Image;
 		return { x: image.position.x, y: image.position.y, width: image.width, height: image.height };
 	}
+	if (shapeType === 'text') {
+		const text = shape as EditorText;
+		return { x: text.position.x, y: text.position.y, width: text.width, height: text.height };
+	}
 	if (shapeType === 'path') {
 		const path = shape as Path;
 		return getPathBoundingBox(path);
@@ -765,8 +796,8 @@ function getShapeBoundingBox(
 }
 
 function getSelectionBoundsForShape(
-	shape: Rectangle | Ellipse | Diamond | Image | Path,
-	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path',
+	shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
+	shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'path' | 'text',
 	zoom: number,
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number; width: number; height: number } | null {
@@ -783,8 +814,8 @@ function getSelectionBoundsForShape(
 }
 
 function getShapeCenter(
-	shape: Rectangle | Ellipse | Diamond | Image | Path,
-	shapeType: RotatableShapeType,
+	shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
+	shapeType: RotatableShapeType | 'text',
 	ctxOverride: CanvasRenderingContext2D | null = ctx
 ): { x: number; y: number } | null {
 	const bounds = getShapeBoundingBox(shape, shapeType, ctxOverride);
@@ -792,7 +823,7 @@ function getShapeCenter(
 	return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 }
 
-function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Image | Path, shapeType: RotatableShapeType): number {
+function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText, shapeType: RotatableShapeType | 'text'): number {
 	if (shapeType === 'rectangle') {
 		return (shape as Rectangle).rotation_angle ?? 0;
 	}
@@ -808,8 +839,12 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Image | Path, s
 	if (shapeType === 'path') {
 		return (shape as Path).rotation_angle ?? 0;
 	}
+	if (shapeType === 'text') {
+		return (shape as EditorText).rotation_angle ?? 0;
+	}
 	return 0;
 }
+
 
 	function getRotationHandlePoints(
 		bounds: { x: number; y: number; width: number; height: number },
@@ -848,7 +883,7 @@ function getShapeRotation(shape: Rectangle | Ellipse | Diamond | Image | Path, s
 	function isPointOnRotationHandle(
 		x: number,
 		y: number,
-		shape: Rectangle | Ellipse | Diamond | Image | Path,
+		shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
 		shapeType: RotatableShapeType,
 		zoom: number,
 		ctxOverride: CanvasRenderingContext2D | null = ctx
@@ -870,7 +905,7 @@ function normalizeAngle(angle: number): number {
 }
 
 function getRenderedRotation(
-	shape: Rectangle | Ellipse | Diamond | Image | Path,
+	shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
 	shapeType: RotatableShapeType
 ): number {
 	if (rotationPreview && rotationPreview.type === shapeType && rotationPreview.id === shape.id) {
@@ -901,10 +936,14 @@ function applyRotationToShape(type: RotatableShapeType, id: number, angle: numbe
 		setPathRotation(id, normalized, saveHistory);
 		return;
 	}
+	if (type === 'text') {
+		setTextRotation(id, normalized, saveHistory);
+		return;
+	}
 }
 
 function beginRotation(
-	shape: Rectangle | Ellipse | Diamond | Image | Path,
+	shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText,
 	shapeType: RotatableShapeType,
 	x: number,
 	y: number
@@ -964,11 +1003,13 @@ function resetRotationState() {
 	}
 
 	function rotateSelectedShapes(delta: number) {
-		const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Image }> = [];
+		const targets: Array<{ type: RotatableShapeType; shape: Rectangle | Ellipse | Diamond | Image | Path | EditorText }> = [];
 		$selectedRectangles.forEach(rect => targets.push({ type: 'rectangle', shape: rect }));
 		$selectedEllipses.forEach(ellipse => targets.push({ type: 'ellipse', shape: ellipse }));
 		$selectedDiamonds.forEach(diamond => targets.push({ type: 'diamond', shape: diamond }));
 		$selectedImages.forEach(image => targets.push({ type: 'image', shape: image }));
+		$selectedPaths.forEach(path => targets.push({ type: 'path', shape: path }));
+		$selectedTexts.forEach(text => targets.push({ type: 'text', shape: text }));
 		if (targets.length === 0) return;
 		targets.forEach((item, index) => {
 			const currentAngle = getShapeRotation(item.shape, item.type);
@@ -1433,7 +1474,7 @@ function resetRotationState() {
 	}
 
 	function handleShapeClick(
-		shape: Rectangle | Ellipse | Diamond | Line | Arrow | Text | Path | Image,
+		shape: Rectangle | Ellipse | Diamond | Line | Arrow | EditorText | Path | Image,
 		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'path' | 'image',
 		isShiftPressed: boolean,
 		x: number,
@@ -1588,7 +1629,7 @@ function resetRotationState() {
 			storeSelectedShapesStartPositions();
 			isDragging = true;
 		} else if (shapeType === 'text') {
-			const clickedText = shape as Text;
+			const clickedText = shape as EditorText;
 			const index = $selectedTexts.findIndex(t => t.id === clickedText.id);
 			const isAlreadySelected = index >= 0;
 
@@ -2113,6 +2154,38 @@ function resetRotationState() {
 					}
 				}
 
+				for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+					if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom)) {
+						if (beginRotation($selectedTexts[i], 'text', x, y)) {
+							return;
+						}
+					}
+					const handleIndex = getResizeHandleAt(
+						x,
+						y,
+						$selectedTexts[i],
+						'text',
+						$zoom,
+						getRenderedRotation($selectedTexts[i], 'text')
+					);
+					if (handleIndex !== null) {
+						isResizing = true;
+						resizeHandleIndex = handleIndex;
+						resizeStartShape = $selectedTexts[i];
+						resizeStartShapeType = 'text';
+						const text = $selectedTexts[i];
+						resizeStartPos = {
+							x: text.position.x,
+							y: text.position.y,
+							width: text.width,
+							height: text.height
+						};
+						resizeStartMousePos = { x, y };
+						isShiftPressedDuringResize = isShiftPressed;
+						return;
+					}
+				}
+
 			}
 
 			if (visualGroupBox && rawGroupBox) {
@@ -2194,9 +2267,10 @@ function resetRotationState() {
 			}
 
 		for (let i = $texts.length - 1; i >= 0; i--) {
-			const text: Text = $texts[i];
-			if (x >= text.position.x && x <= text.position.x + text.width &&
-				y >= text.position.y && y <= text.position.y + text.height) {
+			const text: EditorText = $texts[i];
+			const padding = 10 / $zoom;
+			if (x >= text.position.x - padding && x <= text.position.x + text.width + padding &&
+				y >= text.position.y - padding && y <= text.position.y + text.height + padding) {
 				handleShapeClick(text, 'text', isShiftPressed, x, y);
 				return;
 			}
@@ -2291,11 +2365,12 @@ function resetRotationState() {
 		} else if ($activeTool === 'text') {
 			resetRotationState();
 			clearAllSelections();
-			const newId = $editorApi.add_text(x, y, 100, 30, 'Text');
-			const allTexts = Array.from($editorApi.get_texts() as Text[]);
+			const newId = $editorApi.add_text(x, y, 20, 30, '');
+			const allTexts = Array.from($editorApi.get_texts() as EditorText[]);
 			const newText = allTexts.find(t => t.id === Number(newId));
 			if (newText) {
 				selectedTexts.set([newText]);
+				enterTextEditingMode(newText);
 			}
 			activeTool.set('select');
 			updateStores();
@@ -2310,7 +2385,7 @@ function resetRotationState() {
 		}
 	}
 
-	function enterTextEditingMode(text: Text) {
+	function enterTextEditingMode(text: EditorText) {
 		if (!canvas) return;
 		isTextEditing = true;
 		editingTextId = text.id;
@@ -2319,44 +2394,80 @@ function resetRotationState() {
 		const textScreenX = (text.position.x * $zoom) + $viewportOffset.x + canvasRect.left;
 		const textScreenY = (text.position.y * $zoom) + $viewportOffset.y + canvasRect.top;
 
-		const tempCanvas = document.createElement('canvas');
-		const tempCtx = tempCanvas.getContext('2d');
-		if (tempCtx) {
-			tempCtx.font = `${text.font_weight || 'normal'} ${text.font_size || 16}px ${text.font_family || 'Arial'}`;
-			const metrics = tempCtx.measureText(text.content);
-			var textScreenWidth = Math.max(metrics.width + 20, text.width * $zoom);
-		} else {
-			var textScreenWidth = text.width * $zoom;
-		}
-		const textScreenHeight = text.height * $zoom;
-
-		const input = document.createElement('input');
-		input.type = 'text';
+		const input = document.createElement('textarea');
 		input.value = text.content;
 		input.style.position = 'fixed';
 		input.style.left = `${textScreenX}px`;
 		input.style.top = `${textScreenY}px`;
-		input.style.width = `${textScreenWidth}px`;
-		input.style.height = `${textScreenHeight}px`;
 		input.style.fontSize = `${(text.font_size || 16) * $zoom}px`;
 		input.style.fontFamily = text.font_family || 'Arial';
 		input.style.fontWeight = text.font_weight || 'normal';
 		input.style.textAlign = text.text_align || 'left';
-		input.style.color = text.color || getDefaultStrokeColor();
-		input.style.background = text.color ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.95)';
-		input.style.border = '1px solid #007acc';
+		input.style.color = adaptColorToTheme(text.color, getDefaultStrokeColor());
+		input.style.background = 'transparent';
+		input.style.border = 'none';
 		input.style.outline = 'none';
-		input.style.padding = '1px 2px';
+		input.style.padding = '0';
+		input.style.margin = '0';
+		input.style.resize = 'none';
+		input.style.overflow = 'hidden';
+		input.style.whiteSpace = 'pre';
 		input.style.zIndex = '9999';
+		input.style.lineHeight = '1.2';
 
 		document.body.appendChild(input);
-		input.focus();
-		input.select();
+
+		const resizeInput = () => {
+			input.style.width = '0px';
+			input.style.height = '0px';
+			input.style.width = (input.scrollWidth + 10) + 'px';
+			input.style.height = input.scrollHeight + 'px';
+		};
+
+		resizeInput();
+
+		input.addEventListener('input', resizeInput);
+
+		input.focus({ preventScroll: true });
+		if (text.content.length > 0) {
+			input.select();
+		}
 
 		const finishEditing = () => {
-			const newContent = input.value.trim();
-			if (newContent !== text.content) {
-				$editorApi.set_text_content(BigInt(text.id), newContent, true);
+			const newContent = input.value;
+			const trimmedContent = newContent.trim();
+
+			if (trimmedContent === '') {
+				deleteShapes([], [], [], [], [], [text.id], [], []);
+				selectedTexts.set([]);
+			} else {
+				if (newContent !== text.content) {
+					$editorApi!.set_text_content(BigInt(text.id), newContent, true);
+				}
+
+				const lines = newContent.split('\n');
+				const fontSize = text.font_size || 16;
+				const lineHeight = fontSize * 1.2;
+				const newHeight = lines.length * lineHeight;
+				
+				let newWidth = (input.scrollWidth + 10) / $zoom;
+				
+				if (canvas) {
+					const ctx = canvas.getContext('2d');
+					if (ctx) {
+						ctx.font = `${text.font_weight || 'normal'} ${fontSize}px ${text.font_family || 'Arial'}`;
+						let maxW = 0;
+						for (const line of lines) {
+							const w = ctx.measureText(line).width;
+							if (w > maxW) maxW = w;
+						}
+						if (maxW > 0) {
+							newWidth = maxW + 20;
+						}
+					}
+				}
+
+				resizeText(text.id, newWidth, newHeight, true);
 				updateStores();
 			}
 
@@ -2369,18 +2480,14 @@ function resetRotationState() {
 			}
 			isTextEditing = false;
 			editingTextId = null;
+			scheduleRender();
 		};
 
 		input.onblur = finishEditing;
 		input.onkeydown = (e) => {
-			if (e.key === 'Enter') {
+			e.stopPropagation();
+			if (e.key === 'Escape') {
 				finishEditing();
-			} else if (e.key === 'Escape') {
-				if (document.body.contains(input)) {
-					document.body.removeChild(input);
-				}
-				isTextEditing = false;
-				editingTextId = null;
 			}
 		};
 	}
@@ -2405,7 +2512,7 @@ function resetRotationState() {
 		const allDiamonds = api.get_diamonds() as Diamond[];
 		const allImages = api.get_images() as Image[];
 		const allPaths = api.get_paths() as Path[];
-		const allTexts = api.get_texts() as Text[];
+		const allTexts = api.get_texts() as EditorText[];
 
 		rectangles.set(allRectangles);
 		ellipses.set(allEllipses);
@@ -2988,6 +3095,73 @@ function resetRotationState() {
 
 				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'path', id: path.id };
 				scheduleRender();
+			} else if (resizeStartShapeType === 'text') {
+				const text = resizeStartShape as EditorText;
+				const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+				const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+				const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+				const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+				const adjustsHorizontal = affectsLeft || affectsRight;
+				const adjustsVertical = affectsTop || affectsBottom;
+
+				let left = resizeStartPos.x;
+				let right = resizeStartPos.x + resizeStartPos.width;
+				let top = resizeStartPos.y;
+				let bottom = resizeStartPos.y + resizeStartPos.height;
+
+				if (affectsLeft) left = resizeStartPos.x + deltaX;
+				if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+				if (affectsTop) top = resizeStartPos.y + deltaY;
+				if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+
+				if (resizeStartPos.height !== 0) {
+					const aspectRatio = resizeStartPos.width / resizeStartPos.height;
+					const width = right - left;
+					const height = bottom - top;
+					const absWidth = Math.abs(width);
+					const absHeight = Math.abs(height);
+
+					if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+						const targetHeight = absWidth / aspectRatio;
+						const signHeight = height >= 0 ? 1 : -1;
+						const newHeight = targetHeight * signHeight;
+
+						if (affectsBottom) {
+							bottom = top + newHeight;
+						} else if (affectsTop) {
+							top = bottom - newHeight;
+						} else {
+							const centerY = (top + bottom) / 2;
+							top = centerY - newHeight / 2;
+							bottom = centerY + newHeight / 2;
+						}
+					} else {
+						const targetWidth = absHeight * aspectRatio;
+						const signWidth = width >= 0 ? 1 : -1;
+						const newWidth = targetWidth * signWidth;
+
+						if (affectsRight) {
+							right = left + newWidth;
+						} else if (affectsLeft) {
+							left = right - newWidth;
+						} else {
+							const centerX = (left + right) / 2;
+							left = centerX - newWidth / 2;
+							right = centerX + newWidth / 2;
+						}
+					}
+				}
+
+				const finalLeft = Math.min(left, right);
+				const finalRight = Math.max(left, right);
+				const finalTop = Math.min(top, bottom);
+				const finalBottom = Math.max(top, bottom);
+
+				const newWidth = Math.max(1, finalRight - finalLeft);
+				const newHeight = Math.max(1, finalBottom - finalTop);
+
+				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'text', id: text.id };
+				scheduleRender();
 			}
 			return;
 		}
@@ -3312,6 +3486,17 @@ function resetRotationState() {
 				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
 			} else if (resizePreview.type === 'path') {
 				resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
+			} else if (resizePreview.type === 'text') {
+				const text = $texts.find(t => t.id === resizePreview!.id);
+				if (text) {
+					const oldHeight = text.height;
+					const newHeight = resizePreview.height;
+					const scaleFactor = newHeight / oldHeight;
+					const newFontSize = (text.font_size || 16) * scaleFactor;
+					
+					moveText(resizePreview.id, resizePreview.x, resizePreview.y, true);
+					setTextFontSize(resizePreview.id, newFontSize, true);
+				}
 			}
 			resizePreview = null;
 		}
@@ -3374,7 +3559,7 @@ function resetRotationState() {
 					}
 				});
 				
-				const selectedTextsArray: Text[] = [];
+				const selectedTextsArray: EditorText[] = [];
 				$texts.forEach(text => {
 					const textRight = text.position.x + text.width;
 					const textBottom = text.position.y + text.height;
@@ -4196,25 +4381,37 @@ function resetRotationState() {
 					}
 				}
 			} else if (item.type === 'text') {
-				const text = item.data as Text;
+				const text = item.data as EditorText;
 				const isSelected = $selectedTexts.some(selected => selected.id === text.id);
 				const isDragged = isDragging && isSelected && selectedShapesStartPositions.texts?.has(text.id);
 
-				// Skip rendering text that's currently being edited
+				const isResized = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id;
+
 				if (!(isTextEditing && editingTextId === text.id)) {
 					let renderX: number, renderY: number;
-				if (isDragged) {
-					const startPos = selectedShapesStartPositions.texts?.get(text.id)!;
-					renderX = startPos.x + dragOffset.x;
-					renderY = startPos.y + dragOffset.y;
-				} else {
-					renderX = text.position.x;
-					renderY = text.position.y;
-				}
+					let renderWidth: number, renderHeight: number;
+					let fontSize = text.font_size || 16;
 
-				const renderWidth = text.width;
-				const renderHeight = text.height;
-				const fontSize = text.font_size || 16;
+					if (isResized && resizePreview) {
+						renderX = resizePreview.x;
+						renderY = resizePreview.y;
+						renderWidth = resizePreview.width;
+						renderHeight = resizePreview.height;
+						const scaleFactor = renderHeight / text.height;
+						fontSize = (text.font_size || 16) * scaleFactor;
+					} else if (isDragged) {
+						const startPos = selectedShapesStartPositions.texts?.get(text.id)!;
+						renderX = startPos.x + dragOffset.x;
+						renderY = startPos.y + dragOffset.y;
+						renderWidth = text.width;
+						renderHeight = text.height;
+					} else {
+						renderX = text.position.x;
+						renderY = text.position.y;
+						renderWidth = text.width;
+						renderHeight = text.height;
+					}
+
 				const fontFamily = text.font_family || 'Arial';
 				const fontWeight = text.font_weight || 'normal';
 				const textAlign = text.text_align || 'left';
@@ -4228,17 +4425,27 @@ function resetRotationState() {
 				renderCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
 				renderCtx.fillStyle = color;
 				renderCtx.textAlign = textAlign;
-				renderCtx.textBaseline = 'middle';
+				renderCtx.textBaseline = 'top';
 
 				const textX = textAlign === 'center' ? 0 : textAlign === 'right' ? renderWidth / 2 : -renderWidth / 2;
-				const textY = 0;
+				const lineHeight = fontSize * 1.2;
+				const verticalOffset = (lineHeight - fontSize) / 2;
+				const textY = -renderHeight / 2 + verticalOffset;
 
-				renderCtx.fillText(text.content, textX, textY);
+				const lines = text.content.split('\n');
+				for (let i = 0; i < lines.length; i++) {
+					renderCtx.fillText(lines[i], textX, textY + i * lineHeight);
+				}
 
 				if (isSelected) {
-					const metrics = renderCtx.measureText(text.content);
-					const textWidth = Math.max(metrics.width, 20);
-					const textHeight = fontSize * 1.2;
+					const lines = text.content.split('\n');
+					let maxLineWidth = 0;
+					for (const line of lines) {
+						const w = renderCtx.measureText(line).width;
+						if (w > maxLineWidth) maxLineWidth = w;
+					}
+					const textWidth = Math.max(maxLineWidth, 20);
+					const textHeight = fontSize * 1.2 * lines.length;
 
 					let outlineX;
 					if (textAlign === 'left') {
