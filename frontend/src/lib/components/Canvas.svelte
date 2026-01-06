@@ -2418,10 +2418,32 @@ function resetRotationState() {
 		document.body.appendChild(input);
 
 		const resizeInput = () => {
-			input.style.width = '0px';
-			input.style.height = '0px';
-			input.style.width = (input.scrollWidth + 10) + 'px';
-			input.style.height = input.scrollHeight + 'px';
+			// Calculate proper dimensions based on content
+			const lines = input.value.split('\n');
+			const fontSize = (text.font_size || 16) * $zoom;
+			const lineHeight = fontSize * 1.2;
+
+			// Create a temporary canvas to measure text width
+			const tempCanvas = document.createElement('canvas');
+			const tempCtx = tempCanvas.getContext('2d');
+			if (tempCtx) {
+				tempCtx.font = `${text.font_weight || 'normal'} ${fontSize}px ${text.font_family || 'Arial'}`;
+
+				let maxWidth = 0;
+				for (const line of lines) {
+					const width = tempCtx.measureText(line).width;
+					if (width > maxWidth) maxWidth = width;
+				}
+
+				// Set minimum width for empty text (cursor width)
+				const minWidth = input.value.length === 0 ? 2 : 20;
+				input.style.width = Math.max(maxWidth + 10, minWidth) + 'px';
+				input.style.height = (lines.length * lineHeight) + 'px';
+			} else {
+				// Fallback if canvas context is not available
+				input.style.width = '200px';
+				input.style.height = (lines.length * lineHeight) + 'px';
+			}
 		};
 
 		resizeInput();
@@ -2449,9 +2471,9 @@ function resetRotationState() {
 				const fontSize = text.font_size || 16;
 				const lineHeight = fontSize * 1.2;
 				const newHeight = lines.length * lineHeight;
-				
-				let newWidth = (input.scrollWidth + 10) / $zoom;
-				
+
+				let newWidth = 20; // minimum width
+
 				if (canvas) {
 					const ctx = canvas.getContext('2d');
 					if (ctx) {
