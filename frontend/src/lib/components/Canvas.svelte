@@ -665,9 +665,9 @@
 	): number | null {
 		const padding = getSelectionPaddingValue(zoom);
 		const gap = 4 / zoom;
-		
+
 		let boxX: number, boxY: number, boxWidth: number, boxHeight: number;
-		
+
 		switch (shapeType) {
 			case 'rectangle': {
 				const rect = shape as Rectangle;
@@ -695,10 +695,11 @@
 			}
 			case 'text': {
 				const text = shape as EditorText;
-				boxX = text.position.x - padding - gap;
-				boxY = text.position.y - padding - gap;
-				boxWidth = text.width + (padding + gap) * 2;
-				boxHeight = text.height + (padding + gap) * 2;
+				// Use the same outline bounds as used for rendering handles
+				boxX = text.position.x - 4 - padding - gap;
+				boxY = text.position.y - 2 - padding - gap;
+				boxWidth = text.width + 8 + (padding + gap) * 2;
+				boxHeight = text.height + 4 + (padding + gap) * 2;
 				break;
 			}
 			case 'path': {
@@ -725,14 +726,24 @@
 				break;
 			}
 		}
-		
+
 		const bounds = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
 		let testPoint = { x, y };
 		if (Math.abs(rotation) > 0.0001) {
 			const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 			testPoint = rotatePointAround({ x, y }, center, -rotation);
 		}
-		
+
+		// For text elements, only allow corner resizing
+		if (shapeType === 'text') {
+			return hitTestCorners(
+				testPoint.x,
+				testPoint.y,
+				bounds,
+				zoom
+			);
+		}
+
 		return hitTestEdges(
 			testPoint.x,
 			testPoint.y,
@@ -1095,17 +1106,17 @@ function resetRotationState() {
 		const { x: boxX, y: boxY, width: boxWidth, height: boxHeight } = box;
 		const boxRight = boxX + boxWidth;
 		const boxBottom = boxY + boxHeight;
-		
+
 		const onTopEdge = Math.abs(y - boxY) <= edgeTolerance && x >= boxX && x <= boxRight;
 		const onRightEdge = Math.abs(x - boxRight) <= edgeTolerance && y >= boxY && y <= boxBottom;
 		const onBottomEdge = Math.abs(y - boxBottom) <= edgeTolerance && x >= boxX && x <= boxRight;
 		const onLeftEdge = Math.abs(x - boxX) <= edgeTolerance && y >= boxY && y <= boxBottom;
-		
+
 		const onTopLeftCorner = Math.abs(x - boxX) <= edgeTolerance && Math.abs(y - boxY) <= edgeTolerance;
 		const onTopRightCorner = Math.abs(x - boxRight) <= edgeTolerance && Math.abs(y - boxY) <= edgeTolerance;
 		const onBottomRightCorner = Math.abs(x - boxRight) <= edgeTolerance && Math.abs(y - boxBottom) <= edgeTolerance;
 		const onBottomLeftCorner = Math.abs(x - boxX) <= edgeTolerance && Math.abs(y - boxBottom) <= edgeTolerance;
-		
+
 		if (onTopLeftCorner) return 0;
 		if (onTopRightCorner) return 1;
 		if (onBottomRightCorner) return 2;
@@ -1114,7 +1125,31 @@ function resetRotationState() {
 		if (onRightEdge) return 5;
 		if (onBottomEdge) return 6;
 		if (onLeftEdge) return 7;
-		
+
+		return null;
+	}
+
+	function hitTestCorners(
+		x: number,
+		y: number,
+		box: { x: number; y: number; width: number; height: number },
+		zoom: number
+	): number | null {
+		const edgeTolerance = 8 / zoom;
+		const { x: boxX, y: boxY, width: boxWidth, height: boxHeight } = box;
+		const boxRight = boxX + boxWidth;
+		const boxBottom = boxY + boxHeight;
+
+		const onTopLeftCorner = Math.abs(x - boxX) <= edgeTolerance && Math.abs(y - boxY) <= edgeTolerance;
+		const onTopRightCorner = Math.abs(x - boxRight) <= edgeTolerance && Math.abs(y - boxY) <= edgeTolerance;
+		const onBottomRightCorner = Math.abs(x - boxRight) <= edgeTolerance && Math.abs(y - boxBottom) <= edgeTolerance;
+		const onBottomLeftCorner = Math.abs(x - boxX) <= edgeTolerance && Math.abs(y - boxBottom) <= edgeTolerance;
+
+		if (onTopLeftCorner) return 0;
+		if (onTopRightCorner) return 1;
+		if (onBottomRightCorner) return 2;
+		if (onBottomLeftCorner) return 3;
+
 		return null;
 	}
 
@@ -2418,12 +2453,10 @@ function resetRotationState() {
 		document.body.appendChild(input);
 
 		const resizeInput = () => {
-			// Calculate proper dimensions based on content
 			const lines = input.value.split('\n');
 			const fontSize = (text.font_size || 16) * $zoom;
 			const lineHeight = fontSize * 1.2;
 
-			// Create a temporary canvas to measure text width
 			const tempCanvas = document.createElement('canvas');
 			const tempCtx = tempCanvas.getContext('2d');
 			if (tempCtx) {
@@ -2435,12 +2468,10 @@ function resetRotationState() {
 					if (width > maxWidth) maxWidth = width;
 				}
 
-				// Set minimum width for empty text (cursor width)
 				const minWidth = input.value.length === 0 ? 2 : 20;
 				input.style.width = Math.max(maxWidth + 10, minWidth) + 'px';
 				input.style.height = (lines.length * lineHeight) + 'px';
 			} else {
-				// Fallback if canvas context is not available
 				input.style.width = '200px';
 				input.style.height = (lines.length * lineHeight) + 'px';
 			}
@@ -2472,7 +2503,7 @@ function resetRotationState() {
 				const lineHeight = fontSize * 1.2;
 				const newHeight = lines.length * lineHeight;
 
-				let newWidth = 20; // minimum width
+				let newWidth = 20;
 
 				if (canvas) {
 					const ctx = canvas.getContext('2d');
@@ -3253,6 +3284,12 @@ function resetRotationState() {
 							return;
 						}
 					}
+					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+						if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom)) {
+							canvas.style.cursor = 'grab';
+							return;
+						}
+					}
 					for (let i = $selectedRectangles.length - 1; i >= 0; i--) {
 						const handleIndex = getResizeHandleAt(
 							x,
@@ -3330,6 +3367,21 @@ function resetRotationState() {
 					
 					for (let i = $selectedPaths.length - 1; i >= 0; i--) {
 						const handleIndex = getPathResizeHandleAt(x, y, $selectedPaths[i], $zoom);
+						if (handleIndex !== null) {
+							canvas.style.cursor = resizeCursors[handleIndex];
+							return;
+						}
+					}
+
+					for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+						const handleIndex = getResizeHandleAt(
+							x,
+							y,
+							$selectedTexts[i],
+							'text',
+							$zoom,
+							getRenderedRotation($selectedTexts[i], 'text')
+						);
 						if (handleIndex !== null) {
 							canvas.style.cursor = resizeCursors[handleIndex];
 							return;
@@ -4478,11 +4530,16 @@ function resetRotationState() {
 						outlineX = textX - textWidth;
 					}
 
+					const lineHeight = fontSize * 1.2;
+					const verticalOffset = (lineHeight - fontSize) / 2;
+					const outlineY = textY - verticalOffset - 2;
+					const outlineHeight = textHeight + 4;
+
 					const outlineBounds = {
-						x: outlineX,
-						y: -textHeight / 2,
-						width: textWidth,
-						height: textHeight
+						x: outlineX - 4,
+						y: outlineY,
+						width: textWidth + 8,
+						height: outlineHeight
 					};
 
 					renderSelectionOutline(renderCtx, outlineBounds.x, outlineBounds.y, outlineBounds.width, outlineBounds.height, $zoom, true, 0);
