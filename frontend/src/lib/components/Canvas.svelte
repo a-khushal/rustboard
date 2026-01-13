@@ -2569,6 +2569,22 @@ function resetRotationState() {
 		const allPaths = api.get_paths() as Path[];
 		const allTexts = api.get_texts() as EditorText[];
 
+		const existingTexts = $texts;
+		const opacityMap = new Map<number, number>();
+		existingTexts.forEach((text) => {
+			if ((text as any).opacity !== undefined) {
+				opacityMap.set(text.id, (text as any).opacity);
+			}
+		});
+
+		const textsWithOpacity = allTexts.map((text) => {
+			const opacity = opacityMap.get(text.id);
+			if (opacity !== undefined) {
+				return { ...text, opacity };
+			}
+			return text;
+		});
+
 		rectangles.set(allRectangles);
 		ellipses.set(allEllipses);
 		lines.set(allLines);
@@ -2576,7 +2592,7 @@ function resetRotationState() {
 		diamonds.set(allDiamonds);
 		images.set(allImages);
 		paths.set(allPaths);
-		texts.set(allTexts);
+		texts.set(textsWithOpacity);
 
 		selectedRectangles.set(allRectangles.filter(r => selectedRectIds.has(r.id)));
 		selectedEllipses.set(allEllipses.filter(e => selectedEllipseIds.has(e.id)));
@@ -4537,6 +4553,9 @@ function resetRotationState() {
 				renderCtx.textAlign = 'center';
 				renderCtx.textBaseline = 'middle';
 
+				const opacity = (text as any).opacity ?? 1.0;
+				renderCtx.globalAlpha = opacity;
+
 				const lineHeight = fontSize * 1.1;
 				const totalTextHeight = lines.length * lineHeight;
 				const textY = -totalTextHeight / 2 + lineHeight / 2;
@@ -5305,6 +5324,8 @@ function resetRotationState() {
 		$selectedPaths;
 		$images;
 		$selectedImages;
+		$texts;
+		$selectedTexts;
 		$groups;
 		$selectedGroups;
 		$theme;

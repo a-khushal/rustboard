@@ -18,6 +18,7 @@
 		diamonds,
 		images,
 		paths,
+		texts,
 		type Rectangle,
 		type Ellipse,
 		type Line,
@@ -47,6 +48,7 @@
 	let fillColor: string | null = null;
 	let lineWidth = 2;
 	let unifiedColor = '#000000';
+	let textOpacity = 1.0;
 
 	$: displayStrokeColor = strokeColor;
 
@@ -173,6 +175,7 @@
 				strokeColor = getDefaultStrokeColor();
 				fillColor = null;
 				lineWidth = 2;
+				textOpacity = 1.0;
 			} else {
 				const shapes: Array<Rectangle | Ellipse | Line | Arrow | Diamond | Text | Path> = [
 					...$selectedRectangles,
@@ -213,6 +216,15 @@
 				lineWidth = lineWidths.length === 1 ? lineWidths[0] : 2;
 				if (lineWidths.length === 1 && (lineWidths[0] === 1 || lineWidths[0] === 2 || lineWidths[0] === 4)) {
 					defaultStrokeWidth.set(lineWidths[0]);
+				}
+
+				if ($selectedTexts.length > 0) {
+					const opacities = $selectedTexts
+						.map((t) => (t as any).opacity ?? 1.0)
+						.filter((o, i, arr) => arr.indexOf(o) === i);
+					textOpacity = opacities.length === 1 ? opacities[0] : 1.0;
+				} else {
+					textOpacity = 1.0;
 				}
 
 			}
@@ -354,6 +366,28 @@
 		saveStateToLocalStorage();
 	}
 
+	function updateTextOpacity(opacity: number) {
+		textOpacity = opacity;
+		if (!$editorApi) return;
+
+		const updatedTexts = $texts.map((text) => {
+			if ($selectedTexts.some(st => st.id === text.id)) {
+				return { ...text, opacity };
+			}
+			return text;
+		});
+		texts.set(updatedTexts);
+
+		const updatedSelectedTexts = $selectedTexts.map((text) => ({
+			...text,
+			opacity
+		}));
+		selectedTexts.set(updatedSelectedTexts);
+
+		$editorApi.save_snapshot();
+		saveStateToLocalStorage();
+	}
+
 	function updateStrokeWidthType(width: number) {
 		lineWidth = width;
 		defaultStrokeWidth.set(width);
@@ -455,6 +489,23 @@
 		const allDiamonds = api.get_diamonds() as Diamond[];
 		const allImages = api.get_images() as Image[];
 		const allPaths = api.get_paths() as Path[];
+		const allTexts = api.get_texts() as Text[];
+		
+		const existingTexts = $texts;
+		const opacityMap = new Map<number, number>();
+		existingTexts.forEach((text) => {
+			if ((text as any).opacity !== undefined) {
+				opacityMap.set(text.id, (text as any).opacity);
+			}
+		});
+
+		const textsWithOpacity = allTexts.map((text) => {
+			const opacity = opacityMap.get(text.id);
+			if (opacity !== undefined) {
+				return { ...text, opacity };
+			}
+			return text;
+		});
 		
 		rectangles.set(allRectangles);
 		ellipses.set(allEllipses);
@@ -463,6 +514,7 @@
 		diamonds.set(allDiamonds);
 		images.set(allImages);
 		paths.set(allPaths);
+		texts.set(textsWithOpacity);
 		
 		selectedRectangles.set(allRectangles.filter(r => selectedRectIds.has(r.id)));
 		selectedEllipses.set(allEllipses.filter(e => selectedEllipseIds.has(e.id)));
@@ -471,6 +523,10 @@
 		selectedDiamonds.set(allDiamonds.filter(d => selectedDiamondIds.has(d.id)));
 		selectedImages.set(allImages.filter(i => selectedImageIds.has(i.id)));
 		selectedPaths.set(allPaths.filter(p => selectedPathIds.has(p.id)));
+		selectedTexts.set(textsWithOpacity.filter(t => {
+			const selectedIds = new Set($selectedTexts.map(st => st.id));
+			return selectedIds.has(t.id);
+		}));
 	}
 
 	$: hasSelection =
@@ -971,6 +1027,34 @@
 									<line x1="21" y1="18" x2="7" y2="18"></line>
 								</svg>
 							</button>
+						</div>
+					</fieldset>
+				</div>
+
+				<div class="space-y-1.5">
+					<fieldset class="flex flex-col gap-2 w-full min-w-0">
+						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Opacity</legend>
+						<div class="flex items-center gap-2 min-w-0">
+							<input
+								type="range"
+								min="0"
+								max="1"
+								step="0.01"
+								bind:value={textOpacity}
+								on:input={(e) => updateTextOpacity(parseFloat((e.target as HTMLInputElement).value))}
+								class={`flex-1 min-w-0 h-1 rounded-lg appearance-none cursor-pointer ${$theme === 'dark' ? 'bg-stone-600 accent-stone-400' : 'bg-stone-200 accent-stone-600'}`}
+								aria-label="Text opacity"
+							/>
+							<input
+								type="number"
+								bind:value={textOpacity}
+								on:input={(e) => updateTextOpacity(parseFloat((e.target as HTMLInputElement).value))}
+								min="0"
+								max="1"
+								step="0.01"
+								class={`w-16 px-1.5 py-1 text-xs border rounded focus:outline-none focus:ring-1 shrink-0 ${$theme === 'dark' ? 'border-stone-600 bg-stone-700 text-stone-200 focus:ring-stone-500' : 'border-stone-200 bg-stone-50 focus:ring-stone-400'}`}
+								aria-label="Opacity value"
+							/>
 						</div>
 					</fieldset>
 				</div>

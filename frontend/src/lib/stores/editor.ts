@@ -97,6 +97,7 @@ export interface Text {
 	color?: string;
 	rotation_angle?: number;
 	z_index?: number;
+	opacity?: number;
 }
 
 export interface Group {

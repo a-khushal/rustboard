@@ -6,12 +6,29 @@ function updateTexts(): void {
     if (!api) return;
 
     const updatedTexts = Array.from(api.get_texts() as Text[]);
-    texts.set(updatedTexts);
+    
+    const existingTexts = get(texts);
+    const opacityMap = new Map<number, number>();
+    existingTexts.forEach((text) => {
+        if ((text as any).opacity !== undefined) {
+            opacityMap.set(text.id, (text as any).opacity);
+        }
+    });
+
+    const textsWithOpacity = updatedTexts.map((text) => {
+        const opacity = opacityMap.get(text.id);
+        if (opacity !== undefined) {
+            return { ...text, opacity };
+        }
+        return text;
+    });
+    
+    texts.set(textsWithOpacity);
 
     const currentSelection = get(selectedTexts);
     if (currentSelection.length > 0) {
         const selectedIds = new Set(currentSelection.map((t: Text) => t.id));
-        const updatedSelection = updatedTexts.filter((t: Text) => selectedIds.has(t.id));
+        const updatedSelection = textsWithOpacity.filter((t: Text) => selectedIds.has(t.id));
         selectedTexts.set(updatedSelection);
     }
 }
