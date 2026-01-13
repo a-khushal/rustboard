@@ -933,46 +933,6 @@
 			{#if hasTexts}
 				<div class="space-y-1.5">
 					<fieldset class="flex flex-col gap-2 w-full min-w-0">
-						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Size</legend>
-						<div class="flex items-center gap-1">
-							{#each [12, 14, 16, 18, 24, 32] as size}
-								<button
-									type="button"
-									on:click={() => updateFontSize(size)}
-									class={`px-2 py-1 text-xs rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-									title={`Font size ${size}px`}
-								>
-									{size}
-								</button>
-							{/each}
-						</div>
-					</fieldset>
-				</div>
-
-				<div class="space-y-1.5">
-					<fieldset class="flex flex-col gap-2 w-full min-w-0">
-						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Weight</legend>
-						<div class="flex items-center gap-1">
-							<button
-								on:click={() => updateFontWeight('normal')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-								title="Normal"
-							>
-								<span class="font-normal">Normal</span>
-							</button>
-							<button
-								on:click={() => updateFontWeight('bold')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-								title="Bold"
-							>
-								<span class="font-bold">Bold</span>
-							</button>
-						</div>
-					</fieldset>
-				</div>
-
-				<div class="space-y-1.5">
-					<fieldset class="flex flex-col gap-2 w-full min-w-0">
 						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Text Align</legend>
 						<div class="flex items-center gap-1">
 							<button
