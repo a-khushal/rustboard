@@ -317,17 +317,6 @@
 		saveStateToLocalStorage();
 	}
 
-	function updateFontFamily(fontFamily: string) {
-		if (!$editorApi) return;
-
-		$selectedTexts.forEach((text) => {
-			$editorApi.set_text_font_family(BigInt(text.id), fontFamily, false);
-		});
-
-		$editorApi.save_snapshot();
-		updateStores();
-		saveStateToLocalStorage();
-	}
 
 	function updateFontSize(fontSize: number) {
 		if (!$editorApi) return;
@@ -942,24 +931,6 @@
 			{/if}
 
 			{#if hasTexts}
-				<div class="space-y-1.5">
-					<fieldset class="flex flex-col gap-2 w-full min-w-0">
-						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Family</legend>
-						<div class="flex items-center gap-1.5 w-full overflow-x-auto">
-							{#each ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia'] as font}
-								<button
-									type="button"
-									on:click={() => updateFontFamily(font)}
-									class={`px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-									title={font}
-								>
-									{font}
-								</button>
-							{/each}
-						</div>
-					</fieldset>
-				</div>
-
 				<div class="space-y-1.5">
 					<fieldset class="flex flex-col gap-2 w-full min-w-0">
 						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Font Size</legend>
