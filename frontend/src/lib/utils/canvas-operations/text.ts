@@ -33,7 +33,7 @@ function updateTexts(): void {
     }
 }
 
-export function addText(x: number, y: number, content: string, width: number = 100, height: number = 20): number | null {
+export function addText(x: number, y: number, content: string, width: number = 100, height: number = 30): number | null {
     const api = get(editorApi);
     if (!api) return null;
 

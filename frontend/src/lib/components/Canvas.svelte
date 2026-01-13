@@ -523,7 +523,7 @@
 			event.stopPropagation();
 			if (!$editorApi) return;
 			
-			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
+			const hasSelection = $selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0;
 			if (!hasSelection) return;
 			
 			const selectedIds = new Set([
@@ -532,6 +532,7 @@
 				...$selectedLines.map(l => l.id),
 				...$selectedArrows.map(a => a.id),
 				...$selectedDiamonds.map(d => d.id),
+				...$selectedTexts.map(t => t.id),
 				...$selectedPaths.map(p => p.id),
 				...$selectedImages.map(i => i.id)
 			]);
@@ -564,6 +565,7 @@
 			clipboard.lines.forEach(l => bounds.push({ minX: Math.min(l.start.x, l.end.x), minY: Math.min(l.start.y, l.end.y) }));
 			clipboard.arrows.forEach(a => bounds.push({ minX: Math.min(a.start.x, a.end.x), minY: Math.min(a.start.y, a.end.y) }));
 			clipboard.images.forEach(i => bounds.push({ minX: i.position.x, minY: i.position.y }));
+			clipboard.texts.forEach(t => bounds.push({ minX: t.position.x, minY: t.position.y }));
 			clipboard.paths.forEach(p => {
 				if (p.points.length > 0) {
 					const minX = Math.min(...p.points.map(pt => pt.x));
@@ -2402,7 +2404,7 @@ function resetRotationState() {
 		} else if ($activeTool === 'text') {
 			resetRotationState();
 			clearAllSelections();
-			const newId = $editorApi.add_text(x, y, 20, 30, '');
+			const newId = $editorApi.add_text(x, y, 100, 30, '');
 			const allTexts = Array.from($editorApi.get_texts() as EditorText[]);
 			const newText = allTexts.find(t => t.id === Number(newId));
 			if (newText) {

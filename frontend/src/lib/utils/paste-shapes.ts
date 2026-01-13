@@ -210,7 +210,8 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         pastedIds.images.push(Number(newId));
     });
 
-    clipboard.texts.forEach(text => {
+    const textOpacityMap = new Map<number, number>();
+    clipboard.texts.forEach((text, index) => {
         const newX = text.position.x - minX + offsetX;
         const newY = text.position.y - minY + offsetY;
         const newId = api.add_text_without_snapshot(newX, newY, text.width, text.height, text.content);
@@ -231,6 +232,10 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         }
         if (text.rotation_angle !== 0.0) {
             api.set_text_rotation(BigInt(newId), text.rotation_angle, false);
+        }
+        const opacity = (text as any).opacity;
+        if (opacity !== undefined) {
+            textOpacityMap.set(Number(newId), opacity);
         }
         pastedIds.texts.push(Number(newId));
     });
@@ -275,6 +280,28 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     const updatedPaths = Array.from(api.get_paths() as Path[]);
     paths.set(updatedPaths);
 
+    const updatedTexts = Array.from(api.get_texts() as Text[]);
+    const existingTexts = get(texts);
+    const existingOpacityMap = new Map<number, number>();
+    existingTexts.forEach((text) => {
+        if ((text as any).opacity !== undefined) {
+            existingOpacityMap.set(text.id, (text as any).opacity);
+        }
+    });
+    
+    const textsWithOpacity = updatedTexts.map((text) => {
+        const pastedOpacity = textOpacityMap.get(text.id);
+        if (pastedOpacity !== undefined) {
+            return { ...text, opacity: pastedOpacity };
+        }
+        const existingOpacity = existingOpacityMap.get(text.id);
+        if (existingOpacity !== undefined) {
+            return { ...text, opacity: existingOpacity };
+        }
+        return text;
+    });
+    texts.set(textsWithOpacity);
+
     selectedRectangles.set(updatedRectangles.filter(r => pastedIds.rectangles.includes(r.id)));
     selectedEllipses.set(updatedEllipses.filter(e => pastedIds.ellipses.includes(e.id)));
     selectedLines.set(updatedLines.filter(l => pastedIds.lines.includes(l.id)));
@@ -282,6 +309,7 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
     selectedDiamonds.set(updatedDiamonds.filter(d => pastedIds.diamonds.includes(d.id)));
     selectedImages.set(updatedImages.filter(i => pastedIds.images.includes(i.id)));
     selectedPaths.set(updatedPaths.filter(p => pastedIds.paths.includes(p.id)));
+    selectedTexts.set(textsWithOpacity.filter(t => pastedIds.texts.includes(t.id)));
 
     return pastedIds;
 }
