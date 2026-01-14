@@ -4668,7 +4668,7 @@ function resetRotationState() {
 				const color = adaptColorToTheme(text.color, getDefaultStrokeColor());
 				const rotation = getRenderedRotation(text, 'text');
 
-				if (isSelected) {
+				if (isSelected && !selectedGroupChildIds.has(text.id)) {
 					const outlineBounds = getSelectionOutlineBounds(renderX, renderY, selectionBoxWidth, selectionBoxHeight, $zoom, true);
 					renderSelectionOutline(renderCtx, renderX, renderY, selectionBoxWidth, selectionBoxHeight, $zoom, true, rotation);
 					if (showIndividualHandles) {
