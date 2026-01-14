@@ -204,6 +204,7 @@
         $selectedArrows.forEach(a => selectedIds.push(a.id));
         $selectedPaths.forEach(p => selectedIds.push(p.id));
         $selectedImages.forEach(i => selectedIds.push(i.id));
+        $selectedTexts.forEach(t => selectedIds.push(t.id));
 
         if (selectedIds.length < 2) return;
 
@@ -229,7 +230,9 @@
         groups.set(updatedGroups);
         selectedGroups.set([]);
         
+        updateAllStoresAfterUndoRedo();
         clearAllSelections();
+        scheduleRender();
     }
 
     function bringToFront() {
@@ -369,6 +372,7 @@
              selectedArrows.set([]);
              selectedPaths.set([]);
              selectedImages.set([]);
+             selectedTexts.set([]);
         }
 
         const rects: Rectangle[] = [];
@@ -378,6 +382,7 @@
         const arrs: Arrow[] = [];
         const pths: Path[] = [];
         const imgs: Image[] = [];
+        const txts: EditorText[] = [];
 
         $rectangles.forEach(r => { if (allShapeIds.has(r.id)) rects.push(r); });
         $ellipses.forEach(e => { if (allShapeIds.has(e.id)) ells.push(e); });
@@ -386,6 +391,7 @@
         $arrows.forEach(a => { if (allShapeIds.has(a.id)) arrs.push(a); });
         $paths.forEach(p => { if (allShapeIds.has(p.id)) pths.push(p); });
         $images.forEach(i => { if (allShapeIds.has(i.id)) imgs.push(i); });
+        $texts.forEach(t => { if (allShapeIds.has(t.id)) txts.push(t); });
 
         if (isShiftPressed) {
              selectedRectangles.update(s => [...s, ...rects].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
@@ -395,6 +401,7 @@
              selectedArrows.update(s => [...s, ...arrs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedPaths.update(s => [...s, ...pths].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
              selectedImages.update(s => [...s, ...imgs].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+             selectedTexts.update(s => [...s, ...txts].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
         } else {
              selectedRectangles.set(rects);
              selectedEllipses.set(ells);
@@ -403,6 +410,7 @@
              selectedArrows.set(arrs);
              selectedPaths.set(pths);
              selectedImages.set(imgs);
+             selectedTexts.set(txts);
         }
 	}
 
@@ -4181,6 +4189,37 @@ function resetRotationState() {
 				maxY
 			});
 		});
+
+		$selectedTexts.forEach(text => {
+			const isDragged = isDragging && selectedShapesStartPositions.texts.has(text.id);
+			const isResized = isResizing && resizePreview && resizePreview.type === 'text' && resizePreview.id === text.id;
+			let minX: number, minY: number, maxX: number, maxY: number;
+			
+			if (isResized && resizePreview) {
+				minX = resizePreview.x;
+				minY = resizePreview.y;
+				maxX = resizePreview.x + resizePreview.width;
+				maxY = resizePreview.y + resizePreview.height;
+			} else if (isDragged) {
+				const startPos = selectedShapesStartPositions.texts.get(text.id)!;
+				minX = startPos.x + dragOffset.x;
+				minY = startPos.y + dragOffset.y;
+				maxX = startPos.x + startPos.width + dragOffset.x;
+				maxY = startPos.y + startPos.height + dragOffset.y;
+			} else {
+				minX = text.position.x;
+				minY = text.position.y;
+				maxX = text.position.x + text.width;
+				maxY = text.position.y + text.height;
+			}
+			
+			allSelectedShapes.push({
+				minX,
+				minY,
+				maxX,
+				maxY
+			});
+		});
 		
 		if (allSelectedShapes.length === 0) return null;
 		if (allSelectedShapes.length === 1) return null;
@@ -4204,63 +4243,128 @@ function resetRotationState() {
 		
 		$rectangles.forEach(rect => {
 			if (shapeIds.includes(rect.id)) {
-				allShapeBounds.push({
-					minX: rect.position.x,
-					minY: rect.position.y,
-					maxX: rect.position.x + rect.width,
-					maxY: rect.position.y + rect.height
-				});
+				const isDragged = isDragging && selectedShapesStartPositions.rectangles.has(rect.id);
+				let minX: number, minY: number, maxX: number, maxY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.rectangles.get(rect.id)!;
+					minX = startPos.x + dragOffset.x;
+					minY = startPos.y + dragOffset.y;
+					maxX = minX + rect.width;
+					maxY = minY + rect.height;
+				} else {
+					minX = rect.position.x;
+					minY = rect.position.y;
+					maxX = rect.position.x + rect.width;
+					maxY = rect.position.y + rect.height;
+				}
+				allShapeBounds.push({ minX, minY, maxX, maxY });
 			}
 		});
 		
 		$ellipses.forEach(ellipse => {
 			if (shapeIds.includes(ellipse.id)) {
+				const isDragged = isDragging && selectedShapesStartPositions.ellipses.has(ellipse.id);
+				let x: number, y: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.ellipses.get(ellipse.id)!;
+					x = startPos.x + dragOffset.x;
+					y = startPos.y + dragOffset.y;
+				} else {
+					x = ellipse.position.x;
+					y = ellipse.position.y;
+				}
 				allShapeBounds.push({
-					minX: ellipse.position.x - ellipse.radius_x,
-					minY: ellipse.position.y - ellipse.radius_y,
-					maxX: ellipse.position.x + ellipse.radius_x,
-					maxY: ellipse.position.y + ellipse.radius_y
+					minX: x - ellipse.radius_x,
+					minY: y - ellipse.radius_y,
+					maxX: x + ellipse.radius_x,
+					maxY: y + ellipse.radius_y
 				});
 			}
 		});
 		
 		$diamonds.forEach(diamond => {
 			if (shapeIds.includes(diamond.id)) {
-				allShapeBounds.push({
-					minX: diamond.position.x,
-					minY: diamond.position.y,
-					maxX: diamond.position.x + diamond.width,
-					maxY: diamond.position.y + diamond.height
-				});
+				const isDragged = isDragging && selectedShapesStartPositions.diamonds.has(diamond.id);
+				let minX: number, minY: number, maxX: number, maxY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.diamonds.get(diamond.id)!;
+					minX = startPos.x + dragOffset.x;
+					minY = startPos.y + dragOffset.y;
+					maxX = minX + diamond.width;
+					maxY = minY + diamond.height;
+				} else {
+					minX = diamond.position.x;
+					minY = diamond.position.y;
+					maxX = diamond.position.x + diamond.width;
+					maxY = diamond.position.y + diamond.height;
+				}
+				allShapeBounds.push({ minX, minY, maxX, maxY });
 			}
 		});
 		
 		$lines.forEach(line => {
 			if (shapeIds.includes(line.id)) {
+				const isDragged = isDragging && selectedShapesStartPositions.lines.has(line.id);
+				let startX: number, startY: number, endX: number, endY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.lines.get(line.id)!;
+					startX = startPos.start.x + dragOffset.x;
+					startY = startPos.start.y + dragOffset.y;
+					endX = startPos.end.x + dragOffset.x;
+					endY = startPos.end.y + dragOffset.y;
+				} else {
+					startX = line.start.x;
+					startY = line.start.y;
+					endX = line.end.x;
+					endY = line.end.y;
+				}
 				allShapeBounds.push({
-					minX: Math.min(line.start.x, line.end.x),
-					minY: Math.min(line.start.y, line.end.y),
-					maxX: Math.max(line.start.x, line.end.x),
-					maxY: Math.max(line.start.y, line.end.y)
+					minX: Math.min(startX, endX),
+					minY: Math.min(startY, endY),
+					maxX: Math.max(startX, endX),
+					maxY: Math.max(startY, endY)
 				});
 			}
 		});
 		
 		$arrows.forEach(arrow => {
 			if (shapeIds.includes(arrow.id)) {
+				const isDragged = isDragging && selectedShapesStartPositions.arrows.has(arrow.id);
+				let startX: number, startY: number, endX: number, endY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.arrows.get(arrow.id)!;
+					startX = startPos.start.x + dragOffset.x;
+					startY = startPos.start.y + dragOffset.y;
+					endX = startPos.end.x + dragOffset.x;
+					endY = startPos.end.y + dragOffset.y;
+				} else {
+					startX = arrow.start.x;
+					startY = arrow.start.y;
+					endX = arrow.end.x;
+					endY = arrow.end.y;
+				}
 				allShapeBounds.push({
-					minX: Math.min(arrow.start.x, arrow.end.x),
-					minY: Math.min(arrow.start.y, arrow.end.y),
-					maxX: Math.max(arrow.start.x, arrow.end.x),
-					maxY: Math.max(arrow.start.y, arrow.end.y)
+					minX: Math.min(startX, endX),
+					minY: Math.min(startY, endY),
+					maxX: Math.max(startX, endX),
+					maxY: Math.max(startY, endY)
 				});
 			}
 		});
 		
 		$paths.forEach(path => {
 			if (shapeIds.includes(path.id)) {
-				const pathBounds = getPathBoundingBox(path);
+				const isDragged = isDragging && selectedShapesStartPositions.paths.has(path.id);
+				let pathBounds = getPathBoundingBox(path);
 				if (pathBounds) {
+					if (isDragged) {
+						pathBounds = {
+							x: pathBounds.x + dragOffset.x,
+							y: pathBounds.y + dragOffset.y,
+							width: pathBounds.width,
+							height: pathBounds.height
+						};
+					}
 					allShapeBounds.push({
 						minX: pathBounds.x,
 						minY: pathBounds.y,
@@ -4273,12 +4377,41 @@ function resetRotationState() {
 
 		$images.forEach(image => {
 			if (shapeIds.includes(image.id)) {
-				allShapeBounds.push({
-					minX: image.position.x,
-					minY: image.position.y,
-					maxX: image.position.x + image.width,
-					maxY: image.position.y + image.height
-				});
+				const isDragged = isDragging && selectedShapesStartPositions.images.has(image.id);
+				let minX: number, minY: number, maxX: number, maxY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.images.get(image.id)!;
+					minX = startPos.x + dragOffset.x;
+					minY = startPos.y + dragOffset.y;
+					maxX = minX + image.width;
+					maxY = minY + image.height;
+				} else {
+					minX = image.position.x;
+					minY = image.position.y;
+					maxX = image.position.x + image.width;
+					maxY = image.position.y + image.height;
+				}
+				allShapeBounds.push({ minX, minY, maxX, maxY });
+			}
+		});
+
+		$texts.forEach(text => {
+			if (shapeIds.includes(text.id)) {
+				const isDragged = isDragging && selectedShapesStartPositions.texts.has(text.id);
+				let minX: number, minY: number, maxX: number, maxY: number;
+				if (isDragged) {
+					const startPos = selectedShapesStartPositions.texts.get(text.id)!;
+					minX = startPos.x + dragOffset.x;
+					minY = startPos.y + dragOffset.y;
+					maxX = minX + text.width;
+					maxY = minY + text.height;
+				} else {
+					minX = text.position.x;
+					minY = text.position.y;
+					maxX = text.position.x + text.width;
+					maxY = text.position.y + text.height;
+				}
+				allShapeBounds.push({ minX, minY, maxX, maxY });
 			}
 		});
 		
@@ -5179,15 +5312,43 @@ function resetRotationState() {
 		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
 		renderCtx.scale($zoom, $zoom);
 
-		const groupBoundingBoxRaw =
-			totalSelectionCount > 1 
-				? (isGroupResizing ? calculateGroupBoundingBox() : (groupResizeCurrentBox ?? calculateGroupBoundingBox()))
-				: null;
+		const isGroupSelection = $selectedGroups.length > 0;
+		let groupBoundingBoxRaw: { x: number; y: number; width: number; height: number } | null = null;
+		
+		if (isGroupSelection && $selectedGroups.length > 0) {
+			const allGroupBounds: Array<{ minX: number; minY: number; maxX: number; maxY: number }> = [];
+			$selectedGroups.forEach(group => {
+				const groupBox = calculateGroupBoundingBoxForGroup(group);
+				if (groupBox) {
+					allGroupBounds.push({
+						minX: groupBox.x,
+						minY: groupBox.y,
+						maxX: groupBox.x + groupBox.width,
+						maxY: groupBox.y + groupBox.height
+					});
+				}
+			});
+			
+			if (allGroupBounds.length > 0) {
+				const minX = Math.min(...allGroupBounds.map(b => b.minX));
+				const minY = Math.min(...allGroupBounds.map(b => b.minY));
+				const maxX = Math.max(...allGroupBounds.map(b => b.maxX));
+				const maxY = Math.max(...allGroupBounds.map(b => b.maxY));
+				groupBoundingBoxRaw = {
+					x: minX,
+					y: minY,
+					width: maxX - minX,
+					height: maxY - minY
+				};
+			}
+		} else if (totalSelectionCount > 1) {
+			groupBoundingBoxRaw = isGroupResizing ? calculateGroupBoundingBox() : (groupResizeCurrentBox ?? calculateGroupBoundingBox());
+		}
+		
 		const groupBoundingBox =
-			groupBoundingBoxRaw && totalSelectionCount > 1
+			groupBoundingBoxRaw && (totalSelectionCount > 1 || isGroupSelection)
 				? expandBoundingBox(groupBoundingBoxRaw, getSelectionPaddingValue($zoom))
 				: null;
-		const isGroupSelection = $selectedGroups.length > 0;
 		if (groupBoundingBox && !isGroupRotating) {
 			renderGroupBoundingBox(renderCtx, groupBoundingBox, $zoom, isGroupSelection);
 		}
