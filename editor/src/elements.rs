@@ -311,7 +311,7 @@ fn default_font_family() -> String {
 }
 
 fn default_font_size() -> f64 {
-    24.0
+    36.0
 }
 
 fn default_font_weight() -> String {
