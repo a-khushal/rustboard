@@ -5,6 +5,7 @@ import { edgeStyle } from '$lib/stores/edge-style';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addRectangle(x: number, y: number, width: number = 100, height: number = 50): number | null {
     const api = get(editorApi);
@@ -31,6 +32,15 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
     if (newRect) {
         selectedRectangles.set([newRect]);
     }
+
+    sendOperation({
+        op: 'AddRectangle',
+        id: newId,
+        position: { x, y },
+        width,
+        height
+    });
+    
     return Number(newId);
 }
 
@@ -40,6 +50,12 @@ export function moveRectangle(id: number, x: number, y: number, saveHistory: boo
 
     api.move_rectangle(BigInt(id), x, y, saveHistory);
     updateRectangles();
+
+    sendOperation({
+        op: 'MoveRectangle',
+        id,
+        position: { x, y }
+    });
 }
 
 export function resizeRectangle(id: number, width: number, height: number, saveHistory: boolean = true): void {
@@ -48,6 +64,13 @@ export function resizeRectangle(id: number, width: number, height: number, saveH
 
     api.resize_rectangle(BigInt(id), width, height, saveHistory);
     updateRectangles();
+
+    sendOperation({
+        op: 'ResizeRectangle',
+        id,
+        width,
+        height
+    });
 }
 
 export function setRectangleRotation(id: number, angle: number, saveHistory: boolean = true): void {

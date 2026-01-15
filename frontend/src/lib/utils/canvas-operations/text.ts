@@ -1,5 +1,6 @@
 import { get } from 'svelte/store';
 import { editorApi, texts, selectedTexts, type Text } from '$lib/stores/editor';
+import { sendOperation } from '$lib/utils/collaboration';
 
 function updateTexts(): void {
     const api = get(editorApi);
@@ -46,6 +47,15 @@ export function addText(x: number, y: number, content: string, width: number = 1
     if (newText) {
         selectedTexts.set([newText]);
     }
+    
+    sendOperation({
+        op: 'AddText',
+        id: newId,
+        position: { x, y },
+        width,
+        height,
+        content
+    });
 
     return newId;
 }
@@ -56,6 +66,12 @@ export function moveText(id: number, x: number, y: number, saveHistory: boolean 
 
     api.move_text(BigInt(id), x, y, saveHistory);
     updateTexts();
+    
+    sendOperation({
+        op: 'MoveText',
+        id,
+        position: { x, y }
+    });
 }
 
 export function resizeText(id: number, width: number, height: number, saveHistory: boolean = true): void {
@@ -64,6 +80,13 @@ export function resizeText(id: number, width: number, height: number, saveHistor
 
     api.resize_text(BigInt(id), width, height, saveHistory);
     updateTexts();
+    
+    sendOperation({
+        op: 'ResizeText',
+        id,
+        width,
+        height
+    });
 }
 
 export function setTextContent(id: number, content: string, saveHistory: boolean = true): void {
@@ -72,6 +95,12 @@ export function setTextContent(id: number, content: string, saveHistory: boolean
 
     api.set_text_content(BigInt(id), content, saveHistory);
     updateTexts();
+    
+    sendOperation({
+        op: 'UpdateText',
+        id,
+        content
+    });
 }
 
 export function setTextFontSize(id: number, fontSize: number, saveHistory: boolean = true): void {

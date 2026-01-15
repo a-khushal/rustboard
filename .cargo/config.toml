@@ -1,5 +1,5 @@
-[build]
-target = "wasm32-unknown-unknown"
+# Default target for WASM builds (used by frontend/wasm)
+# Server builds should explicitly use native target: cargo build --bin rustboard-server
 
 [target.wasm32-unknown-unknown]
 runner = 'wasm-bindgen-test-runner'

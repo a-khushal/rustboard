@@ -4,6 +4,7 @@ import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addLine(startX: number, startY: number, endX: number, endY: number): number | null {
     const api = get(editorApi);
@@ -26,6 +27,14 @@ export function addLine(startX: number, startY: number, endX: number, endY: numb
     if (newLine) {
         selectedLines.set([newLine]);
     }
+    
+    sendOperation({
+        op: 'AddLine',
+        id: newId,
+        start: { x: startX, y: startY },
+        end: { x: endX, y: endY }
+    });
+    
     return Number(newId);
 }
 
@@ -35,6 +44,13 @@ export function moveLine(id: number, startX: number, startY: number, endX: numbe
 
     api.move_line(BigInt(id), startX, startY, endX, endY, saveHistory);
     updateLines();
+    
+    sendOperation({
+        op: 'MoveLine',
+        id,
+        start: { x: startX, y: startY },
+        end: { x: endX, y: endY }
+    });
 }
 
 export function setLineRotation(id: number, angle: number, saveHistory: boolean = true): void {

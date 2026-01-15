@@ -3,6 +3,7 @@ import { editorApi, paths, selectedPaths, type Path } from '$lib/stores/editor';
 import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addPath(points: Array<{ x: number; y: number }>): number | null {
     const api = get(editorApi);
@@ -21,6 +22,13 @@ export function addPath(points: Array<{ x: number; y: number }>): number | null 
     if (newPath) {
         selectedPaths.set([newPath]);
     }
+    
+    sendOperation({
+        op: 'AddPath',
+        id: newId,
+        points
+    });
+    
     return Number(newId);
 }
 
@@ -30,6 +38,13 @@ export function movePath(id: number, deltaX: number, deltaY: number, saveHistory
 
     api.move_path(BigInt(id), deltaX, deltaY, saveHistory);
     updatePaths();
+    
+    sendOperation({
+        op: 'MovePath',
+        id,
+        offset_x: deltaX,
+        offset_y: deltaY
+    });
 }
 
 export function resizePath(id: number, x: number, y: number, width: number, height: number, saveHistory: boolean = true): void {

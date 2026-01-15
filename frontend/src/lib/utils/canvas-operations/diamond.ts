@@ -5,6 +5,7 @@ import { edgeStyle } from '$lib/stores/edge-style';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addDiamond(x: number, y: number, width: number = 100, height: number = 50): number | null {
     const api = get(editorApi);
@@ -31,6 +32,15 @@ export function addDiamond(x: number, y: number, width: number = 100, height: nu
     if (newDiamond) {
         selectedDiamonds.set([newDiamond]);
     }
+    
+    sendOperation({
+        op: 'AddDiamond',
+        id: newId,
+        position: { x, y },
+        width,
+        height
+    });
+    
     return Number(newId);
 }
 
@@ -40,6 +50,12 @@ export function moveDiamond(id: number, x: number, y: number, saveHistory: boole
 
     api.move_diamond(BigInt(id), x, y, saveHistory);
     updateDiamonds();
+    
+    sendOperation({
+        op: 'MoveDiamond',
+        id,
+        position: { x, y }
+    });
 }
 
 export function resizeDiamond(id: number, width: number, height: number, saveHistory: boolean = true): void {
@@ -48,6 +64,13 @@ export function resizeDiamond(id: number, width: number, height: number, saveHis
 
     api.resize_diamond(BigInt(id), width, height, saveHistory);
     updateDiamonds();
+    
+    sendOperation({
+        op: 'ResizeDiamond',
+        id,
+        width,
+        height
+    });
 }
 
 export function setDiamondRotation(id: number, angle: number, saveHistory: boolean = true): void {

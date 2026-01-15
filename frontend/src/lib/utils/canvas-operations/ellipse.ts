@@ -4,6 +4,7 @@ import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y: number = 50): number | null {
     const api = get(editorApi);
@@ -26,6 +27,15 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     if (newEllipse) {
         selectedEllipses.set([newEllipse]);
     }
+    
+    sendOperation({
+        op: 'AddEllipse',
+        id: newId,
+        position: { x, y },
+        radius_x,
+        radius_y
+    });
+    
     return Number(newId);
 }
 
@@ -35,6 +45,12 @@ export function moveEllipse(id: number, x: number, y: number, saveHistory: boole
 
     api.move_ellipse(BigInt(id), x, y, saveHistory);
     updateEllipses();
+    
+    sendOperation({
+        op: 'MoveEllipse',
+        id,
+        position: { x, y }
+    });
 }
 
 export function resizeEllipse(id: number, radius_x: number, radius_y: number, saveHistory: boolean = true): void {
@@ -43,6 +59,13 @@ export function resizeEllipse(id: number, radius_x: number, radius_y: number, sa
 
     api.resize_ellipse(BigInt(id), radius_x, radius_y, saveHistory);
     updateEllipses();
+    
+    sendOperation({
+        op: 'ResizeEllipse',
+        id,
+        radius_x,
+        radius_y
+    });
 }
 
 export function setEllipseRotation(id: number, angle: number, saveHistory: boolean = true): void {

@@ -1,5 +1,6 @@
 import { get } from 'svelte/store';
 import { editorApi, images, selectedImages, type Image } from '$lib/stores/editor';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addImage(x: number, y: number, width: number, height: number, imageData: string): number | null {
     const api = get(editorApi);
@@ -14,6 +15,16 @@ export function addImage(x: number, y: number, width: number, height: number, im
     if (newImage) {
         selectedImages.set([newImage]);
     }
+    
+    sendOperation({
+        op: 'AddImage',
+        id: newIdNum,
+        position: { x, y },
+        width,
+        height,
+        image_data: imageData
+    });
+    
     return newIdNum;
 }
 
@@ -23,6 +34,12 @@ export function moveImage(id: number, x: number, y: number, saveHistory: boolean
 
     api.move_image(BigInt(id), x, y, saveHistory);
     updateImages();
+    
+    sendOperation({
+        op: 'MoveImage',
+        id,
+        position: { x, y }
+    });
 }
 
 export function resizeImage(id: number, width: number, height: number, saveHistory: boolean = true): void {
@@ -31,6 +48,13 @@ export function resizeImage(id: number, width: number, height: number, saveHisto
 
     api.resize_image(BigInt(id), width, height, saveHistory);
     updateImages();
+    
+    sendOperation({
+        op: 'ResizeImage',
+        id,
+        width,
+        height
+    });
 }
 
 export function setImageRotation(id: number, angle: number, saveHistory: boolean = true): void {

@@ -1,6 +1,7 @@
 import { get } from 'svelte/store';
 import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, paths, images, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedTexts, selectedPaths, selectedImages, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image } from '$lib/stores/editor';
 import { updatePaths } from '$lib/utils/canvas-operations/path';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function deleteShapes(
     rectangleIds: number[],
@@ -22,34 +23,42 @@ export function deleteShapes(
 
     rectangleIds.forEach(id => {
         api.delete_rectangle_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteRectangle', id });
     });
 
     ellipseIds.forEach(id => {
         api.delete_ellipse_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteEllipse', id });
     });
 
     lineIds.forEach(id => {
         api.delete_line_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteLine', id });
     });
 
     arrowIds.forEach(id => {
         api.delete_arrow_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteArrow', id });
     });
 
     diamondIds.forEach(id => {
         api.delete_diamond_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteDiamond', id });
     });
 
     pathIds.forEach(id => {
         api.delete_path_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeletePath', id });
     });
 
     imageIds.forEach(id => {
         api.delete_image_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteImage', id });
     });
 
     textIds.forEach(id => {
         api.delete_text_without_snapshot(BigInt(id));
+        sendOperation({ op: 'DeleteText', id });
     });
 
     api.save_snapshot();

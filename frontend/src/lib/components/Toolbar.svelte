@@ -1,9 +1,146 @@
 <script lang="ts">
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
-	import { viewportOffset, zoom, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, selectedTexts, selectedGroups } from '$lib/stores/editor';
+	import { viewportOffset, zoom, selectedRectangles, selectedEllipses, selectedLines, selectedArrows, selectedDiamonds, selectedPaths, selectedImages, selectedTexts, selectedGroups, editorApi } from '$lib/stores/editor';
 	import { addImage } from '$lib/utils/canvas-operations/index';
 	import { screenToWorld } from '$lib/utils/viewport';
+	import { onMount, onDestroy } from 'svelte';
+	import { collaborationState, isCollaborating, collaboratorCount } from '$lib/stores/collaboration';
+	import {
+		createSession,
+		connectToSession,
+		disconnect,
+		generateClientId,
+		generateClientColor,
+		generateClientName,
+		checkSessionExists,
+	} from '$lib/utils/collaboration';
+	import { get } from 'svelte/store';
+
+	let collaborationMenuOpen = false;
+	let shareUrl = '';
+	let isCreatingSession = false;
+	let errorMessage = '';
+
+	onMount(() => {
+		const urlParams = new URLSearchParams(window.location.search);
+		const sessionId = urlParams.get('session');
+		if (sessionId) {
+			joinSession(sessionId);
+		}
+
+		function handleClickOutside(event: MouseEvent) {
+			const target = event.target as HTMLElement;
+			if (!target.closest('.collaboration-menu-container')) {
+				collaborationMenuOpen = false;
+			}
+		}
+
+		document.addEventListener('click', handleClickOutside);
+		return () => {
+			document.removeEventListener('click', handleClickOutside);
+		};
+	});
+
+	onDestroy(() => {
+		disconnect();
+	});
+
+	async function startCollaboration() {
+		isCreatingSession = true;
+		errorMessage = '';
+
+		try {
+			const sessionId = await createSession();
+			const clientId = generateClientId();
+			const name = generateClientName();
+			const color = generateClientColor();
+
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
+
+			const api = get(editorApi);
+			if (!api) {
+				throw new Error('Editor API not available');
+			}
+
+			await connectToSession(sessionId, clientId, name, color, api);
+
+			collaborationState.update(state => ({
+				...state,
+				sessionId,
+				clientId,
+				isHost: true,
+			}));
+		} catch (error) {
+			console.error('Error starting collaboration:', error);
+			errorMessage = 'Failed to create session. Please try again.';
+		} finally {
+			isCreatingSession = false;
+		}
+	}
+
+	async function joinSession(sessionId: string) {
+		errorMessage = '';
+		const exists = await checkSessionExists(sessionId);
+		if (!exists) {
+			errorMessage = 'Session not found. Please check the link.';
+			return;
+		}
+
+		try {
+			const clientId = generateClientId();
+			const name = generateClientName();
+			const color = generateClientColor();
+
+			const api = get(editorApi);
+			if (!api) {
+				throw new Error('Editor API not available');
+			}
+
+			await connectToSession(sessionId, clientId, name, color, api);
+
+			collaborationState.update(state => ({
+				...state,
+				sessionId,
+				clientId,
+				isHost: false,
+			}));
+
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
+		} catch (error) {
+			console.error('Error joining session:', error);
+			errorMessage = 'Failed to join session. Please try again.';
+		}
+	}
+
+	function copyShareLink() {
+		navigator.clipboard.writeText(shareUrl).then(() => {
+			const button = document.getElementById('copy-button');
+			if (button) {
+				const originalText = button.textContent;
+				button.textContent = 'Copied!';
+				setTimeout(() => {
+					if (button) button.textContent = originalText;
+				}, 2000);
+			}
+		}).catch(err => {
+			console.error('Failed to copy:', err);
+		});
+	}
+
+	function stopCollaboration() {
+		disconnect();
+		collaborationState.update(state => ({
+			...state,
+			sessionId: null,
+			clientId: null,
+			isHost: false,
+			collaborators: [],
+		}));
+		shareUrl = '';
+		collaborationMenuOpen = false;
+		window.history.replaceState({}, '', window.location.pathname);
+	}
 
 	function setTool(tool: Tool) {
 		if (tool === 'image') {
@@ -143,6 +280,126 @@
 		</button>
 	{/each}
 	
+	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+
+	<div class="relative collaboration-menu-container">
+		<button
+			on:click={(e) => {
+				e.stopPropagation();
+				collaborationMenuOpen = !collaborationMenuOpen;
+			}}
+			class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm relative
+				${collaborationMenuOpen
+					? $theme === 'dark'
+						? 'bg-stone-700 border border-stone-500'
+						: 'bg-stone-100 border border-stone-400'
+					: $theme === 'dark'
+						? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-500'
+						: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+			title={$isCollaborating ? `Collaborating (${$collaboratorCount})` : 'Share & Collaborate'}
+		>
+			{#if $isCollaborating}
+				<div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+				<span class="text-xs">{$collaboratorCount}</span>
+			{:else}
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+				</svg>
+			{/if}
+		</button>
+
+		{#if collaborationMenuOpen}
+			<div 
+				on:click|stopPropagation
+				on:keydown|stopPropagation
+				role="dialog"
+				aria-label="Collaboration menu"
+				tabindex="-1"
+				class={`absolute top-full left-0 mt-1 w-80 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'} rounded-sm shadow-lg p-3 z-50`}
+			>
+				{#if $isCollaborating}
+					<div class="space-y-3">
+						<div>
+							<h3 class={`text-xs font-semibold mb-2 ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}`}>Collaboration Active</h3>
+							<div class="flex items-center gap-2 mb-2">
+								<div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+								<span class={`text-xs ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-600'}`}>
+									{$collaboratorCount} {$collaboratorCount === 1 ? 'person' : 'people'} connected
+								</span>
+							</div>
+						</div>
+
+						<div>
+							<label for="share-link-input" class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-1 block`}>Share Link</label>
+							<div class="flex gap-2">
+								<input
+									id="share-link-input"
+									type="text"
+									readonly
+									value={shareUrl}
+									class={`flex-1 px-2 py-1.5 text-xs ${$theme === 'dark' ? 'bg-stone-900 border-stone-700 text-stone-200' : 'bg-stone-50 border-stone-300 text-stone-700'} border rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
+								/>
+								<button
+									id="copy-button"
+									on:click={copyShareLink}
+									class={`px-3 py-1.5 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+								>
+									Copy
+								</button>
+							</div>
+						</div>
+
+						<div>
+							<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-2 block`}>Collaborators</div>
+							<div class="space-y-1.5" role="list">
+								{#each $collaborationState.collaborators as collaborator}
+									<div class={`flex items-center gap-2 text-xs ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>
+										<div
+											class="w-3 h-3 rounded-full"
+											style="background-color: {collaborator.color};"
+										></div>
+										<span>{collaborator.name}</span>
+										{#if collaborator.id === $collaborationState.clientId}
+											<span class={`text-xs ${$theme === 'dark' ? 'text-stone-500' : 'text-stone-500'}`}>(You)</span>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+
+						<button
+							on:click={stopCollaboration}
+							class={`w-full px-3 py-2 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white`}
+						>
+							Stop Collaboration
+						</button>
+					</div>
+				{:else}
+					<div class="space-y-3">
+						<h3 class={`text-xs font-semibold ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}`}>Start Collaboration</h3>
+						<p class={`text-xs ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-600'}`}>
+							Create a session to collaborate with others in real-time.
+						</p>
+
+						{#if errorMessage}
+							<div class={`p-2 rounded-sm text-xs ${$theme === 'dark' ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700'} border`}>
+								{errorMessage}
+							</div>
+						{/if}
+
+						<button
+							on:click={startCollaboration}
+							disabled={isCreatingSession}
+							class={`w-full px-3 py-2 text-xs rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${$theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+						>
+							{isCreatingSession ? 'Creating...' : 'Create Session'}
+						</button>
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</div>
+
 	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<button

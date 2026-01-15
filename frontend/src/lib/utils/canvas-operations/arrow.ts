@@ -4,6 +4,7 @@ import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
+import { sendOperation } from '$lib/utils/collaboration';
 
 export function addArrow(startX: number, startY: number, endX: number, endY: number): number | null {
     const api = get(editorApi);
@@ -26,6 +27,14 @@ export function addArrow(startX: number, startY: number, endX: number, endY: num
     if (newArrow) {
         selectedArrows.set([newArrow]);
     }
+    
+    sendOperation({
+        op: 'AddArrow',
+        id: newId,
+        start: { x: startX, y: startY },
+        end: { x: endX, y: endY }
+    });
+    
     return Number(newId);
 }
 
@@ -35,6 +44,13 @@ export function moveArrow(id: number, startX: number, startY: number, endX: numb
 
     api.move_arrow(BigInt(id), startX, startY, endX, endY, saveHistory);
     updateArrows();
+    
+    sendOperation({
+        op: 'MoveArrow',
+        id,
+        start: { x: startX, y: startY },
+        end: { x: endX, y: endY }
+    });
 }
 
 export function setArrowRotation(id: number, angle: number, saveHistory: boolean = true): void {

@@ -2,5 +2,6 @@
 members = [
     "editor",
     "frontend/wasm",
+    "server",
 ]
 resolver = "2"
