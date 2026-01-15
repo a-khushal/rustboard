@@ -1791,6 +1791,7 @@ function resetRotationState() {
 			arrows: number[];
 			images: number[];
 			paths: number[];
+			texts: number[];
 		} = {
 			rectangles: [],
 			ellipses: [],
@@ -1798,7 +1799,8 @@ function resetRotationState() {
 			lines: [],
 			arrows: [],
 			images: [],
-			paths: []
+			paths: [],
+			texts: []
 		};
 
 		$paths.forEach(path => {
@@ -1942,10 +1944,24 @@ function resetRotationState() {
 			}
 		});
 
+		$texts.forEach(text => {
+			const centerX = text.position.x + text.width / 2;
+			const centerY = text.position.y + text.height / 2;
+			const dx = centerX - x;
+			const dy = centerY - y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const maxDistance = Math.sqrt(text.width * text.width + text.height * text.height) / 2;
+			
+			if (distance < eraserRadius + maxDistance) {
+				shapesToDelete.texts.push(text.id);
+			}
+		});
+
 		if (shapesToDelete.rectangles.length > 0 || shapesToDelete.ellipses.length > 0 ||
 			shapesToDelete.diamonds.length > 0 || shapesToDelete.lines.length > 0 ||
 			shapesToDelete.arrows.length > 0 ||
-			shapesToDelete.images.length > 0 || shapesToDelete.paths.length > 0) {
+			shapesToDelete.images.length > 0 || shapesToDelete.paths.length > 0 ||
+			shapesToDelete.texts.length > 0) {
 
 			deleteShapes(
 				shapesToDelete.rectangles,
@@ -1953,7 +1969,7 @@ function resetRotationState() {
 				shapesToDelete.lines,
 				shapesToDelete.arrows,
 				shapesToDelete.diamonds,
-				[],
+				shapesToDelete.texts,
 				shapesToDelete.paths,
 				shapesToDelete.images
 			);

@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, paths, images, groups, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Group } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, paths, images, texts, groups, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text, type Group } from '$lib/stores/editor';
 import { restoreSelectionForHistoryIndex } from './selection-history';
 
 export function updateAllStoresAfterUndoRedo(): void {
@@ -13,6 +13,7 @@ export function updateAllStoresAfterUndoRedo(): void {
     const updatedDiamonds = Array.from(api.get_diamonds() as Diamond[]);
     const updatedPaths = Array.from(api.get_paths() as Path[]);
     const updatedImages = Array.from(api.get_images() as Image[]);
+    const updatedTexts = Array.from(api.get_texts() as Text[]);
     const updatedGroups = Array.from(api.get_groups() as Group[]);
 
     rectangles.set(updatedRectangles);
@@ -22,6 +23,7 @@ export function updateAllStoresAfterUndoRedo(): void {
     diamonds.set(updatedDiamonds);
     paths.set(updatedPaths);
     images.set(updatedImages);
+    texts.set(updatedTexts);
     groups.set(updatedGroups);
 
     const historyIndex = typeof api.history_index === 'function' ? Number(api.history_index()) : 0;

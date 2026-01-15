@@ -427,6 +427,7 @@
 		$selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
 		$selectedPaths.forEach(p => $editorApi!.bring_shape_to_front(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.bring_shape_to_front(BigInt(i.id)));
+		$selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
 		updateStores();
 		saveStateToLocalStorage();
 	}
@@ -440,6 +441,7 @@
 		$selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
 		$selectedPaths.forEach(p => $editorApi!.bring_shape_forward(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.bring_shape_forward(BigInt(i.id)));
+		$selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
 		updateStores();
 		saveStateToLocalStorage();
 	}
@@ -453,6 +455,7 @@
 		$selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
 		$selectedPaths.forEach(p => $editorApi!.send_shape_backward(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.send_shape_backward(BigInt(i.id)));
+		$selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
 		updateStores();
 		saveStateToLocalStorage();
 	}
@@ -466,6 +469,7 @@
 		$selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
 		$selectedPaths.forEach(p => $editorApi!.send_shape_to_back(BigInt(p.id)));
 		$selectedImages.forEach(i => $editorApi!.send_shape_to_back(BigInt(i.id)));
+		$selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
 		updateStores();
 		saveStateToLocalStorage();
 	}

@@ -1196,6 +1196,12 @@ impl Document {
                 break;
             }
         }
+        for text in &mut self.texts {
+            if text.id != id && text.z_index == new_z {
+                text.z_index = current_z;
+                break;
+            }
+        }
         
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             rect.z_index = new_z;
@@ -1229,6 +1235,11 @@ impl Document {
         }
         if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
             image.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index = new_z;
             self.save_snapshot();
         }
     }
@@ -1280,6 +1291,11 @@ impl Document {
                 prev_z = Some(prev_z.map_or(image.z_index, |z: i32| z.max(image.z_index)));
             }
         }
+        for text in &self.texts {
+            if text.id != id && text.z_index < current_z {
+                prev_z = Some(prev_z.map_or(text.z_index, |z: i32| z.max(text.z_index)));
+            }
+        }
         
         let new_z = prev_z.unwrap_or(current_z - 1);
         
@@ -1325,6 +1341,12 @@ impl Document {
                 break;
             }
         }
+        for text in &mut self.texts {
+            if text.id != id && text.z_index == new_z {
+                text.z_index = current_z;
+                break;
+            }
+        }
         
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             rect.z_index = new_z;
@@ -1358,6 +1380,11 @@ impl Document {
         }
         if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
             image.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index = new_z;
             self.save_snapshot();
         }
     }
@@ -1405,6 +1432,11 @@ impl Document {
                 image.z_index += 1;
             }
         }
+        for text in &mut self.texts {
+            if text.id != id && text.z_index < current_z.unwrap() {
+                text.z_index += 1;
+            }
+        }
         
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             rect.z_index = new_z;
@@ -1438,6 +1470,11 @@ impl Document {
         }
         if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
             image.z_index = new_z;
+            self.save_snapshot();
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            text.z_index = new_z;
             self.save_snapshot();
         }
     }
