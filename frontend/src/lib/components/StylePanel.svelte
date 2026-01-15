@@ -38,6 +38,7 @@
 	import { edgeStyle, type EdgeStyle } from '$lib/stores/edge-style';
 	import { dashPattern, type DashPattern } from '$lib/stores/dash-pattern';
 	import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+	import { defaultStrokeColor } from '$lib/stores/stroke-color';
 	import { activeTool } from '$lib/stores/tools';
 
 	function getDefaultStrokeColor(): string {
@@ -188,7 +189,12 @@
 				];
 
 				const strokeColors = shapes
-					.map((s) => (s as any).stroke_color || getDefaultStrokeColor())
+					.map((s) => {
+						if ((s as any).color !== undefined) {
+							return (s as any).color || getDefaultStrokeColor();
+						}
+						return (s as any).stroke_color || getDefaultStrokeColor();
+					})
 					.filter((c, i, arr) => arr.indexOf(c) === i);
 				if (strokeColors.length === 1) {
 					let newStrokeColor = strokeColors[0];
@@ -210,7 +216,8 @@
 					.filter((c, i, arr) => arr.indexOf(c) === i);
 				fillColor = fillColors.length === 1 ? fillColors[0] : null;
 
-				const lineWidths = shapes
+				const nonTextShapes = shapes.filter((s) => (s as any).color === undefined);
+				const lineWidths = nonTextShapes
 					.map((s) => (s as any).line_width ?? 2)
 					.filter((w, i, arr) => arr.indexOf(w) === i);
 				lineWidth = lineWidths.length === 1 ? lineWidths[0] : 2;
@@ -235,6 +242,7 @@
 	async function updateStrokeColor(color: string) {
 		isUpdatingColor = true;
 		strokeColor = color;
+		defaultStrokeColor.set(color);
 		if (!$editorApi) {
 			isUpdatingColor = false;
 			return;
@@ -246,6 +254,7 @@
 		const selectedLns = get(selectedLines);
 		const selectedArrs = get(selectedArrows);
 		const selectedPths = get(selectedPaths);
+		const selectedTxts = get(selectedTexts);
 
 		selectedRects.forEach((rect: Rectangle) => {
 			$editorApi.set_rectangle_stroke_color(BigInt(rect.id), color, false);
@@ -264,6 +273,9 @@
 		});
 		selectedPths.forEach((path: Path) => {
 			$editorApi.set_path_stroke_color(BigInt(path.id), color, false);
+		});
+		selectedTxts.forEach((text: Text) => {
+			$editorApi.set_text_color(BigInt(text.id), color, false);
 		});
 
 		$editorApi.save_snapshot();
@@ -706,6 +718,94 @@
 		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
 	}
 
+	function handleLock() {
+		if (!$editorApi) return;
+
+		$selectedRectangles.forEach((rect) => {
+			$editorApi.set_element_locked(BigInt(rect.id), true, false);
+		});
+		$selectedEllipses.forEach((ellipse) => {
+			$editorApi.set_element_locked(BigInt(ellipse.id), true, false);
+		});
+		$selectedDiamonds.forEach((diamond) => {
+			$editorApi.set_element_locked(BigInt(diamond.id), true, false);
+		});
+		$selectedLines.forEach((line) => {
+			$editorApi.set_element_locked(BigInt(line.id), true, false);
+		});
+		$selectedArrows.forEach((arrow) => {
+			$editorApi.set_element_locked(BigInt(arrow.id), true, false);
+		});
+		$selectedPaths.forEach((path) => {
+			$editorApi.set_element_locked(BigInt(path.id), true, false);
+		});
+		$selectedImages.forEach((image) => {
+			$editorApi.set_element_locked(BigInt(image.id), true, false);
+		});
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_element_locked(BigInt(text.id), true, false);
+		});
+		$selectedGroups.forEach((group) => {
+			$editorApi.set_element_locked(BigInt(group.id), true, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function handleUnlock() {
+		if (!$editorApi) return;
+
+		$selectedRectangles.forEach((rect) => {
+			$editorApi.set_element_locked(BigInt(rect.id), false, false);
+		});
+		$selectedEllipses.forEach((ellipse) => {
+			$editorApi.set_element_locked(BigInt(ellipse.id), false, false);
+		});
+		$selectedDiamonds.forEach((diamond) => {
+			$editorApi.set_element_locked(BigInt(diamond.id), false, false);
+		});
+		$selectedLines.forEach((line) => {
+			$editorApi.set_element_locked(BigInt(line.id), false, false);
+		});
+		$selectedArrows.forEach((arrow) => {
+			$editorApi.set_element_locked(BigInt(arrow.id), false, false);
+		});
+		$selectedPaths.forEach((path) => {
+			$editorApi.set_element_locked(BigInt(path.id), false, false);
+		});
+		$selectedImages.forEach((image) => {
+			$editorApi.set_element_locked(BigInt(image.id), false, false);
+		});
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_element_locked(BigInt(text.id), false, false);
+		});
+		$selectedGroups.forEach((group) => {
+			$editorApi.set_element_locked(BigInt(group.id), false, false);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	$: allLocked = $editorApi ? (() => {
+		const allSelected = [
+			...$selectedRectangles.map(r => ({ id: r.id })),
+			...$selectedEllipses.map(e => ({ id: e.id })),
+			...$selectedDiamonds.map(d => ({ id: d.id })),
+			...$selectedLines.map(l => ({ id: l.id })),
+			...$selectedArrows.map(a => ({ id: a.id })),
+			...$selectedPaths.map(p => ({ id: p.id })),
+			...$selectedImages.map(i => ({ id: i.id })),
+			...$selectedTexts.map(t => ({ id: t.id })),
+			...$selectedGroups.map(g => ({ id: g.id }))
+		];
+		if (allSelected.length === 0) return false;
+		return allSelected.every(el => $editorApi.is_element_locked(BigInt(el.id)));
+	})() : false;
+
 	function handleEdgeStyleChange(style: EdgeStyle) {
 		if (!$editorApi) return;
 
@@ -950,7 +1050,7 @@
 				</div>
 			{/if}
 
-			{#if hasShapes || $activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'freehand'}
+			{#if (hasShapes || $activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'freehand') && $selectedTexts.length === 0}
 				<div class="space-y-1.5">
 					<fieldset class="space-y-1.5">
 						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
@@ -1148,6 +1248,36 @@
 							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<line x1="12" y1="19" x2="12" y2="5"></line>
 								<polyline points="5 12 12 5 19 12"></polyline>
+							</svg>
+						</button>
+					</div>
+				</fieldset>
+			</div>
+
+			<div class="space-y-1.5">
+				<fieldset class="space-y-1.5">
+					<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Lock</legend>
+					<div class="flex items-center gap-1">
+						<button
+							on:click={handleLock}
+							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${allLocked ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+							title="Lock"
+							aria-label="Lock"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+								<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+							</svg>
+						</button>
+						<button
+							on:click={handleUnlock}
+							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${!allLocked ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+							title="Unlock"
+							aria-label="Unlock"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+								<path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
 							</svg>
 						</button>
 					</div>

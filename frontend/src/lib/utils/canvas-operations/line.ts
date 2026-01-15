@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { editorApi, lines, selectedLines, type Line } from '$lib/stores/editor';
 import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
 
 export function addLine(startX: number, startY: number, endX: number, endY: number): number | null {
@@ -9,10 +10,12 @@ export function addLine(startX: number, startY: number, endX: number, endY: numb
     if (!api) return null;
 
     const strokeWidth = getStore(defaultStrokeWidth);
+    const strokeColor = getStore(defaultStrokeColor);
     const dashPatternValue = getStore(dashPattern);
 
     const newId = api.add_line(startX, startY, endX, endY);
     api.set_line_line_width(BigInt(newId), strokeWidth, false);
+    api.set_line_stroke_color(BigInt(newId), strokeColor, false);
     if (dashPatternValue !== 'solid') {
         api.set_line_dash_pattern(BigInt(newId), dashPatternValue, false);
     }

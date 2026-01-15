@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { editorApi, ellipses, selectedEllipses, type Ellipse } from '$lib/stores/editor';
 import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
 
 export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y: number = 50): number | null {
@@ -9,10 +10,12 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     if (!api) return null;
 
     const strokeWidth = getStore(defaultStrokeWidth);
+    const strokeColor = getStore(defaultStrokeColor);
     const dashPatternValue = getStore(dashPattern);
 
     const newId = api.add_ellipse(x, y, radius_x, radius_y);
     api.set_ellipse_line_width(BigInt(newId), strokeWidth, false);
+    api.set_ellipse_stroke_color(BigInt(newId), strokeColor, false);
     if (dashPatternValue !== 'solid') {
         api.set_ellipse_dash_pattern(BigInt(newId), dashPatternValue, false);
     }

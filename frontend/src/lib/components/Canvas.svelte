@@ -42,6 +42,8 @@
 	let sidebarRef: Sidebar;
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
+	import { defaultStrokeColor } from '$lib/stores/stroke-color';
+	import { get as getStore } from 'svelte/store';
 
 	function getDefaultStrokeColor(): string {
 		return $theme === 'dark' ? '#ffffff' : '#000000';
@@ -344,6 +346,40 @@
 		return $groups.find(g => g.id === currentGroupId) || null;
 	}
 
+	function hasLockedSelectedElements(): boolean {
+		if (!$editorApi) return false;
+		
+		for (const rect of $selectedRectangles) {
+			if ($editorApi.is_element_locked(BigInt(rect.id))) return true;
+		}
+		for (const ellipse of $selectedEllipses) {
+			if ($editorApi.is_element_locked(BigInt(ellipse.id))) return true;
+		}
+		for (const diamond of $selectedDiamonds) {
+			if ($editorApi.is_element_locked(BigInt(diamond.id))) return true;
+		}
+		for (const line of $selectedLines) {
+			if ($editorApi.is_element_locked(BigInt(line.id))) return true;
+		}
+		for (const arrow of $selectedArrows) {
+			if ($editorApi.is_element_locked(BigInt(arrow.id))) return true;
+		}
+		for (const path of $selectedPaths) {
+			if ($editorApi.is_element_locked(BigInt(path.id))) return true;
+		}
+		for (const image of $selectedImages) {
+			if ($editorApi.is_element_locked(BigInt(image.id))) return true;
+		}
+		for (const text of $selectedTexts) {
+			if ($editorApi.is_element_locked(BigInt(text.id))) return true;
+		}
+		for (const group of $selectedGroups) {
+			if ($editorApi.is_element_locked(BigInt(group.id))) return true;
+		}
+		
+		return false;
+	}
+
 	function selectGroup(group: Group, isShiftPressed: boolean) {
 		const isAlreadySelected = $selectedGroups.some(g => g.id === group.id);
 		let newSelectedGroups: Group[] = [];
@@ -627,6 +663,7 @@
 
 		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'r') {
 			if ($activeTool === 'select') {
+				if (hasLockedSelectedElements()) return;
 				event.preventDefault();
 				const delta = event.shiftKey ? -ROTATION_STEP : ROTATION_STEP;
 				rotateSelectedShapes(delta);
@@ -648,6 +685,8 @@
 		const hasSelectedTexts = $selectedTexts.length > 0;
 
 		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedPaths && !hasSelectedImages && !hasSelectedTexts) return;
+
+		if (hasLockedSelectedElements()) return;
 
 		event.preventDefault();
 		
@@ -1804,6 +1843,7 @@ function resetRotationState() {
 		};
 
 		$paths.forEach(path => {
+			if ($editorApi.is_element_locked(BigInt(path.id))) return;
 			if (path.points.length === 0) return;
 
 			for (let i = 0; i < path.points.length; i++) {
@@ -1841,6 +1881,7 @@ function resetRotationState() {
 		});
 
 		$rectangles.forEach(rect => {
+			if ($editorApi.is_element_locked(BigInt(rect.id))) return;
 			const centerX = rect.position.x + rect.width / 2;
 			const centerY = rect.position.y + rect.height / 2;
 			const dx = centerX - x;
@@ -1854,6 +1895,7 @@ function resetRotationState() {
 		});
 
 		$ellipses.forEach(ellipse => {
+			if ($editorApi.is_element_locked(BigInt(ellipse.id))) return;
 			const dx = ellipse.position.x - x;
 			const dy = ellipse.position.y - y;
 			const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1865,6 +1907,7 @@ function resetRotationState() {
 		});
 
 		$diamonds.forEach(diamond => {
+			if ($editorApi.is_element_locked(BigInt(diamond.id))) return;
 			const centerX = diamond.position.x + diamond.width / 2;
 			const centerY = diamond.position.y + diamond.height / 2;
 			const dx = centerX - x;
@@ -1878,6 +1921,7 @@ function resetRotationState() {
 		});
 
 		$lines.forEach(line => {
+			if ($editorApi.is_element_locked(BigInt(line.id))) return;
 			const dx = line.end.x - line.start.x;
 			const dy = line.end.y - line.start.y;
 			const length = Math.sqrt(dx * dx + dy * dy);
@@ -1905,6 +1949,7 @@ function resetRotationState() {
 		});
 
 		$arrows.forEach(arrow => {
+			if ($editorApi.is_element_locked(BigInt(arrow.id))) return;
 			const dx = arrow.end.x - arrow.start.x;
 			const dy = arrow.end.y - arrow.start.y;
 			const length = Math.sqrt(dx * dx + dy * dy);
@@ -1932,6 +1977,7 @@ function resetRotationState() {
 		});
 
 		$images.forEach(image => {
+			if ($editorApi.is_element_locked(BigInt(image.id))) return;
 			const centerX = image.position.x + image.width / 2;
 			const centerY = image.position.y + image.height / 2;
 			const dx = centerX - x;
@@ -1945,6 +1991,7 @@ function resetRotationState() {
 		});
 
 		$texts.forEach(text => {
+			if ($editorApi.is_element_locked(BigInt(text.id))) return;
 			const centerX = text.position.x + text.width / 2;
 			const centerY = text.position.y + text.height / 2;
 			const dx = centerX - x;
@@ -2018,6 +2065,7 @@ function resetRotationState() {
 			}
 
 			if (visualGroupBox && isPointOnGroupRotationHandle(x, y, visualGroupBox, $zoom)) {
+				if (hasLockedSelectedElements()) return;
 				if (beginGroupRotation(visualGroupBox, x, y)) {
 					return;
 				}
@@ -2056,6 +2104,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedEllipses.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedEllipses[i].id))) continue;
 					if (isPointOnRotationHandle(x, y, $selectedEllipses[i], 'ellipse', $zoom)) {
 						if (beginRotation($selectedEllipses[i], 'ellipse', x, y)) {
 							return;
@@ -2088,6 +2137,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedDiamonds.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedDiamonds[i].id))) continue;
 					if (isPointOnRotationHandle(x, y, $selectedDiamonds[i], 'diamond', $zoom)) {
 						if (beginRotation($selectedDiamonds[i], 'diamond', x, y)) {
 							return;
@@ -2119,6 +2169,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedLines.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedLines[i].id))) continue;
 					const handleIndex = getLineResizeHandleAt(x, y, $selectedLines[i], $zoom);
 					if (handleIndex !== null) {
 						isResizing = true;
@@ -2139,6 +2190,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedArrows.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedArrows[i].id))) continue;
 					const handleIndex = getArrowResizeHandleAt(x, y, $selectedArrows[i], $zoom);
 					if (handleIndex !== null) {
 						isResizing = true;
@@ -2159,6 +2211,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedImages.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedImages[i].id))) continue;
 					if (isPointOnRotationHandle(x, y, $selectedImages[i], 'image', $zoom)) {
 						if (beginRotation($selectedImages[i], 'image', x, y)) {
 							return;
@@ -2191,6 +2244,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedPaths.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedPaths[i].id))) continue;
 					if (isPointOnRotationHandle(x, y, $selectedPaths[i], 'path', $zoom)) {
 						if (beginRotation($selectedPaths[i], 'path', x, y)) {
 							return;
@@ -2218,6 +2272,7 @@ function resetRotationState() {
 				}
 
 				for (let i = $selectedTexts.length - 1; i >= 0; i--) {
+					if ($editorApi && $editorApi.is_element_locked(BigInt($selectedTexts[i].id))) continue;
 					if (isPointOnRotationHandle(x, y, $selectedTexts[i], 'text', $zoom)) {
 						if (beginRotation($selectedTexts[i], 'text', x, y)) {
 							return;
@@ -2252,6 +2307,14 @@ function resetRotationState() {
 			}
 
 			if (visualGroupBox && rawGroupBox) {
+				if (hasLockedSelectedElements()) {
+					isSelectingBox = true;
+					selectionBoxStart = { x, y };
+					selectionBoxEnd = { x, y };
+					resetRotationState();
+					clearAllSelections();
+					return;
+				}
 				const groupHandleIndex = getGroupResizeHandleAt(x, y, visualGroupBox, $zoom);
 				if (groupHandleIndex !== null) {
 					isGroupResizing = true;
@@ -2429,6 +2492,8 @@ function resetRotationState() {
 			resetRotationState();
 			clearAllSelections();
 			const newId = $editorApi.add_text(x, y, 100, 30, '');
+			const strokeColor = getStore(defaultStrokeColor);
+			$editorApi.set_text_color(BigInt(newId), strokeColor, false);
 			const allTexts = Array.from($editorApi.get_texts() as EditorText[]);
 			const newText = allTexts.find(t => t.id === Number(newId));
 			if (newText) {
@@ -2784,6 +2849,10 @@ function resetRotationState() {
 		}
 
 		if (isGroupRotating && groupRotationState) {
+			if (hasLockedSelectedElements()) {
+				resetGroupRotationState();
+				return;
+			}
 			const currentAngle = Math.atan2(y - groupRotationState.center.y, x - groupRotationState.center.x);
 			const delta = currentAngle - groupRotationState.mouseStartAngle;
 			rotateGroup(delta, false);
@@ -2795,6 +2864,10 @@ function resetRotationState() {
 		}
 
 		if (isRotating && rotationState) {
+			if ($editorApi && $editorApi.is_element_locked(BigInt(rotationState.id))) {
+				resetRotationState();
+				return;
+			}
 			const currentAngle = Math.atan2(y - rotationState.center.y, x - rotationState.center.x);
 			const delta = currentAngle - rotationState.mouseStartAngle;
 			const nextAngle = normalizeAngle(rotationState.startAngle + delta);
@@ -2807,6 +2880,11 @@ function resetRotationState() {
 		}
 		
 		if (isDragging && draggedShape) {
+			if ($editorApi && $editorApi.is_element_locked(BigInt(draggedShape.id))) {
+				isDragging = false;
+				draggedShape = null;
+				return;
+			}
 			canvas.style.cursor = 'move';
 			const deltaX = x - dragStartPos.x;
 			const deltaY = y - dragStartPos.y;
@@ -2819,6 +2897,11 @@ function resetRotationState() {
 		}
 		
 		if (isGroupResizing && groupResizeHandleIndex !== null) {
+			if (hasLockedSelectedElements()) {
+				isGroupResizing = false;
+				groupResizeHandleIndex = null;
+				return;
+			}
 			const padding = groupResizePadding;
 			let adjustedX = x;
 			let adjustedY = y;
@@ -2847,6 +2930,12 @@ function resetRotationState() {
 		}
 		
 		if (isResizing && resizeStartShape && resizeHandleIndex !== null && $editorApi) {
+			if ($editorApi.is_element_locked(BigInt(resizeStartShape.id))) {
+				isResizing = false;
+				resizeStartShape = null;
+				resizeHandleIndex = null;
+				return;
+			}
 			isShiftPressedDuringResize = event.shiftKey;
 			const deltaX = x - resizeStartMousePos.x;
 			const deltaY = y - resizeStartMousePos.y;
@@ -3726,27 +3815,37 @@ function resetRotationState() {
 		}
 		
 		if (isDragging && draggedShape && $editorApi) {
+			if (hasLockedSelectedElements()) {
+				isDragging = false;
+				draggedShape = null;
+				return;
+			}
+			
 			$editorApi.save_snapshot();
 			
 			selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveRectangle(id, newX, newY, false);
 			});
 			
 			selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveEllipse(id, newX, newY, false);
 			});
 			
 			selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveDiamond(id, newX, newY, false);
 			});
 			
 			selectedShapesStartPositions.lines.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newStartX = startPos.start.x + dragOffset.x;
 				const newStartY = startPos.start.y + dragOffset.y;
 				const newEndX = startPos.end.x + dragOffset.x;
@@ -3755,6 +3854,7 @@ function resetRotationState() {
 			});
 			
 			selectedShapesStartPositions.arrows.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newStartX = startPos.start.x + dragOffset.x;
 				const newStartY = startPos.start.y + dragOffset.y;
 				const newEndX = startPos.end.x + dragOffset.x;
@@ -3763,16 +3863,19 @@ function resetRotationState() {
 			});
 			
 			selectedShapesStartPositions.paths.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				movePath(id, dragOffset.x, dragOffset.y, false);
 			});
 
 			selectedShapesStartPositions.images.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveImage(id, newX, newY, false);
 			});
 
 			selectedShapesStartPositions.texts.forEach((startPos, id) => {
+				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				const newX = startPos.x + dragOffset.x;
 				const newY = startPos.y + dragOffset.y;
 				moveText(id, newX, newY, false);
@@ -4004,6 +4107,51 @@ function resetRotationState() {
 			ctx.fill();
 			ctx.stroke();
 		});
+		ctx.restore();
+	}
+
+	function renderLockIcon(
+		ctx: CanvasRenderingContext2D,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		zoom: number
+	) {
+		const iconSize = 16 / zoom;
+		const iconX = x + width - iconSize - 4 / zoom;
+		const iconY = y + 4 / zoom;
+		
+		ctx.save();
+		ctx.fillStyle = $theme === 'dark' ? '#ffffff' : '#000000';
+		ctx.strokeStyle = $theme === 'dark' ? '#000000' : '#ffffff';
+		ctx.lineWidth = 1.5 / zoom;
+		
+		const lockBodyWidth = iconSize * 0.6;
+		const lockBodyHeight = iconSize * 0.5;
+		const lockBodyX = iconX + (iconSize - lockBodyWidth) / 2;
+		const lockBodyY = iconY + iconSize * 0.3;
+		
+		ctx.beginPath();
+		ctx.arc(lockBodyX + lockBodyWidth / 2, lockBodyY, lockBodyWidth / 2, Math.PI, 0, false);
+		ctx.lineTo(lockBodyX + lockBodyWidth, lockBodyY + lockBodyHeight);
+		ctx.lineTo(lockBodyX, lockBodyY + lockBodyHeight);
+		ctx.closePath();
+		ctx.fill();
+		ctx.stroke();
+		
+		const shackleWidth = iconSize * 0.4;
+		const shackleHeight = iconSize * 0.25;
+		const shackleX = lockBodyX + (lockBodyWidth - shackleWidth) / 2;
+		const shackleY = lockBodyY - shackleHeight;
+		
+		ctx.beginPath();
+		ctx.arc(shackleX + shackleWidth / 2, shackleY + shackleHeight, shackleWidth / 2, Math.PI, 0, false);
+		ctx.lineTo(shackleX + shackleWidth, lockBodyY);
+		ctx.lineTo(shackleX, lockBodyY);
+		ctx.closePath();
+		ctx.stroke();
+		
 		ctx.restore();
 	}
 

@@ -1615,6 +1615,120 @@ impl Document {
         }
     }
 
+    pub fn is_element_locked(&self, id: u64) -> bool {
+        if let Some(rect) = self.rectangles.iter().find(|r| r.id == id) {
+            return rect.locked;
+        }
+        if let Some(ellipse) = self.ellipses.iter().find(|e| e.id == id) {
+            return ellipse.locked;
+        }
+        if let Some(diamond) = self.diamonds.iter().find(|d| d.id == id) {
+            return diamond.locked;
+        }
+        if let Some(line) = self.lines.iter().find(|l| l.id == id) {
+            return line.locked;
+        }
+        if let Some(arrow) = self.arrows.iter().find(|a| a.id == id) {
+            return arrow.locked;
+        }
+        if let Some(path) = self.paths.iter().find(|p| p.id == id) {
+            return path.locked;
+        }
+        if let Some(image) = self.images.iter().find(|i| i.id == id) {
+            return image.locked;
+        }
+        if let Some(text) = self.texts.iter().find(|t| t.id == id) {
+            return text.locked;
+        }
+        if let Some(group) = self.groups.iter().find(|g| g.id == id) {
+            return group.locked;
+        }
+        false
+    }
+
+    pub fn set_element_locked(&mut self, id: u64, locked: bool, save_history: bool) {
+        if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
+            if rect.locked != locked {
+                rect.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(ellipse) = self.ellipses.iter_mut().find(|e| e.id == id) {
+            if ellipse.locked != locked {
+                ellipse.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(diamond) = self.diamonds.iter_mut().find(|d| d.id == id) {
+            if diamond.locked != locked {
+                diamond.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(line) = self.lines.iter_mut().find(|l| l.id == id) {
+            if line.locked != locked {
+                line.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(arrow) = self.arrows.iter_mut().find(|a| a.id == id) {
+            if arrow.locked != locked {
+                arrow.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if path.locked != locked {
+                path.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(image) = self.images.iter_mut().find(|i| i.id == id) {
+            if image.locked != locked {
+                image.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            if text.locked != locked {
+                text.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+            return;
+        }
+        if let Some(group) = self.groups.iter_mut().find(|g| g.id == id) {
+            if group.locked != locked {
+                group.locked = locked;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn serialize(&self) -> String {
         let snapshot = DocumentSnapshot {
             rectangles: self.rectangles.clone(),

@@ -3,6 +3,7 @@ import { editorApi, diamonds, selectedDiamonds, type Diamond } from '$lib/stores
 import { get as getStore } from 'svelte/store';
 import { edgeStyle } from '$lib/stores/edge-style';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+import { defaultStrokeColor } from '$lib/stores/stroke-color';
 import { dashPattern } from '$lib/stores/dash-pattern';
 
 export function addDiamond(x: number, y: number, width: number = 100, height: number = 50): number | null {
@@ -12,11 +13,13 @@ export function addDiamond(x: number, y: number, width: number = 100, height: nu
     const currentEdgeStyle = getStore(edgeStyle);
     const radius = currentEdgeStyle === 'rounded' ? 4.0 : 0.0;
     const strokeWidth = getStore(defaultStrokeWidth);
+    const strokeColor = getStore(defaultStrokeColor);
     const dashPatternValue = getStore(dashPattern);
 
     const newId = api.add_diamond(x, y, width, height);
     api.set_diamond_border_radius(BigInt(newId), radius, false);
     api.set_diamond_line_width(BigInt(newId), strokeWidth, false);
+    api.set_diamond_stroke_color(BigInt(newId), strokeColor, false);
     if (dashPatternValue !== 'solid') {
         api.set_diamond_dash_pattern(BigInt(newId), dashPatternValue, false);
     }

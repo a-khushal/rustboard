@@ -2,15 +2,18 @@ import { get } from 'svelte/store';
 import { editorApi, paths, selectedPaths, type Path } from '$lib/stores/editor';
 import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
+import { defaultStrokeColor } from '$lib/stores/stroke-color';
 
 export function addPath(points: Array<{ x: number; y: number }>): number | null {
     const api = get(editorApi);
     if (!api) return null;
 
     const strokeWidth = getStore(defaultStrokeWidth);
+    const strokeColor = getStore(defaultStrokeColor);
 
     const newId = api.add_path(points);
     api.set_path_line_width(BigInt(newId), strokeWidth, false);
+    api.set_path_stroke_color(BigInt(newId), strokeColor, false);
     const updatedPaths = Array.from(api.get_paths() as Path[]);
     paths.set(updatedPaths);
 

@@ -21,6 +21,8 @@ pub struct Rectangle {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Rectangle {
@@ -37,6 +39,7 @@ impl Rectangle {
             border_radius: default_border_radius(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -59,6 +62,8 @@ pub struct Ellipse {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Ellipse {
@@ -74,6 +79,7 @@ impl Ellipse {
             dash_pattern: default_dash_pattern(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -93,6 +99,8 @@ pub struct Line {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Line {
@@ -106,6 +114,7 @@ impl Line {
             dash_pattern: default_dash_pattern(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -125,6 +134,8 @@ pub struct Arrow {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Arrow {
@@ -138,6 +149,7 @@ impl Arrow {
             dash_pattern: default_dash_pattern(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -162,6 +174,8 @@ pub struct Diamond {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Diamond {
@@ -178,6 +192,7 @@ impl Diamond {
             border_radius: default_border_radius(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -210,6 +225,10 @@ fn default_dash_pattern() -> String {
     "solid".to_string()
 }
 
+fn default_locked() -> bool {
+    false
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Path {
     pub id: u64,
@@ -222,6 +241,8 @@ pub struct Path {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Path {
@@ -233,6 +254,7 @@ impl Path {
             line_width: default_line_width(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -248,6 +270,8 @@ pub struct Image {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Image {
@@ -260,6 +284,7 @@ impl Image {
             image_data,
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -285,6 +310,8 @@ pub struct Text {
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
     pub z_index: i32,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Text {
@@ -302,6 +329,7 @@ impl Text {
             color: default_stroke_color(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
+            locked: default_locked(),
         }
     }
 }
@@ -328,6 +356,8 @@ pub struct Group {
     pub element_ids: Vec<u64>,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
+    #[serde(default = "default_locked")]
+    pub locked: bool,
 }
 
 impl Group {
@@ -336,6 +366,7 @@ impl Group {
             id,
             element_ids,
             rotation_angle: default_rotation(),
+            locked: default_locked(),
         }
     }
 }

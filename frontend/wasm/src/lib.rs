@@ -567,4 +567,14 @@ impl EditorApi {
     pub fn save_snapshot(&self) {
         self.document.borrow_mut().save_snapshot();
     }
+
+    #[wasm_bindgen]
+    pub fn is_element_locked(&self, id: u64) -> bool {
+        self.document.borrow().is_element_locked(id)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_element_locked(&self, id: u64, locked: bool, save_history: bool) {
+        self.document.borrow_mut().set_element_locked(id, locked, save_history);
+    }
 }
