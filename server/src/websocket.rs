@@ -270,14 +270,58 @@ pub async fn handle_websocket(
 
     let mut rx = session.broadcast_tx.subscribe();
     let tx = session.broadcast_tx.clone();
+    let receiver_count = tx.receiver_count();
+    info!("Client connected to session {}, {} receivers in channel", session_id, receiver_count);
 
+    let session_id_for_log = session_id.clone();
+    use std::sync::{Arc, Mutex};
+    let client_id_for_log: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let client_id_for_log_clone = client_id_for_log.clone();
     let mut send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            let json = serde_json::to_string(&msg).unwrap();
-            if sender.send(Message::Text(json)).await.is_err() {
-                break;
+        loop {
+            match rx.recv().await {
+                Ok(msg) => {
+                    let msg_type = match &msg {
+                        ServerMessage::Joined { .. } => "Joined",
+                        ServerMessage::ClientJoined { .. } => "ClientJoined",
+                        ServerMessage::ClientLeft { .. } => "ClientLeft",
+                        ServerMessage::Update { .. } => "Update",
+                        ServerMessage::Error { .. } => "Error",
+                        ServerMessage::Pong => "Pong",
+                    };
+                    let client_log = {
+                        let client_id_guard = client_id_for_log_clone.lock().unwrap();
+                        client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                    };
+                    info!("Send task for client {} received message: {}", client_log, msg_type);
+                    let json = match serde_json::to_string(&msg) {
+                        Ok(j) => j,
+                        Err(e) => {
+                            error!("Failed to serialize message: {}", e);
+                            continue;
+                        }
+                    };
+                    if let Err(e) = sender.send(Message::Text(json)).await {
+                        warn!("Failed to send message to client {}: {}", client_log, e);
+                        break;
+                    }
+                    info!("Send task for client {} successfully sent message", client_log);
+                }
+                Err(e) => {
+                    let client_log = {
+                        let client_id_guard = client_id_for_log_clone.lock().unwrap();
+                        client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                    };
+                    warn!("Error receiving from broadcast channel for client {}: {}", client_log, e);
+                    break;
+                }
             }
         }
+        let client_log = {
+            let client_id_guard = client_id_for_log_clone.lock().unwrap();
+            client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+        };
+        info!("Send task ended for client {} in session {}", client_log, session_id_for_log);
     });
 
     let session_clone = session.clone();
@@ -294,6 +338,7 @@ pub async fn handle_websocket(
                             color,
                         }) => {
                             client_id = Some(id.clone());
+                            *client_id_for_log.lock().unwrap() = Some(id.clone());
                             session_clone.add_client(id.clone(), name.clone(), color.clone());
 
                             let document_json = {
@@ -322,12 +367,25 @@ pub async fn handle_websocket(
                         }
                         Ok(ClientMessage::Update { operation }) => {
                             if let Some(ref id) = client_id {
+                                info!("Received operation from client {}: {:?}", id, operation);
                                 apply_operation(&operation, &session_clone);
                                 let update_msg = ServerMessage::Update {
                                     operation: operation.clone(),
                                     client_id: id.clone(),
                                 };
-                                let _ = tx_clone.send(update_msg);
+                                info!("Broadcasting operation from client {} to all clients", id);
+                                let receiver_count_before = tx_clone.receiver_count();
+                                info!("Current receiver count before broadcast: {}", receiver_count_before);
+                                match tx_clone.send(update_msg) {
+                                    Ok(sent_count) => {
+                                        info!("Broadcast sent successfully, {} receivers got the message", sent_count);
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to broadcast operation: {}", e);
+                                    }
+                                }
+                            } else {
+                                warn!("Received Update message but client_id is not set");
                             }
                         }
                         Ok(ClientMessage::Ping) => {

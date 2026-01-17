@@ -30,7 +30,7 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     
     sendOperation({
         op: 'AddEllipse',
-        id: newId,
+        id: Number(newId),
         position: { x, y },
         radius_x,
         radius_y

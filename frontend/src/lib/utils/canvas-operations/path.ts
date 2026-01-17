@@ -25,7 +25,7 @@ export function addPath(points: Array<{ x: number; y: number }>): number | null 
     
     sendOperation({
         op: 'AddPath',
-        id: newId,
+        id: Number(newId),
         points
     });
     

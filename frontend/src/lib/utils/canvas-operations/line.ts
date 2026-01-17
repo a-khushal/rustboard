@@ -30,7 +30,7 @@ export function addLine(startX: number, startY: number, endX: number, endY: numb
     
     sendOperation({
         op: 'AddLine',
-        id: newId,
+        id: Number(newId),
         start: { x: startX, y: startY },
         end: { x: endX, y: endY }
     });

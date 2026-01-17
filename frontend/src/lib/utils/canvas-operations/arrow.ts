@@ -30,7 +30,7 @@ export function addArrow(startX: number, startY: number, endX: number, endY: num
     
     sendOperation({
         op: 'AddArrow',
-        id: newId,
+        id: Number(newId),
         start: { x: startX, y: startY },
         end: { x: endX, y: endY }
     });

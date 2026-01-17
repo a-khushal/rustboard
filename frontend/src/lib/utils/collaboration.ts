@@ -103,7 +103,7 @@ export function connectToSession(
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
-			console.log('WebSocket connected');
+			console.log('WebSocket connected, readyState:', ws?.readyState);
 			reconnectAttempts = 0;
 
 			const joinMessage: ClientMessage = {
@@ -112,12 +112,14 @@ export function connectToSession(
 				name,
 				color,
 			};
+			console.log('Sending Join message:', joinMessage);
 			ws!.send(JSON.stringify(joinMessage));
 		};
 
 		ws.onmessage = (event) => {
 			try {
 				const message: ServerMessage = JSON.parse(event.data);
+				console.log('Received server message:', message.type, message);
 				handleServerMessage(message, editorApi, onUpdate);
 			} catch (error) {
 				console.error('Error parsing server message:', error);
@@ -173,6 +175,7 @@ function handleServerMessage(
 	switch (message.type) {
 		case 'Joined':
 			if (message.client_id && message.clients && message.document) {
+				console.log('Joined session, client_id:', message.client_id, 'isConnected: true');
 				collaborationState.update(state => ({
 					...state,
 					isConnected: true,
@@ -184,15 +187,23 @@ function handleServerMessage(
 					editorApi.deserialize(message.document);
 					updateStores();
 				}
+			} else {
+				console.warn('Joined message missing required fields:', message);
 			}
 			break;
 
 		case 'ClientJoined':
 			if (message.client) {
-				collaborationState.update(state => ({
-					...state,
-					collaborators: [...state.collaborators, message.client!],
-				}));
+				collaborationState.update(state => {
+					const existingIds = new Set(state.collaborators.map(c => c.id));
+					if (existingIds.has(message.client!.id)) {
+						return state;
+					}
+					return {
+						...state,
+						collaborators: [...state.collaborators, message.client!],
+					};
+				});
 			}
 			break;
 
@@ -208,12 +219,23 @@ function handleServerMessage(
 		case 'Update':
 			if (message.operation && message.client_id) {
 				const state = get(collaborationState);
+				console.log('Received Update message:', {
+					operation: message.operation.op,
+					fromClientId: message.client_id,
+					myClientId: state.clientId,
+					willApply: message.client_id !== state.clientId
+				});
 				if (message.client_id !== state.clientId) {
+					console.log('Applying remote operation:', message.operation.op);
 					applyOperation(message.operation, editorApi);
 					if (onUpdate) {
 						onUpdate(message.operation);
 					}
+				} else {
+					console.log('Ignoring own operation');
 				}
+			} else {
+				console.warn('Update message missing operation or client_id:', message);
 			}
 			break;
 
@@ -504,18 +526,31 @@ function applyOperation(operation: Operation, editorApi: EditorApi) {
 
 export function sendOperation(operation: Operation) {
 	const state = get(collaborationState);
+	console.log('sendOperation called:', {
+		op: operation.op,
+		isConnected: state.isConnected,
+		clientId: state.clientId,
+		wsExists: !!ws,
+		readyState: ws?.readyState
+	});
 	if (state.isConnected && ws && ws.readyState === WebSocket.OPEN) {
 		const message: ClientMessage = {
 			type: 'Update',
 			operation,
 		};
-		console.log('Sending operation:', operation.op, operation);
-		ws.send(JSON.stringify(message));
+		try {
+			const json = JSON.stringify(message);
+			console.log('Sending operation:', operation.op, operation);
+			ws.send(json);
+		} catch (error) {
+			console.error('Failed to serialize operation:', error, operation);
+		}
 	} else {
 		console.warn('Cannot send operation - not connected:', {
 			isConnected: state.isConnected,
 			wsExists: !!ws,
-			readyState: ws?.readyState
+			readyState: ws?.readyState,
+			clientId: state.clientId
 		});
 	}
 }

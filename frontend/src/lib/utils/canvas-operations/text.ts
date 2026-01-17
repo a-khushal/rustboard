@@ -50,14 +50,14 @@ export function addText(x: number, y: number, content: string, width: number = 1
     
     sendOperation({
         op: 'AddText',
-        id: newId,
+        id: Number(newId),
         position: { x, y },
         width,
         height,
         content
     });
 
-    return newId;
+    return Number(newId);
 }
 
 export function moveText(id: number, x: number, y: number, saveHistory: boolean = true): void {

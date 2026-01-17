@@ -35,7 +35,7 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
 
     sendOperation({
         op: 'AddRectangle',
-        id: newId,
+        id: Number(newId),
         position: { x, y },
         width,
         height

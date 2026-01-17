@@ -26,7 +26,8 @@
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionId = urlParams.get('session');
 		if (sessionId) {
-			joinSession(sessionId);
+			const wasHost = localStorage.getItem(`session_host_${sessionId}`) === 'true';
+			joinSession(sessionId, wasHost);
 		}
 
 		function handleClickOutside(event: MouseEvent) {
@@ -56,14 +57,16 @@
 			const name = generateClientName();
 			const color = generateClientColor();
 
-			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
-
 			const api = get(editorApi);
 			if (!api) {
 				throw new Error('Editor API not available');
 			}
 
 			await connectToSession(sessionId, clientId, name, color, api);
+
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
+			window.history.replaceState({}, '', `?session=${sessionId}`);
+			localStorage.setItem(`session_host_${sessionId}`, 'true');
 
 			collaborationState.update(state => ({
 				...state,
@@ -79,11 +82,12 @@
 		}
 	}
 
-	async function joinSession(sessionId: string) {
+	async function joinSession(sessionId: string, isHost: boolean = false) {
 		errorMessage = '';
 		const exists = await checkSessionExists(sessionId);
 		if (!exists) {
 			errorMessage = 'Session not found. Please check the link.';
+			localStorage.removeItem(`session_host_${sessionId}`);
 			return;
 		}
 
@@ -99,14 +103,15 @@
 
 			await connectToSession(sessionId, clientId, name, color, api);
 
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
+			window.history.replaceState({}, '', `?session=${sessionId}`);
+
 			collaborationState.update(state => ({
 				...state,
 				sessionId,
 				clientId,
-				isHost: false,
+				isHost,
 			}));
-
-			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
 		} catch (error) {
 			console.error('Error joining session:', error);
 			errorMessage = 'Failed to join session. Please try again.';
@@ -130,6 +135,10 @@
 
 	function stopCollaboration() {
 		disconnect();
+		const state = get(collaborationState);
+		if (state.sessionId) {
+			localStorage.removeItem(`session_host_${state.sessionId}`);
+		}
 		collaborationState.update(state => ({
 			...state,
 			sessionId: null,

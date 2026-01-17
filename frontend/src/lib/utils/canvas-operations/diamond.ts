@@ -35,7 +35,7 @@ export function addDiamond(x: number, y: number, width: number = 100, height: nu
     
     sendOperation({
         op: 'AddDiamond',
-        id: newId,
+        id: Number(newId),
         position: { x, y },
         width,
         height
