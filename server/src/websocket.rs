@@ -253,7 +253,6 @@ pub async fn handle_websocket(
     state: crate::AppState,
 ) {
     let (mut sender, mut receiver) = socket.split();
-    let mut client_id: Option<String> = None;
 
     let session = {
         let sessions = state.sessions.read().unwrap();
@@ -275,8 +274,9 @@ pub async fn handle_websocket(
 
     let session_id_for_log = session_id.clone();
     use std::sync::{Arc, Mutex};
-    let client_id_for_log: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    let client_id_for_log_clone = client_id_for_log.clone();
+    let client_id: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let client_id_for_log_clone = client_id.clone();
+    let session_id_for_send = session_id_for_log.clone();
     let mut send_task = tokio::spawn(async move {
         loop {
             match rx.recv().await {
@@ -321,7 +321,7 @@ pub async fn handle_websocket(
             let client_id_guard = client_id_for_log_clone.lock().unwrap();
             client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
         };
-        info!("Send task ended for client {} in session {}", client_log, session_id_for_log);
+        info!("Send task ended for client {} in session {}", client_log, session_id_for_send);
     });
 
     let session_clone = session.clone();
@@ -337,8 +337,7 @@ pub async fn handle_websocket(
                             name,
                             color,
                         }) => {
-                            client_id = Some(id.clone());
-                            *client_id_for_log.lock().unwrap() = Some(id.clone());
+                            *client_id.lock().unwrap() = Some(id.clone());
                             session_clone.add_client(id.clone(), name.clone(), color.clone());
 
                             let document_json = {
@@ -364,9 +363,14 @@ pub async fn handle_websocket(
                             };
 
                             let _ = tx_clone.send(client_joined_msg);
+                            info!("Client {} joined session {}", id, session_id_for_log);
                         }
                         Ok(ClientMessage::Update { operation }) => {
-                            if let Some(ref id) = client_id {
+                            let id_opt = {
+                                let client_id_guard = client_id.lock().unwrap();
+                                client_id_guard.clone()
+                            };
+                            if let Some(id) = id_opt {
                                 info!("Received operation from client {}: {:?}", id, operation);
                                 apply_operation(&operation, &session_clone);
                                 let update_msg = ServerMessage::Update {
@@ -376,16 +380,20 @@ pub async fn handle_websocket(
                                 info!("Broadcasting operation from client {} to all clients", id);
                                 let receiver_count_before = tx_clone.receiver_count();
                                 info!("Current receiver count before broadcast: {}", receiver_count_before);
-                                match tx_clone.send(update_msg) {
+                                let result = tx_clone.send(update_msg);
+                                match result {
                                     Ok(sent_count) => {
                                         info!("Broadcast sent successfully, {} receivers got the message", sent_count);
                                     }
                                     Err(e) => {
-                                        warn!("Failed to broadcast operation: {}", e);
+                                        error!("Failed to broadcast operation from client {}: {}", id, e);
                                     }
                                 }
                             } else {
-                                warn!("Received Update message but client_id is not set");
+                                warn!("Received Update message but client_id is not set - client must join first");
+                                let _ = tx_clone.send(ServerMessage::Error {
+                                    message: "Must join session before sending updates".to_string(),
+                                });
                             }
                         }
                         Ok(ClientMessage::Ping) => {
@@ -407,7 +415,11 @@ pub async fn handle_websocket(
             }
         }
 
-        if let Some(id) = client_id {
+        let id_opt = {
+            let client_id_guard = client_id.lock().unwrap();
+            client_id_guard.clone()
+        };
+        if let Some(id) = id_opt {
             session_clone.remove_client(&id);
             let leave_msg = ServerMessage::ClientLeft {
                 client_id: id.clone(),
