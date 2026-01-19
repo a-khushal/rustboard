@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { theme } from '$lib/stores/theme';
+	import { onMount } from 'svelte';
 
 	export let isOpen = false;
 
@@ -8,16 +9,35 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
+		if (event.key === 'Escape' && isOpen) {
+			event.preventDefault();
+			event.stopPropagation();
 			close();
 		}
 	}
 
-	function handleBackdropKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape' || event.key === 'Enter') {
-			close();
+	let cleanup: (() => void) | null = null;
+
+	$: {
+		if (cleanup) {
+			cleanup();
+			cleanup = null;
+		}
+		if (isOpen) {
+			window.addEventListener('keydown', handleKeyDown, true);
+			cleanup = () => {
+				window.removeEventListener('keydown', handleKeyDown, true);
+			};
 		}
 	}
+
+	onMount(() => {
+		return () => {
+			if (cleanup) {
+				cleanup();
+			}
+		};
+	});
 
 	const shortcuts = [
 		{
@@ -70,7 +90,8 @@
 				{ keys: ['Ctrl', '+'], description: 'Zoom in' },
 				{ keys: ['Ctrl', '-'], description: 'Zoom out' },
 				{ keys: ['Space'], description: 'Pan mode (hold and drag)' },
-				{ keys: ['Wheel'], description: 'Zoom in/out' },
+				{ keys: ['Ctrl', 'Wheel'], description: 'Zoom in/out' },
+				{ keys: ['Wheel'], description: 'Pan (scroll without Ctrl)' },
 			]
 		},
 	];
@@ -94,7 +115,6 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
 		on:click={close}
-		on:keydown={handleBackdropKeyDown}
 		role="dialog"
 		aria-modal="true"
 		aria-label="Keyboard shortcuts"

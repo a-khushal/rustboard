@@ -491,7 +491,7 @@
 		}
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
-		event.preventDefault();
+			event.preventDefault();
 			if ($editorApi) {
 				const success = event.shiftKey ? $editorApi.redo() : $editorApi.undo();
 				if (success) {
