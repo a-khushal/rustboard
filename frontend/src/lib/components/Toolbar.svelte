@@ -16,11 +16,13 @@
 		checkSessionExists,
 	} from '$lib/utils/collaboration';
 	import { get } from 'svelte/store';
+	import ShortcutsPanel from './ShortcutsPanel.svelte';
 
 	let collaborationMenuOpen = false;
 	let shareUrl = '';
 	let isCreatingSession = false;
 	let errorMessage = '';
+	let shortcutsPanelOpen = false;
 
 	onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
@@ -37,9 +39,22 @@
 			}
 		}
 
+		function handleKeyDown(event: KeyboardEvent) {
+			if ((event.ctrlKey || event.metaKey) && event.key === '?') {
+				event.preventDefault();
+				shortcutsPanelOpen = true;
+			}
+			if (event.key === 'F1') {
+				event.preventDefault();
+				shortcutsPanelOpen = true;
+			}
+		}
+
 		document.addEventListener('click', handleClickOutside);
+		window.addEventListener('keydown', handleKeyDown);
 		return () => {
 			document.removeEventListener('click', handleClickOutside);
+			window.removeEventListener('keydown', handleKeyDown);
 		};
 	});
 
@@ -437,4 +452,23 @@
 			</svg>
 		{/if}
 	</button>
+
+	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+
+	<button
+		on:click={() => shortcutsPanelOpen = true}
+		class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			${$theme === 'dark'
+				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+		title="Keyboard Shortcuts"
+	>
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="12" cy="12" r="10" />
+			<line x1="12" y1="16" x2="12" y2="12" />
+			<line x1="12" y1="8" x2="12.01" y2="8" />
+		</svg>
+	</button>
 </div>
+
+<ShortcutsPanel bind:isOpen={shortcutsPanelOpen} />
