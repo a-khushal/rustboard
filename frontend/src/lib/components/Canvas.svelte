@@ -671,6 +671,30 @@
 			return;
 		}
 
+		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'c') {
+			if ($activeTool === 'select' && $selectedImages.length > 0) {
+				event.preventDefault();
+				console.log('Image crop - feature to be implemented');
+			}
+			return;
+		}
+
+		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'f') {
+			if ($activeTool === 'select' && $selectedImages.length > 0) {
+				event.preventDefault();
+				console.log('Image filter - feature to be implemented');
+			}
+			return;
+		}
+
+		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'o') {
+			if ($activeTool === 'select' && $selectedImages.length > 0) {
+				event.preventDefault();
+				console.log('Image opacity - feature to be implemented');
+			}
+			return;
+		}
+
 		if (!$editorApi || event.key !== 'Delete') return;
 
 		if (isTextEditing) return;
@@ -5316,7 +5340,7 @@ function resetRotationState() {
 					renderWidth = resizePreview.width;
 					renderHeight = resizePreview.height;
 				}
-				const rotation = image.rotation_angle ?? 0;
+				const rotation = getRenderedRotation(image, 'image');
 				
 				let img = imageCache.get(image.id);
 				if (!img || img.src !== image.image_data) {

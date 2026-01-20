@@ -106,6 +106,14 @@
 			]
 		},
 		{
+			category: 'Image',
+			items: [
+				{ keys: ['C'], description: 'Crop image (when image selected)' },
+				{ keys: ['F'], description: 'Apply filter to image' },
+				{ keys: ['O'], description: 'Adjust image opacity' },
+			]
+		},
+		{
 			category: 'View',
 			items: [
 				{ keys: ['Ctrl', '+'], description: 'Zoom in' },
