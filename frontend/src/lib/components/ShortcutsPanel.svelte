@@ -8,11 +8,32 @@
 		isOpen = false;
 	}
 
+	function handleBackdropKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			close();
+		}
+	}
+
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && isOpen) {
 			event.preventDefault();
 			event.stopPropagation();
 			close();
+			return;
+		}
+		const isSlashKey = event.code === 'Slash' || event.key === '/' || event.key === '?';
+		if ((event.ctrlKey || event.metaKey) && isSlashKey) {
+			event.preventDefault();
+			event.stopPropagation();
+			close();
+			return;
+		}
+		if (event.key === 'F1') {
+			event.preventDefault();
+			event.stopPropagation();
+			close();
+			return;
 		}
 	}
 
@@ -115,6 +136,7 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
 		on:click={close}
+		on:keydown={handleBackdropKeyDown}
 		role="dialog"
 		aria-modal="true"
 		aria-label="Keyboard shortcuts"
@@ -125,7 +147,6 @@
 				$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'
 			}`}
 			on:click|stopPropagation
-			on:keydown|stopPropagation
 			role="presentation"
 		>
 			<div

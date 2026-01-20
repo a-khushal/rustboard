@@ -556,7 +556,7 @@
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
 			event.preventDefault();
-			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0) {
+			if ($selectedRectangles.length > 0 || $selectedEllipses.length > 0 || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedDiamonds.length > 0 || $selectedTexts.length > 0 || $selectedPaths.length > 0 || $selectedImages.length > 0) {
 				copyToClipboard($selectedRectangles, $selectedEllipses, $selectedLines, $selectedArrows, $selectedDiamonds, $selectedImages, $selectedTexts, $selectedPaths);
 			}
 			return;

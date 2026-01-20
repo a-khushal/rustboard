@@ -40,7 +40,8 @@
 		}
 
 		function handleKeyDown(event: KeyboardEvent) {
-			if ((event.ctrlKey || event.metaKey) && event.key === '?') {
+			const isSlashKey = event.code === 'Slash' || event.key === '/' || event.key === '?';
+			if ((event.ctrlKey || event.metaKey) && isSlashKey) {
 				event.preventDefault();
 				shortcutsPanelOpen = true;
 			}
