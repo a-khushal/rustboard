@@ -60,7 +60,7 @@ export function setPathRotation(id: number, angle: number, saveHistory: boolean 
     if (!api) return;
 
     api.set_path_rotation(BigInt(id), angle, saveHistory);
-    updatePaths();
+    updatePaths
 }
 
 export function setPathPoints(id: number, points: Array<{ x: number; y: number }>, saveHistory: boolean = true): void {
@@ -69,6 +69,12 @@ export function setPathPoints(id: number, points: Array<{ x: number; y: number }
 
     api.set_path_points(BigInt(id), points, saveHistory);
     updatePaths();
+    
+    sendOperation({
+        op: 'SetPathPoints',
+        id,
+        points
+    });
 }
 
 export function updatePaths(): void {

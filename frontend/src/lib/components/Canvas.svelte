@@ -32,6 +32,7 @@
 	import { pasteShapes } from '$lib/utils/paste-shapes';
 	import { clearAllSelections } from '$lib/utils/selection';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
+	import { sendOperation } from '$lib/utils/collaboration';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
@@ -94,6 +95,7 @@
 	let arrowEnd: { x: number; y: number } | null = null;
 	let freehandPoints: Array<{ x: number; y: number }> = [];
 	let isDrawingFreehand = false;
+	let currentDrawingPathId: number | null = null;
 	let isErasing = false;
 	let eraserRadius = 5;
 	let eraserPosition: { x: number; y: number } | null = null;
@@ -1827,7 +1829,16 @@ function resetRotationState() {
 	
 	function finishFreehandDrawing() {
 		if (isDrawingFreehand) {
-			if (freehandPoints.length > 1) {
+			if (currentDrawingPathId !== null && freehandPoints.length > 1) {
+				setPathPoints(currentDrawingPathId, freehandPoints, false);
+				selectedRectangles.set([]);
+				selectedEllipses.set([]);
+				selectedDiamonds.set([]);
+				selectedLines.set([]);
+				selectedArrows.set([]);
+				selectedPaths.set([]);
+				updatePaths();
+			} else if (currentDrawingPathId === null && freehandPoints.length > 1) {
 				addPath(freehandPoints);
 				selectedRectangles.set([]);
 				selectedEllipses.set([]);
@@ -1836,8 +1847,15 @@ function resetRotationState() {
 				selectedArrows.set([]);
 				selectedPaths.set([]);
 				updatePaths();
+			} else if (currentDrawingPathId !== null && freehandPoints.length <= 1) {
+				if ($editorApi) {
+					$editorApi.delete_path_without_snapshot(BigInt(currentDrawingPathId));
+					sendOperation({ op: 'DeletePath', id: currentDrawingPathId });
+					updatePaths();
+				}
 			}
 			isDrawingFreehand = false;
+			currentDrawingPathId = null;
 			freehandPoints = [];
 			scheduleRender();
 		}
@@ -2511,6 +2529,7 @@ function resetRotationState() {
 			clearAllSelections();
 			isDrawingFreehand = true;
 			freehandPoints = [{ x, y }];
+			currentDrawingPathId = addPath([{ x, y }]);
 			scheduleRender();
 		} else if ($activeTool === 'text') {
 			resetRotationState();
@@ -2823,6 +2842,9 @@ function resetRotationState() {
 			const distance = Math.sqrt(dx * dx + dy * dy);
 			if (distance > 2) {
 				freehandPoints.push({ x, y });
+				if (currentDrawingPathId !== null) {
+					setPathPoints(currentDrawingPathId, freehandPoints, false);
+				}
 				scheduleRender();
 			}
 			canvas.style.cursor = 'crosshair';

@@ -110,6 +110,10 @@ pub enum Operation {
         offset_x: f64,
         offset_y: f64,
     },
+    SetPathPoints {
+        id: u64,
+        points: Vec<Point>,
+    },
     DeletePath {
         id: u64,
     },
@@ -515,6 +519,10 @@ fn apply_operation(operation: &Operation, session: &Session) {
         }
         Operation::MovePath { id, offset_x, offset_y } => {
             doc.move_path(*id, *offset_x, *offset_y, false);
+        }
+        Operation::SetPathPoints { id, points } => {
+            let editor_points: Vec<EditorPoint> = points.iter().map(|p| EditorPoint { x: p.x, y: p.y }).collect();
+            doc.set_path_points(*id, editor_points, false);
         }
         Operation::DeletePath { id } => {
             doc.delete_path_without_snapshot(*id);
