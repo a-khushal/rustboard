@@ -130,3 +130,4 @@ export const texts = writable<Text[]>([]);
 export const selectedTexts = writable<Text[]>([]);
 export const groups = writable<Group[]>([]);
 export const selectedGroups = writable<Group[]>([]);
+export const renderTrigger = writable<number>(0);

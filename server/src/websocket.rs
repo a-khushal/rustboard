@@ -356,7 +356,16 @@ pub async fn handle_websocket(
                                 document: document_json,
                             };
 
-                            tx_clone.send(join_msg).ok();
+                            let receiver_count = tx_clone.receiver_count();
+                            info!("Sending Joined message to {} receivers", receiver_count);
+                            match tx_clone.send(join_msg) {
+                                Ok(count) => {
+                                    info!("Joined message sent to {} receivers", count);
+                                }
+                                Err(e) => {
+                                    error!("Failed to send Joined message: {}", e);
+                                }
+                            }
 
                             let client_joined_msg = ServerMessage::ClientJoined {
                                 client: ClientInfo {
@@ -366,7 +375,14 @@ pub async fn handle_websocket(
                                 },
                             };
 
-                            let _ = tx_clone.send(client_joined_msg);
+                            match tx_clone.send(client_joined_msg) {
+                                Ok(count) => {
+                                    info!("ClientJoined message sent to {} receivers", count);
+                                }
+                                Err(e) => {
+                                    error!("Failed to send ClientJoined message: {}", e);
+                                }
+                            }
                             info!("Client {} joined session {}", id, session_id_for_log);
                         }
                         Ok(ClientMessage::Update { operation }) => {
@@ -381,13 +397,14 @@ pub async fn handle_websocket(
                                     operation: operation.clone(),
                                     client_id: id.clone(),
                                 };
-                                info!("Broadcasting operation from client {} to all clients", id);
                                 let receiver_count_before = tx_clone.receiver_count();
-                                info!("Current receiver count before broadcast: {}", receiver_count_before);
-                                let result = tx_clone.send(update_msg);
-                                match result {
+                                info!("Broadcasting operation from client {} to {} receivers", id, receiver_count_before);
+                                match tx_clone.send(update_msg) {
                                     Ok(sent_count) => {
                                         info!("Broadcast sent successfully, {} receivers got the message", sent_count);
+                                        if sent_count == 0 {
+                                            warn!("Operation broadcast to 0 receivers - no clients are listening!");
+                                        }
                                     }
                                     Err(e) => {
                                         error!("Failed to broadcast operation from client {}: {}", id, e);

@@ -9,7 +9,7 @@
 		images, selectedImages,
 		texts, selectedTexts,
 		groups, selectedGroups,
-		editorApi, viewportOffset, zoom, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text as EditorText, type Group
+		editorApi, viewportOffset, zoom, renderTrigger, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text as EditorText, type Group
 	} from '$lib/stores/editor';
 
 	import { isPointInRectangle, isPointInEllipse, isPointOnLine, isPointOnPath, isPointInDiamond, isPointInImage, rectangleIntersectsBox, ellipseIntersectsBox, lineIntersectsBox, arrowIntersectsBox, diamondIntersectsBox, pathIntersectsBox, imageIntersectsBox, getPathBoundingBox } from '$lib/utils/geometry';
@@ -5680,7 +5680,7 @@ function resetRotationState() {
 		}
 	}
 	
-	$: if (ctx && canvas && !isCreatingShape) {
+	$: if (ctx && canvas) {
 		$viewportOffset;
 		$zoom;
 		$rectangles;
@@ -5702,6 +5702,7 @@ function resetRotationState() {
 		$groups;
 		$selectedGroups;
 		$theme;
+		$renderTrigger;
 		scheduleRender();
 	}
 </script>

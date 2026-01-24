@@ -24,7 +24,7 @@ pub struct ClientInfo {
 
 impl Session {
     pub fn new(id: String, document: Document) -> Self {
-        let (tx, _) = broadcast::channel::<ServerMessage>(100);
+        let (tx, _) = broadcast::channel::<ServerMessage>(1000);
         Self {
             id,
             document: Arc::new(RwLock::new(document)),
