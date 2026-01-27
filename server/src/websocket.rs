@@ -277,59 +277,133 @@ pub async fn handle_websocket(
     info!("Client connected to session {}, {} receivers in channel", session_id, receiver_count);
 
     let session_id_for_log = session_id.clone();
+    let session_id_for_send = session_id.clone();
     use std::sync::{Arc, Mutex};
     let client_id: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    let client_id_for_log_clone = client_id.clone();
-    let session_id_for_send = session_id_for_log.clone();
+    let client_id_for_log = client_id.clone();
+    
+    let session_clone = session.clone();
+    let tx_clone = tx.clone();
+    
+    let (_direct_tx, mut direct_rx) = tokio::sync::mpsc::unbounded_channel::<ServerMessage>();
+    let mut direct_channel_open = true;
+
     let mut send_task = tokio::spawn(async move {
         loop {
-            match rx.recv().await {
-                Ok(msg) => {
-                    let msg_type = match &msg {
-                        ServerMessage::Joined { .. } => "Joined",
-                        ServerMessage::ClientJoined { .. } => "ClientJoined",
-                        ServerMessage::ClientLeft { .. } => "ClientLeft",
-                        ServerMessage::Update { .. } => "Update",
-                        ServerMessage::Error { .. } => "Error",
-                        ServerMessage::Pong => "Pong",
-                    };
-                    let client_log = {
-                        let client_id_guard = client_id_for_log_clone.lock().unwrap();
-                        client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
-                    };
-                    info!("Send task for client {} received message: {}", client_log, msg_type);
-                    let json = match serde_json::to_string(&msg) {
-                        Ok(j) => j,
-                        Err(e) => {
-                            error!("Failed to serialize message: {}", e);
-                            continue;
+            if direct_channel_open {
+                tokio::select! {
+                    msg = rx.recv() => {
+                        match msg {
+                            Ok(msg) => {
+                                let client_log = {
+                                    let client_id_guard = client_id_for_log.lock().unwrap();
+                                    client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                                };
+                                
+                                let json = match serde_json::to_string(&msg) {
+                                    Ok(j) => j,
+                                    Err(e) => {
+                                        error!("Failed to serialize message: {}", e);
+                                        continue;
+                                    }
+                                };
+                                
+                                if let Err(e) = sender.send(Message::Text(json)).await {
+                                    warn!("Failed to send message to client {}: {}", client_log, e);
+                                    break;
+                                }
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                                let client_log = {
+                                    let client_id_guard = client_id_for_log.lock().unwrap();
+                                    client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                                };
+                                warn!("Client {} lagged behind by {} messages, skipping", client_log, skipped);
+                                continue;
+                            }
+                            Err(e) => {
+                                let client_log = {
+                                    let client_id_guard = client_id_for_log.lock().unwrap();
+                                    client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                                };
+                                warn!("Error receiving from broadcast channel for client {}: {}", client_log, e);
+                                break;
+                            }
                         }
-                    };
-                    if let Err(e) = sender.send(Message::Text(json)).await {
-                        warn!("Failed to send message to client {}: {}", client_log, e);
+                    }
+                    msg = direct_rx.recv() => {
+                        match msg {
+                            Some(msg) => {
+                                let client_log = {
+                                    let client_id_guard = client_id_for_log.lock().unwrap();
+                                    client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                                };
+                                
+                                let json = match serde_json::to_string(&msg) {
+                                    Ok(j) => j,
+                                    Err(e) => {
+                                        error!("Failed to serialize direct message: {}", e);
+                                        continue;
+                                    }
+                                };
+                                
+                                if let Err(e) = sender.send(Message::Text(json)).await {
+                                    warn!("Failed to send direct message to client {}: {}", client_log, e);
+                                    break;
+                                }
+                            }
+                            None => {
+                                direct_channel_open = false;
+                            }
+                        }
+                    }
+                }
+            } else {
+                match rx.recv().await {
+                    Ok(msg) => {
+                        let client_log = {
+                            let client_id_guard = client_id_for_log.lock().unwrap();
+                            client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                        };
+                        
+                        let json = match serde_json::to_string(&msg) {
+                            Ok(j) => j,
+                            Err(e) => {
+                                error!("Failed to serialize message: {}", e);
+                                continue;
+                            }
+                        };
+                        
+                        if let Err(e) = sender.send(Message::Text(json)).await {
+                            warn!("Failed to send message to client {}: {}", client_log, e);
+                            break;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        let client_log = {
+                            let client_id_guard = client_id_for_log.lock().unwrap();
+                            client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                        };
+                        warn!("Client {} lagged behind by {} messages, skipping", client_log, skipped);
+                        continue;
+                    }
+                    Err(e) => {
+                        let client_log = {
+                            let client_id_guard = client_id_for_log.lock().unwrap();
+                            client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
+                        };
+                        warn!("Error receiving from broadcast channel for client {}: {}", client_log, e);
                         break;
                     }
-                    info!("Send task for client {} successfully sent message", client_log);
-                }
-                Err(e) => {
-                    let client_log = {
-                        let client_id_guard = client_id_for_log_clone.lock().unwrap();
-                        client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
-                    };
-                    warn!("Error receiving from broadcast channel for client {}: {}", client_log, e);
-                    break;
                 }
             }
         }
         let client_log = {
-            let client_id_guard = client_id_for_log_clone.lock().unwrap();
+            let client_id_guard = client_id_for_log.lock().unwrap();
             client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
         };
         info!("Send task ended for client {} in session {}", client_log, session_id_for_send);
     });
-
-    let session_clone = session.clone();
-    let tx_clone = tx.clone();
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
@@ -355,15 +429,16 @@ pub async fn handle_websocket(
                                 clients: clients.clone(),
                                 document: document_json,
                             };
-
+                            
                             let receiver_count = tx_clone.receiver_count();
-                            info!("Sending Joined message to {} receivers", receiver_count);
+                            info!("Client {} joining, broadcasting Joined message to {} receivers", id, receiver_count);
+                            
                             match tx_clone.send(join_msg) {
-                                Ok(count) => {
-                                    info!("Joined message sent to {} receivers", count);
+                                Ok(sent_count) => {
+                                    info!("Joined message sent to {} receivers", sent_count);
                                 }
                                 Err(e) => {
-                                    error!("Failed to send Joined message: {}", e);
+                                    error!("Failed to broadcast Joined message: {}", e);
                                 }
                             }
 
@@ -393,21 +468,24 @@ pub async fn handle_websocket(
                             if let Some(id) = id_opt {
                                 info!("Received operation from client {}: {:?}", id, operation);
                                 apply_operation(&operation, &session_clone);
+                                
                                 let update_msg = ServerMessage::Update {
                                     operation: operation.clone(),
                                     client_id: id.clone(),
                                 };
-                                let receiver_count_before = tx_clone.receiver_count();
-                                info!("Broadcasting operation from client {} to {} receivers", id, receiver_count_before);
+                                
+                                let receiver_count = tx_clone.receiver_count();
+                                info!("Broadcasting Update from client {} to {} receivers", id, receiver_count);
+                                
                                 match tx_clone.send(update_msg) {
                                     Ok(sent_count) => {
-                                        info!("Broadcast sent successfully, {} receivers got the message", sent_count);
+                                        info!("Update broadcast successfully sent to {} receivers", sent_count);
                                         if sent_count == 0 {
-                                            warn!("Operation broadcast to 0 receivers - no clients are listening!");
+                                            warn!("Update broadcast to 0 receivers!");
                                         }
                                     }
                                     Err(e) => {
-                                        error!("Failed to broadcast operation from client {}: {}", id, e);
+                                        error!("Failed to broadcast Update from client {}: {}", id, e);
                                     }
                                 }
                             } else {
@@ -446,13 +524,18 @@ pub async fn handle_websocket(
                 client_id: id.clone(),
             };
             let _ = tx_clone.send(leave_msg);
+            info!("Client {} left session {}", id, session_id_for_log);
         }
     });
 
     tokio::select! {
-        _ = (&mut send_task) => recv_task.abort(),
-        _ = (&mut recv_task) => send_task.abort(),
-    };
+        _ = (&mut send_task) => {
+            recv_task.abort();
+        }
+        _ = (&mut recv_task) => {
+            send_task.abort();
+        }
+    }
 
     info!("WebSocket connection closed for session {}", session_id);
 }
@@ -695,4 +778,3 @@ fn apply_operation(operation: &Operation, session: &Session) {
         }
     }
 }
-

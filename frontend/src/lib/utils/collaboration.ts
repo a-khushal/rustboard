@@ -107,6 +107,9 @@ export function connectToSession(
 
 		const wsUrl = `${WS_URL}/ws/${sessionId}`;
 		ws = new WebSocket(wsUrl);
+		
+		let joined = false;
+		let connectionTimeout: NodeJS.Timeout | null = null;
 
 		ws.onopen = () => {
 			console.log('WebSocket connected, readyState:', ws?.readyState);
@@ -125,12 +128,29 @@ export function connectToSession(
 				...state,
 				sessionId: state.sessionId || sessionId,
 			}));
+			
+			connectionTimeout = setTimeout(() => {
+				if (!joined) {
+					reject(new Error('WebSocket connection timeout - did not receive Joined message'));
+					ws?.close();
+				}
+			}, 5000);
 		};
 
 		ws.onmessage = async (event) => {
 			try {
 				const message: ServerMessage = JSON.parse(event.data);
 				console.log('Received server message:', message.type, message);
+				
+				if (message.type === 'Joined' && !joined) {
+					joined = true;
+					if (connectionTimeout) {
+						clearTimeout(connectionTimeout);
+						connectionTimeout = null;
+					}
+					resolve();
+				}
+				
 				await handleServerMessage(message, editorApi, onUpdate);
 			} catch (error) {
 				console.error('Error parsing server message:', error);
@@ -139,6 +159,10 @@ export function connectToSession(
 
 		ws.onerror = (error) => {
 			console.error('WebSocket error:', error);
+			if (connectionTimeout) {
+				clearTimeout(connectionTimeout);
+				connectionTimeout = null;
+			}
 			reconnectAttempts++;
 			if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
 				reconnectTimeout = setTimeout(() => {
@@ -153,13 +177,17 @@ export function connectToSession(
 
 		ws.onclose = () => {
 			console.log('WebSocket closed');
+			if (connectionTimeout) {
+				clearTimeout(connectionTimeout);
+				connectionTimeout = null;
+			}
 			collaborationState.update(state => ({
 				...state,
 				isConnected: false,
 			}));
 
 			const state = get(collaborationState);
-			if (state.sessionId && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+			if (state.sessionId && reconnectAttempts < MAX_RECONNECT_ATTEMPTS && !joined) {
 				reconnectAttempts++;
 				reconnectTimeout = setTimeout(() => {
 					connectToSession(state.sessionId!, clientId, name, color, editorApi, onUpdate)
@@ -167,14 +195,6 @@ export function connectToSession(
 				}, RECONNECT_DELAY * reconnectAttempts);
 			}
 		};
-
-		setTimeout(() => {
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				resolve();
-			} else {
-				reject(new Error('WebSocket connection failed'));
-			}
-		}, 100);
 	});
 }
 
@@ -239,19 +259,22 @@ async function handleServerMessage(
 		case 'Update':
 			if (message.operation && message.client_id) {
 				const state = get(collaborationState);
-				console.log('Received Update message:', {
+				console.log('Update received:', {
 					operation: message.operation.op,
 					fromClientId: message.client_id,
 					myClientId: state.clientId,
-					willApply: message.client_id !== state.clientId
+					isConnected: state.isConnected,
+					willApply: message.client_id !== state.clientId && state.isConnected
 				});
-				if (message.client_id !== state.clientId) {
+				if (state.isConnected && message.client_id !== state.clientId) {
 					console.log('Applying remote operation:', message.operation.op);
 					applyOperation(message.operation, editorApi);
 					await tick();
 					if (onUpdate) {
 						onUpdate(message.operation);
 					}
+				} else if (!state.isConnected) {
+					console.warn('Received Update but not connected yet, ignoring');
 				} else {
 					console.log('Ignoring own operation');
 				}
@@ -580,7 +603,7 @@ export function sendOperation(operation: Operation) {
 		return;
 	}
 
-	if (state.isConnected && ws && ws.readyState === WebSocket.OPEN) {
+	if (ws && ws.readyState === WebSocket.OPEN && state.isConnected && state.clientId) {
 		const message: ClientMessage = {
 			type: 'Update',
 			operation,
@@ -592,8 +615,12 @@ export function sendOperation(operation: Operation) {
 		} catch (error) {
 			console.error('Failed to serialize operation:', error, operation);
 		}
-	} else if (state.sessionId && (!state.isConnected || !ws || ws.readyState !== WebSocket.OPEN)) {
-		console.log('Queueing operation until connection is ready:', operation.op);
+	} else if (state.sessionId) {
+		console.log('Queueing operation until connection is ready:', operation.op, {
+			wsReady: ws?.readyState === WebSocket.OPEN,
+			isConnected: state.isConnected,
+			hasClientId: !!state.clientId
+		});
 		operationQueue.push(operation);
 	} else {
 		console.warn('Cannot send operation - not connected:', {
