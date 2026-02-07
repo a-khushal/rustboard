@@ -6,9 +6,21 @@
 		editorApi,
 		type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Path, type Image, type Text
 	} from '$lib/stores/editor';
+	import {
+		listBoards,
+		getCurrentBoardId,
+		setCurrentBoardId,
+		createBoard,
+		renameBoard,
+		duplicateBoard,
+		deleteBoard,
+		serializeCurrentBoard
+	} from '$lib/utils/boards';
+	import { loadStateFromLocalStorage, saveStateToLocalStorage } from '$lib/utils/storage';
 	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
 	import { clearAllSelections } from '$lib/utils/selection';
+	import { collaborationState } from '$lib/stores/collaboration';
 
 	export let canvas: HTMLCanvasElement | undefined = undefined;
 	export let ctx: CanvasRenderingContext2D | null = null;
@@ -16,6 +28,13 @@
 	let isOpen = false;
 	let showResetModal = false;
 	let fileInputRef: HTMLInputElement;
+	let boards: Array<{ id: string; name: string; updatedAt: number }> = [];
+	let currentBoardId = '';
+
+	function refreshBoards() {
+		boards = listBoards();
+		currentBoardId = getCurrentBoardId();
+	}
 
 	export function closeSidebar() {
 		isOpen = false;
@@ -23,6 +42,9 @@
 
 	function toggleSidebar() {
 		isOpen = !isOpen;
+		if (isOpen) {
+			refreshBoards();
+		}
 	}
 
 	function openResetModal() {
@@ -51,6 +73,7 @@
 	}
 
 	function handleResetCanvas() {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
 		const api = get(editorApi);
 		if (!api) return;
 
@@ -65,6 +88,61 @@
 		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, [], pathIds, imageIds);
 		clearAllSelections();
 		closeResetModal();
+	}
+
+	function switchBoard(boardId: string) {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
+		if (boardId === currentBoardId) return;
+		const api = get(editorApi);
+		if (!api) return;
+		serializeCurrentBoard(api);
+		setCurrentBoardId(boardId);
+		loadStateFromLocalStorage();
+		clearAllSelections();
+		refreshBoards();
+	}
+
+	function handleCreateBoard() {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
+		const api = get(editorApi);
+		if (!api) return;
+		const name = window.prompt('Board name', 'Untitled Board');
+		if (!name) return;
+		createBoard(name, api.serialize());
+		loadStateFromLocalStorage();
+		clearAllSelections();
+		refreshBoards();
+	}
+
+	function handleRenameBoard() {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
+		const name = window.prompt('Rename board', boards.find((board) => board.id === currentBoardId)?.name || 'Board');
+		if (!name) return;
+		renameBoard(currentBoardId, name);
+		refreshBoards();
+	}
+
+	function handleDuplicateBoard() {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
+		const source = boards.find((board) => board.id === currentBoardId);
+		const name = window.prompt('Duplicate board name', source ? `${source.name} Copy` : 'Board Copy');
+		if (!name) return;
+		const duplicated = duplicateBoard(currentBoardId, name);
+		if (!duplicated) return;
+		loadStateFromLocalStorage();
+		clearAllSelections();
+		refreshBoards();
+	}
+
+	function handleDeleteBoard() {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
+		if (boards.length <= 1) return;
+		const confirmed = window.confirm('Delete this board?');
+		if (!confirmed) return;
+		deleteBoard(currentBoardId);
+		loadStateFromLocalStorage();
+		clearAllSelections();
+		refreshBoards();
 	}
 
 	async function handleExportPNG() {
@@ -110,6 +188,7 @@
 	}
 
 	async function handleLoadFile(event: Event) {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer') return;
 		const target = event.target as HTMLInputElement;
 		const file = target.files?.[0];
 		if (!file) return;
@@ -137,8 +216,10 @@
 				diamonds.set(updatedDiamonds);
 				paths.set(updatedPaths);
 				images.set(updatedImages);
+				texts.set(api.get_texts() as Text[]);
 				
 				clearAllSelections();
+				saveStateToLocalStorage();
 			} else {
 				alert('Failed to load file. Please ensure it is a valid Rustboard JSON file.');
 			}
@@ -179,10 +260,55 @@
 			
 			<div class="flex flex-col gap-2">
 				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-600'}`}>File</div>
+
+				<div class="flex flex-col gap-2">
+					<label for="board-select" class={`text-[11px] ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}>Board</label>
+					<select
+						id="board-select"
+						class={`w-full px-2 py-1.5 text-xs rounded-sm border ${$theme === 'dark' ? 'bg-stone-800 border-stone-700 text-stone-200' : 'bg-white border-stone-200 text-stone-700'}`}
+						bind:value={currentBoardId}
+						on:change={(event) => switchBoard((event.target as HTMLSelectElement).value)}
+					>
+						{#each boards as board}
+							<option value={board.id}>{board.name}</option>
+						{/each}
+					</select>
+					<div class="grid grid-cols-2 gap-2">
+					<button
+						on:click={handleCreateBoard}
+						disabled={$collaborationState.isConnected && $collaborationState.role === 'viewer'}
+						class={`px-2 py-1.5 text-xs rounded-sm border ${$theme === 'dark' ? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border-stone-700' : 'text-stone-700 bg-white hover:bg-stone-50 border-stone-200'}`}
+					>
+							New
+						</button>
+					<button
+						on:click={handleRenameBoard}
+						disabled={$collaborationState.isConnected && $collaborationState.role === 'viewer'}
+						class={`px-2 py-1.5 text-xs rounded-sm border ${$theme === 'dark' ? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border-stone-700' : 'text-stone-700 bg-white hover:bg-stone-50 border-stone-200'}`}
+					>
+							Rename
+						</button>
+					<button
+						on:click={handleDuplicateBoard}
+						disabled={$collaborationState.isConnected && $collaborationState.role === 'viewer'}
+						class={`px-2 py-1.5 text-xs rounded-sm border ${$theme === 'dark' ? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border-stone-700' : 'text-stone-700 bg-white hover:bg-stone-50 border-stone-200'}`}
+					>
+							Duplicate
+						</button>
+					<button
+						on:click={handleDeleteBoard}
+						disabled={boards.length <= 1 || ($collaborationState.isConnected && $collaborationState.role === 'viewer')}
+						class={`px-2 py-1.5 text-xs rounded-sm border disabled:opacity-50 ${$theme === 'dark' ? 'text-red-300 bg-stone-800 hover:bg-stone-700 border-stone-700' : 'text-red-600 bg-white hover:bg-stone-50 border-stone-200'}`}
+					>
+							Delete
+						</button>
+					</div>
+				</div>
 				
 				<div class="flex flex-col gap-2">
 					<button
 						on:click={handleSaveAs}
+						disabled={$collaborationState.isConnected && $collaborationState.role === 'viewer'}
 						class={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans transition-colors duration-150 rounded-sm
 							${$theme === 'dark'
 								? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
@@ -208,6 +334,7 @@
 					<button
 						type="button"
 						on:click={() => fileInputRef?.click()}
+						disabled={$collaborationState.isConnected && $collaborationState.role === 'viewer'}
 						class={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans transition-colors duration-150 rounded-sm w-full
 							${$theme === 'dark'
 								? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
@@ -281,6 +408,7 @@
 
 				<button
 					on:click={openResetModal}
+					disabled={$collaborationState.isConnected && $collaborationState.role === 'viewer'}
 					class={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans transition-colors duration-150 rounded-sm
 						${$theme === 'dark'
 							? 'text-red-400 bg-stone-800 hover:bg-stone-700 border border-red-500/30 hover:border-red-500/50'
@@ -373,4 +501,3 @@
 		</div>
 	</div>
 {/if}
-

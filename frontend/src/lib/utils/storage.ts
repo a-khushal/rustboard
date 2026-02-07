@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, paths, images, zoom, viewportOffset, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image } from '$lib/stores/editor';
+import { getCurrentBoardId, loadBoardSnapshot, saveBoardSnapshot } from './boards';
 
-const STORAGE_KEY = 'rustboard-state';
 const ZOOM_STORAGE_KEY = 'rustboard-zoom';
 const VIEWPORT_OFFSET_STORAGE_KEY = 'rustboard-viewport-offset';
 
@@ -13,7 +13,7 @@ export function saveStateToLocalStorage(): void {
 
     try {
         const serialized = api.serialize();
-        localStorage.setItem(STORAGE_KEY, serialized);
+        saveBoardSnapshot(getCurrentBoardId(), serialized);
     } catch (error) {
         console.error('Failed to save state to localStorage:', error);
     }
@@ -26,7 +26,7 @@ export function loadStateFromLocalStorage(): boolean {
     if (!api) return false;
 
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = loadBoardSnapshot(getCurrentBoardId());
         if (!saved) return false;
 
         const success = api.deserialize(saved);
@@ -115,4 +115,3 @@ export function loadViewportOffsetFromLocalStorage(): boolean {
         return false;
     }
 }
-

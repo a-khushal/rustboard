@@ -41,6 +41,14 @@ export interface ServerMessage {
 	message?: string;
 }
 
+export interface SessionInfo {
+	session_id: string;
+	editor_token: string;
+	viewer_token: string;
+	editor_url: string;
+	viewer_url: string;
+}
+
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
@@ -48,6 +56,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 1000;
 let operationQueue: Operation[] = [];
 let lastAppliedSeq = 0;
+const pendingUpdates = new Map<number, { operation: Operation; client_id: string; source_local_id?: number }>();
 const localToServerId = new Map<number, number>();
 const serverToLocalId = new Map<number, number>();
 let pendingPresencePayload: { cursor: { x: number; y: number } | null; selected_ids: number[] } | null = null;
@@ -57,6 +66,7 @@ const PRESENCE_THROTTLE_MS = 50;
 
 function resetRealtimeSyncState() {
 	lastAppliedSeq = 0;
+	pendingUpdates.clear();
 	localToServerId.clear();
 	serverToLocalId.clear();
 	pendingPresencePayload = null;
@@ -118,7 +128,7 @@ export function generateClientName(): string {
 	return `${adj} ${noun}`;
 }
 
-export async function createSession(): Promise<string> {
+export async function createSession(): Promise<SessionInfo> {
 	try {
 		const response = await fetch(`${API_URL}/api/sessions`, {
 			method: 'GET',
@@ -127,21 +137,21 @@ export async function createSession(): Promise<string> {
 			throw new Error('Failed to create session');
 		}
 		const data = await response.json();
-		return data.session_id;
+		return data as SessionInfo;
 	} catch (error) {
 		console.error('Error creating session:', error);
 		throw error;
 	}
 }
 
-export async function checkSessionExists(sessionId: string): Promise<boolean> {
+export async function checkSessionExists(sessionId: string, token: string): Promise<boolean> {
 	try {
-		const response = await fetch(`${API_URL}/api/sessions/${sessionId}`);
+		const response = await fetch(`${API_URL}/api/sessions/${sessionId}?token=${encodeURIComponent(token)}`);
 		if (!response.ok) {
 			return false;
 		}
 		const data = await response.json();
-		return data.exists;
+		return Boolean(data.exists && data.token_valid);
 	} catch (error) {
 		console.error('Error checking session:', error);
 		return false;
@@ -154,6 +164,8 @@ export function connectToSession(
 	name: string,
 	color: string,
 	editorApi: EditorApi,
+	token: string,
+	role: 'editor' | 'viewer' = 'editor',
 	onUpdate?: (operation: Operation) => void
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -162,7 +174,7 @@ export function connectToSession(
 		}
 		resetRealtimeSyncState();
 
-		const wsUrl = `${WS_URL}/ws/${sessionId}`;
+		const wsUrl = `${WS_URL}/ws/${sessionId}?token=${encodeURIComponent(token)}&role=${encodeURIComponent(role)}`;
 		ws = new WebSocket(wsUrl);
 		
 		let joined = false;
@@ -185,6 +197,7 @@ export function connectToSession(
 				...state,
 				sessionId: state.sessionId || sessionId,
 				presenceByClient: {},
+				role,
 			}));
 			
 			connectionTimeout = setTimeout(() => {
@@ -224,7 +237,7 @@ export function connectToSession(
 			reconnectAttempts++;
 			if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
 				reconnectTimeout = setTimeout(() => {
-					connectToSession(sessionId, clientId, name, color, editorApi, onUpdate)
+					connectToSession(sessionId, clientId, name, color, editorApi, token, role, onUpdate)
 						.then(resolve)
 						.catch(reject);
 				}, RECONNECT_DELAY * reconnectAttempts);
@@ -249,12 +262,60 @@ export function connectToSession(
 			if (state.sessionId && reconnectAttempts < MAX_RECONNECT_ATTEMPTS && !joined) {
 				reconnectAttempts++;
 				reconnectTimeout = setTimeout(() => {
-					connectToSession(state.sessionId!, clientId, name, color, editorApi, onUpdate)
+					connectToSession(state.sessionId!, clientId, name, color, editorApi, token, role, onUpdate)
 						.catch(console.error);
 				}, RECONNECT_DELAY * reconnectAttempts);
 			}
 		};
 	});
+}
+
+async function processUpdateMessage(
+	update: { operation: Operation; client_id: string; source_local_id?: number },
+	editorApi: EditorApi,
+	onUpdate?: (operation: Operation) => void
+) {
+	const state = get(collaborationState);
+	if (!state.isConnected) {
+		return;
+	}
+
+	if (update.client_id === state.clientId) {
+		if (
+			isAddOperation(update.operation) &&
+			typeof update.source_local_id === 'number' &&
+			typeof update.operation.id === 'number'
+		) {
+			registerIdMapping(update.source_local_id, update.operation.id);
+		}
+		return;
+	}
+
+	const incomingServerId = typeof update.operation.id === 'number' ? update.operation.id : null;
+	if (isAddOperation(update.operation) && incomingServerId !== null && serverToLocalId.has(incomingServerId)) {
+		return;
+	}
+
+	const localOperation = remapOperationId(update.operation, resolveIncomingId);
+	const appliedId = await applyOperation(localOperation, editorApi);
+	if (isAddOperation(update.operation) && incomingServerId !== null && typeof appliedId === 'number') {
+		registerIdMapping(appliedId, incomingServerId);
+	}
+	await tick();
+	if (onUpdate) {
+		onUpdate(localOperation);
+	}
+}
+
+async function flushPendingUpdates(editorApi: EditorApi, onUpdate?: (operation: Operation) => void) {
+	while (pendingUpdates.has(lastAppliedSeq + 1)) {
+		const nextSeq = lastAppliedSeq + 1;
+		const next = pendingUpdates.get(nextSeq);
+		if (!next) break;
+		pendingUpdates.delete(nextSeq);
+		await processUpdateMessage(next, editorApi, onUpdate);
+		lastAppliedSeq = nextSeq;
+	}
 }
 
 async function handleServerMessage(
@@ -272,6 +333,8 @@ async function handleServerMessage(
 				}
 
 				console.log('Joined session, client_id:', message.client_id, 'isConnected: true');
+				lastAppliedSeq = 0;
+				pendingUpdates.clear();
 				collaborationState.update(state => ({
 					...state,
 					isConnected: true,
@@ -327,52 +390,22 @@ async function handleServerMessage(
 
 		case 'Update':
 			if (message.operation && message.client_id && typeof message.seq === 'number') {
-				if (message.seq <= lastAppliedSeq) {
+				if (message.seq <= lastAppliedSeq) break;
+
+				if (message.operation.op === 'FullSync') {
+					await applyOperation(message.operation, editorApi);
+					pendingUpdates.clear();
+					lastAppliedSeq = message.seq;
 					break;
 				}
-				lastAppliedSeq = message.seq;
 
-				const state = get(collaborationState);
-				console.log('Update received:', {
-					operation: message.operation.op,
-					fromClientId: message.client_id,
-					seq: message.seq,
-					myClientId: state.clientId,
-					isConnected: state.isConnected,
-					willApply: message.client_id !== state.clientId && state.isConnected
+				pendingUpdates.set(message.seq, {
+					operation: message.operation,
+					client_id: message.client_id,
+					source_local_id: message.source_local_id,
 				});
-				if (!state.isConnected) {
-					console.warn('Received Update but not connected yet, ignoring');
-					break;
-				}
-
-				if (message.client_id === state.clientId) {
-					if (
-						isAddOperation(message.operation) &&
-						typeof message.source_local_id === 'number' &&
-						typeof message.operation.id === 'number'
-					) {
-						registerIdMapping(message.source_local_id, message.operation.id);
-					}
-					break;
-				}
-
-				const incomingServerId = typeof message.operation.id === 'number' ? message.operation.id : null;
-				if (isAddOperation(message.operation) && incomingServerId !== null && serverToLocalId.has(incomingServerId)) {
-					break;
-				}
-
-				const localOperation = remapOperationId(message.operation, resolveIncomingId);
-				console.log('Applying remote operation:', localOperation.op);
-					const appliedId = await applyOperation(localOperation, editorApi);
-					if (isAddOperation(message.operation) && incomingServerId !== null && typeof appliedId === 'number') {
-						registerIdMapping(appliedId, incomingServerId);
-					}
-					await tick();
-					if (onUpdate) {
-						onUpdate(localOperation);
-					}
-				} else {
+				await flushPendingUpdates(editorApi, onUpdate);
+			} else {
 				console.warn('Update message missing required fields:', message);
 			}
 			break;
@@ -726,6 +759,9 @@ async function applyOperation(operation: Operation, editorApi: EditorApi): Promi
 
 export function sendOperation(operation: Operation) {
 	const state = get(collaborationState);
+	if (state.role === 'viewer') {
+		return;
+	}
 	const outgoingOperation = remapOperationId(operation, resolveOutgoingId);
 	console.log('sendOperation called:', {
 		op: outgoingOperation.op,
@@ -806,6 +842,10 @@ function flushPresence() {
 }
 
 export function sendPresence(cursor: { x: number; y: number } | null, selectedIds: number[]) {
+	const state = get(collaborationState);
+	if (state.role === 'viewer') {
+		return;
+	}
 	pendingPresencePayload = {
 		cursor,
 		selected_ids: selectedIds.map((id) => resolveOutgoingId(id)),
@@ -834,6 +874,7 @@ export function disconnect() {
 		clientId: null,
 		collaborators: [],
 		presenceByClient: {},
+		role: 'editor',
 		isHost: false,
 	});
 }

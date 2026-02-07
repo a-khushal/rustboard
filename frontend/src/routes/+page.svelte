@@ -3,6 +3,7 @@
 	import { initWasm } from '$lib/wasm';
 	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, images, paths, texts } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
+	import { ensureDefaultBoard } from '$lib/utils/boards';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
 	import Canvas from '$lib/components/Canvas.svelte';
@@ -24,6 +25,7 @@
 			const api = await initWasm();
 			editorApi.set(api);
 			wasmLoaded.set(true);
+		ensureDefaultBoard();
 			
 		const loaded = loadStateFromLocalStorage();
 		if (!loaded) {

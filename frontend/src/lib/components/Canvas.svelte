@@ -200,6 +200,13 @@
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
+	type BindableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text';
+	type BoundEndpoint = { shapeType: BindableShapeType; shapeId: number; relX: number; relY: number };
+	type ArrowBinding = {
+		start?: BoundEndpoint;
+		end?: BoundEndpoint;
+	};
+	const arrowBindings = new Map<number, ArrowBinding>();
 
 
 
@@ -459,6 +466,7 @@
 
 
 	function handleKeyDown(event: KeyboardEvent) {
+		const isViewer = $collaborationState.isConnected && $collaborationState.role === 'viewer';
 
 		if (event.key === 'Escape' && isRotating) {
 			event.preventDefault();
@@ -498,6 +506,10 @@
 		}
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
+			if ($collaborationState.isConnected) {
+				event.preventDefault();
+				return;
+			}
 			event.preventDefault();
 			if ($editorApi) {
 				const success = event.shiftKey ? $editorApi.redo() : $editorApi.undo();
@@ -510,6 +522,10 @@
 		}
 
 		if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || event.key === 'Y')) {
+			if ($collaborationState.isConnected) {
+				event.preventDefault();
+				return;
+			}
 			event.preventDefault();
 			if ($editorApi) {
 				const success = $editorApi.redo();
@@ -702,6 +718,7 @@
 			return;
 		}
 
+		if (isViewer) return;
 		if (!$editorApi || event.key !== 'Delete') return;
 
 		if (isTextEditing) return;
@@ -1727,6 +1744,12 @@ function resetRotationState() {
 			const newHeight = oldHeight * absScaleY;
 			resizePath(id, newX, newY, newWidth, newHeight, saveHistory);
 		});
+
+		selectedShapesStartPositions.rectangles.forEach((_, id) => moveBoundArrowEndpoints('rectangle', id));
+		selectedShapesStartPositions.ellipses.forEach((_, id) => moveBoundArrowEndpoints('ellipse', id));
+		selectedShapesStartPositions.diamonds.forEach((_, id) => moveBoundArrowEndpoints('diamond', id));
+		selectedShapesStartPositions.images.forEach((_, id) => moveBoundArrowEndpoints('image', id));
+		selectedShapesStartPositions.texts.forEach((_, id) => moveBoundArrowEndpoints('text', id));
 	}
 
 	function handleShapeClick(
@@ -1969,6 +1992,138 @@ function resetRotationState() {
 			storeSelectedShapesStartPositions();
 			isDragging = true;
 		}
+	}
+
+	function detectBoundShapeAtPoint(x: number, y: number): { shapeType: BindableShapeType; shapeId: number } | null {
+		for (let i = $texts.length - 1; i >= 0; i--) {
+			const text = $texts[i];
+			if (x >= text.position.x && x <= text.position.x + text.width && y >= text.position.y && y <= text.position.y + text.height) {
+				return { shapeType: 'text', shapeId: text.id };
+			}
+		}
+		for (let i = $images.length - 1; i >= 0; i--) {
+			if (isPointInImage(x, y, $images[i])) {
+				return { shapeType: 'image', shapeId: $images[i].id };
+			}
+		}
+		for (let i = $diamonds.length - 1; i >= 0; i--) {
+			if (isPointInDiamond(x, y, $diamonds[i])) {
+				return { shapeType: 'diamond', shapeId: $diamonds[i].id };
+			}
+		}
+		for (let i = $ellipses.length - 1; i >= 0; i--) {
+			if (isPointInEllipse(x, y, $ellipses[i])) {
+				return { shapeType: 'ellipse', shapeId: $ellipses[i].id };
+			}
+		}
+		for (let i = $rectangles.length - 1; i >= 0; i--) {
+			if (isPointInRectangle(x, y, $rectangles[i])) {
+				return { shapeType: 'rectangle', shapeId: $rectangles[i].id };
+			}
+		}
+		return null;
+	}
+
+	function getBindableBounds(shapeType: BindableShapeType, shapeId: number): { x: number; y: number; width: number; height: number } | null {
+		if (shapeType === 'rectangle') {
+			const shape = $rectangles.find((item) => item.id === shapeId);
+			return shape ? { x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height } : null;
+		}
+		if (shapeType === 'ellipse') {
+			const shape = $ellipses.find((item) => item.id === shapeId);
+			return shape
+				? {
+					x: shape.position.x - shape.radius_x,
+					y: shape.position.y - shape.radius_y,
+					width: shape.radius_x * 2,
+					height: shape.radius_y * 2
+				}
+				: null;
+		}
+		if (shapeType === 'diamond') {
+			const shape = $diamonds.find((item) => item.id === shapeId);
+			return shape ? { x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height } : null;
+		}
+		if (shapeType === 'image') {
+			const shape = $images.find((item) => item.id === shapeId);
+			return shape ? { x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height } : null;
+		}
+		const shape = $texts.find((item) => item.id === shapeId);
+		return shape ? { x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height } : null;
+	}
+
+	function createBoundEndpoint(
+		binding: { shapeType: BindableShapeType; shapeId: number } | undefined,
+		point: { x: number; y: number }
+	): BoundEndpoint | undefined {
+		if (!binding) return undefined;
+		const bounds = getBindableBounds(binding.shapeType, binding.shapeId);
+		if (!bounds || bounds.width === 0 || bounds.height === 0) {
+			return undefined;
+		}
+		const relX = (point.x - bounds.x) / bounds.width;
+		const relY = (point.y - bounds.y) / bounds.height;
+		return { ...binding, relX, relY };
+	}
+
+	function resolveBoundEndpoint(endpoint: BoundEndpoint | undefined): { x: number; y: number } | null {
+		if (!endpoint) return null;
+		const bounds = getBindableBounds(endpoint.shapeType, endpoint.shapeId);
+		if (!bounds) return null;
+		return {
+			x: bounds.x + bounds.width * endpoint.relX,
+			y: bounds.y + bounds.height * endpoint.relY
+		};
+	}
+
+	function upsertArrowBinding(arrowId: number, start: { x: number; y: number }, end: { x: number; y: number }) {
+		const startBinding = detectBoundShapeAtPoint(start.x, start.y) || undefined;
+		const endBinding = detectBoundShapeAtPoint(end.x, end.y) || undefined;
+		const startEndpoint = createBoundEndpoint(startBinding, start);
+		const endEndpoint = createBoundEndpoint(endBinding, end);
+		if (!startEndpoint && !endEndpoint) {
+			arrowBindings.delete(arrowId);
+			return;
+		}
+		arrowBindings.set(arrowId, {
+			start: startEndpoint,
+			end: endEndpoint
+		});
+	}
+
+	function moveBoundArrowEndpoints(shapeType: BindableShapeType, shapeId: number) {
+		const selectedArrowIds = new Set($selectedArrows.map((arrow) => arrow.id));
+		arrowBindings.forEach((binding, arrowId) => {
+			if (selectedArrowIds.has(arrowId)) return;
+			const arrow = $arrows.find((item) => item.id === arrowId);
+			if (!arrow) return;
+			let startX = arrow.start.x;
+			let startY = arrow.start.y;
+			let endX = arrow.end.x;
+			let endY = arrow.end.y;
+			if (binding.start && binding.start.shapeType === shapeType && binding.start.shapeId === shapeId) {
+				const resolved = resolveBoundEndpoint(binding.start);
+				if (resolved) {
+					startX = resolved.x;
+					startY = resolved.y;
+				}
+			}
+			if (binding.end && binding.end.shapeType === shapeType && binding.end.shapeId === shapeId) {
+				const resolved = resolveBoundEndpoint(binding.end);
+				if (resolved) {
+					endX = resolved.x;
+					endY = resolved.y;
+				}
+			}
+			if (
+				Math.abs(startX - arrow.start.x) > 0.001 ||
+				Math.abs(startY - arrow.start.y) > 0.001 ||
+				Math.abs(endX - arrow.end.x) > 0.001 ||
+				Math.abs(endY - arrow.end.y) > 0.001
+			) {
+				moveArrow(arrowId, startX, startY, endX, endY, false);
+			}
+		});
 	}
 	
 	function finishFreehandDrawing() {
@@ -2213,6 +2368,7 @@ function resetRotationState() {
 	
 	function handleMouseDown(event: MouseEvent) {
 		if (!canvas) return;
+		const isViewer = $collaborationState.isConnected && $collaborationState.role === 'viewer';
 
 		event.preventDefault();
 		canvas.focus({ preventScroll: true });
@@ -2236,6 +2392,9 @@ function resetRotationState() {
 		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 
 		const isShiftPressed = event.shiftKey;
+		if (isViewer) {
+			return;
+		}
 		
 		if ($activeTool === 'select') {
 			const totalSelectedCount = $selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length + $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length + $selectedImages.length;
@@ -3889,6 +4048,7 @@ function resetRotationState() {
 			if (resizePreview.type === 'rectangle') {
 				moveRectangle(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeRectangle(resizePreview.id, resizePreview.width, resizePreview.height, false);
+				moveBoundArrowEndpoints('rectangle', resizePreview.id);
 			} else if (resizePreview.type === 'ellipse') {
 				const centerX = resizePreview.x;
 				const centerY = resizePreview.y;
@@ -3896,24 +4056,32 @@ function resetRotationState() {
 				const radiusY = resizePreview.height / 2;
 				moveEllipse(resizePreview.id, centerX, centerY, true);
 				resizeEllipse(resizePreview.id, radiusX, radiusY, false);
+				moveBoundArrowEndpoints('ellipse', resizePreview.id);
 			} else if (resizePreview.type === 'diamond') {
 				moveDiamond(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeDiamond(resizePreview.id, resizePreview.width, resizePreview.height, false);
+				moveBoundArrowEndpoints('diamond', resizePreview.id);
 			} else if (resizePreview.type === 'line') {
 				const newStartX = resizePreview.x;
 				const newStartY = resizePreview.y;
 				const newEndX = resizePreview.x + resizePreview.width;
 				const newEndY = resizePreview.y + resizePreview.height;
 				moveLine(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
-			} else if (resizePreview.type === 'arrow') {
-				const newStartX = resizePreview.x;
-				const newStartY = resizePreview.y;
-				const newEndX = resizePreview.x + resizePreview.width;
-				const newEndY = resizePreview.y + resizePreview.height;
-				moveArrow(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
-			} else if (resizePreview.type === 'image') {
+				} else if (resizePreview.type === 'arrow') {
+					const newStartX = resizePreview.x;
+					const newStartY = resizePreview.y;
+					const newEndX = resizePreview.x + resizePreview.width;
+					const newEndY = resizePreview.y + resizePreview.height;
+					moveArrow(resizePreview.id, newStartX, newStartY, newEndX, newEndY, true);
+					upsertArrowBinding(
+						resizePreview.id,
+						{ x: newStartX, y: newStartY },
+						{ x: newEndX, y: newEndY }
+					);
+				} else if (resizePreview.type === 'image') {
 				moveImage(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
+				moveBoundArrowEndpoints('image', resizePreview.id);
 				} else if (resizePreview.type === 'path') {
 					resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
 					} else if (resizePreview.type === 'text') {
@@ -3925,6 +4093,7 @@ function resetRotationState() {
 							moveText(resizePreview.id, resizePreview.x, resizePreview.y, true);
 							setTextFontSize(resizePreview.id, newFontSize, false);
 							resizeText(resizePreview.id, resizePreview.width, resizePreview.height, true);
+							moveBoundArrowEndpoints('text', resizePreview.id);
 						}
 					}
 			resizePreview = null;
@@ -4052,26 +4221,29 @@ function resetRotationState() {
 			
 			$editorApi.save_snapshot();
 			
-			selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
-				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
-				const newX = startPos.x + dragOffset.x;
-				const newY = startPos.y + dragOffset.y;
-				moveRectangle(id, newX, newY, false);
-			});
+				selectedShapesStartPositions.rectangles.forEach((startPos, id) => {
+					if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
+					const newX = startPos.x + dragOffset.x;
+					const newY = startPos.y + dragOffset.y;
+					moveRectangle(id, newX, newY, false);
+					moveBoundArrowEndpoints('rectangle', id);
+				});
 			
-			selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
-				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
-				const newX = startPos.x + dragOffset.x;
-				const newY = startPos.y + dragOffset.y;
-				moveEllipse(id, newX, newY, false);
-			});
+				selectedShapesStartPositions.ellipses.forEach((startPos, id) => {
+					if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
+					const newX = startPos.x + dragOffset.x;
+					const newY = startPos.y + dragOffset.y;
+					moveEllipse(id, newX, newY, false);
+					moveBoundArrowEndpoints('ellipse', id);
+				});
 			
-			selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
-				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
-				const newX = startPos.x + dragOffset.x;
-				const newY = startPos.y + dragOffset.y;
-				moveDiamond(id, newX, newY, false);
-			});
+				selectedShapesStartPositions.diamonds.forEach((startPos, id) => {
+					if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
+					const newX = startPos.x + dragOffset.x;
+					const newY = startPos.y + dragOffset.y;
+					moveDiamond(id, newX, newY, false);
+					moveBoundArrowEndpoints('diamond', id);
+				});
 			
 			selectedShapesStartPositions.lines.forEach((startPos, id) => {
 				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
@@ -4082,33 +4254,40 @@ function resetRotationState() {
 				moveLine(id, newStartX, newStartY, newEndX, newEndY, false);
 			});
 			
-			selectedShapesStartPositions.arrows.forEach((startPos, id) => {
-				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
-				const newStartX = startPos.start.x + dragOffset.x;
-				const newStartY = startPos.start.y + dragOffset.y;
-				const newEndX = startPos.end.x + dragOffset.x;
-				const newEndY = startPos.end.y + dragOffset.y;
-				moveArrow(id, newStartX, newStartY, newEndX, newEndY, false);
-			});
+				selectedShapesStartPositions.arrows.forEach((startPos, id) => {
+					if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
+					const newStartX = startPos.start.x + dragOffset.x;
+					const newStartY = startPos.start.y + dragOffset.y;
+					const newEndX = startPos.end.x + dragOffset.x;
+					const newEndY = startPos.end.y + dragOffset.y;
+					moveArrow(id, newStartX, newStartY, newEndX, newEndY, false);
+					upsertArrowBinding(
+						id,
+						{ x: newStartX, y: newStartY },
+						{ x: newEndX, y: newEndY }
+					);
+				});
 			
 			selectedShapesStartPositions.paths.forEach((startPos, id) => {
 				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
 				movePath(id, dragOffset.x, dragOffset.y, false);
 			});
 
-			selectedShapesStartPositions.images.forEach((startPos, id) => {
-				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
-				const newX = startPos.x + dragOffset.x;
-				const newY = startPos.y + dragOffset.y;
-				moveImage(id, newX, newY, false);
-			});
+				selectedShapesStartPositions.images.forEach((startPos, id) => {
+					if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
+					const newX = startPos.x + dragOffset.x;
+					const newY = startPos.y + dragOffset.y;
+					moveImage(id, newX, newY, false);
+					moveBoundArrowEndpoints('image', id);
+				});
 
-			selectedShapesStartPositions.texts.forEach((startPos, id) => {
-				if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
-				const newX = startPos.x + dragOffset.x;
-				const newY = startPos.y + dragOffset.y;
-				moveText(id, newX, newY, false);
-			});
+				selectedShapesStartPositions.texts.forEach((startPos, id) => {
+					if ($editorApi && $editorApi.is_element_locked(BigInt(id))) return;
+					const newX = startPos.x + dragOffset.x;
+					const newY = startPos.y + dragOffset.y;
+					moveText(id, newX, newY, false);
+					moveBoundArrowEndpoints('text', id);
+				});
 			
 			$editorApi.save_snapshot();
 			scheduleRender();
@@ -4205,25 +4384,33 @@ function resetRotationState() {
 						activeTool.set('select' as Tool);
 					}
 				}
-			} else if ($activeTool === 'arrow') {
-				if (arrowStart && arrowEnd) {
+				} else if ($activeTool === 'arrow') {
+					if (arrowStart && arrowEnd) {
 					const dx = arrowEnd.x - arrowStart.x;
 					const dy = arrowEnd.y - arrowStart.y;
 					const length = Math.sqrt(dx * dx + dy * dy);
 					
-					if (length > 5) {
-						addArrow(arrowStart.x, arrowStart.y, arrowEnd.x, arrowEnd.y);
-						selectedRectangles.set([]);
-						selectedEllipses.set([]);
-						selectedDiamonds.set([]);
-						selectedLines.set([]);
-						if ($arrows.length > 0) {
+						if (length > 5) {
+							addArrow(arrowStart.x, arrowStart.y, arrowEnd.x, arrowEnd.y);
 							const newestArrow = $arrows[$arrows.length - 1];
-							selectedArrows.set([newestArrow]);
+							if (newestArrow) {
+								upsertArrowBinding(
+									newestArrow.id,
+									{ x: arrowStart.x, y: arrowStart.y },
+									{ x: arrowEnd.x, y: arrowEnd.y }
+								);
+							}
+							selectedRectangles.set([]);
+							selectedEllipses.set([]);
+							selectedDiamonds.set([]);
+							selectedLines.set([]);
+							if ($arrows.length > 0) {
+								const newestArrow = $arrows[$arrows.length - 1];
+								selectedArrows.set([newestArrow]);
+							}
+							activeTool.set('select' as Tool);
 						}
-						activeTool.set('select' as Tool);
 					}
-				}
 			}
 			
 			finishFreehandDrawing();
@@ -5968,6 +6155,20 @@ function resetRotationState() {
 			}
 		}
 	}
+
+	$: {
+		const existingArrowIds = new Set($arrows.map((arrow) => arrow.id));
+		for (const arrowId of arrowBindings.keys()) {
+			if (!existingArrowIds.has(arrowId)) {
+				arrowBindings.delete(arrowId);
+			}
+		}
+		$arrows.forEach((arrow) => {
+			if (!arrowBindings.has(arrow.id)) {
+				upsertArrowBinding(arrow.id, arrow.start, arrow.end);
+			}
+		});
+	}
 	
 	$: if (ctx && canvas) {
 		$viewportOffset;
@@ -6002,7 +6203,9 @@ function resetRotationState() {
 	<Sidebar bind:this={sidebarRef} bind:canvas bind:ctx />
 	<ZoomControls />
 	<UndoRedoControls />
-	<StylePanel />
+	{#if !($collaborationState.isConnected && $collaborationState.role === 'viewer')}
+		<StylePanel />
+	{/if}
 	<canvas
 		on:mousedown={handleMouseDown}
 		on:mousemove={handleMouseMove}

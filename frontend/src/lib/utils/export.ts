@@ -1,6 +1,12 @@
 import type { Rectangle, Ellipse, Diamond, Line, Arrow, Path, Image, Text } from '$lib/stores/editor';
 import { getPathBoundingBox } from './geometry';
 
+function getDashArray(dashPattern?: string): string {
+	if (dashPattern === 'dashed') return '8 4';
+	if (dashPattern === 'dotted') return '2 2';
+	return '';
+}
+
 export async function exportToPNG(
 	canvas: HTMLCanvasElement,
 	filename: string = 'rustboard.png'
@@ -184,8 +190,9 @@ export function exportToSVG(
 			const y2 = line.end.y + offsetY;
 			const strokeColor = line.stroke_color || '#000000';
 			const lineWidth = line.line_width || 2;
-
-			svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="${lineWidth}"/>\n`;
+			const dashArray = getDashArray(line.dash_pattern);
+			const dashAttr = dashArray ? ` stroke-dasharray="${dashArray}"` : '';
+			svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="${lineWidth}"${dashAttr}/>\n`;
 		} else if (item.type === 'arrow') {
 			const arrow = item.data as Arrow;
 			const x1 = arrow.start.x + offsetX;
@@ -194,6 +201,8 @@ export function exportToSVG(
 			const y2 = arrow.end.y + offsetY;
 			const strokeColor = arrow.stroke_color || '#000000';
 			const lineWidth = arrow.line_width || 2;
+			const dashArray = getDashArray(arrow.dash_pattern);
+			const dashAttr = dashArray ? ` stroke-dasharray="${dashArray}"` : '';
 
 			const dx = x2 - x1;
 			const dy = y2 - y1;
@@ -205,7 +214,7 @@ export function exportToSVG(
 			const arrowX2 = x2 - arrowLength * Math.cos(angle + Math.PI / 6);
 			const arrowY2 = y2 - arrowLength * Math.sin(angle + Math.PI / 6);
 
-			svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="${lineWidth}"/>\n`;
+			svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="${lineWidth}"${dashAttr}/>\n`;
 			svg += `<polygon points="${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}" fill="${strokeColor}"/>\n`;
 			} else if (item.type === 'path') {
 				const path = item.data as Path;
@@ -254,12 +263,25 @@ export function exportToSVG(
 			const textX = textAlign === 'center' ? x + text.width / 2 : textAlign === 'right' ? x + text.width : x;
 			const textY = y + text.height / 2;
 
+			const lines = text.content.split('\n');
+			const lineHeight = fontSize * 1.1;
+			const startY = -((lines.length - 1) * lineHeight) / 2;
 			if (rotation !== 0) {
 				svg += `<g transform="translate(${textX},${textY}) rotate(${(rotation * 180) / Math.PI})">\n`;
-				svg += `  <text x="0" y="0" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}" dominant-baseline="middle">${escapeXml(text.content)}</text>\n`;
+				svg += `  <text x="0" y="${startY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}">\n`;
+				lines.forEach((line, index) => {
+					const dy = index === 0 ? 0 : lineHeight;
+					svg += `    <tspan x="0" dy="${dy}">${escapeXml(line)}</tspan>\n`;
+				});
+				svg += `  </text>\n`;
 				svg += `</g>\n`;
 			} else {
-				svg += `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}" dominant-baseline="middle">${escapeXml(text.content)}</text>\n`;
+				svg += `<text x="${textX}" y="${textY + startY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}">\n`;
+				lines.forEach((line, index) => {
+					const dy = index === 0 ? 0 : lineHeight;
+					svg += `  <tspan x="${textX}" dy="${dy}">${escapeXml(line)}</tspan>\n`;
+				});
+				svg += `</text>\n`;
 			}
 		}
 	});

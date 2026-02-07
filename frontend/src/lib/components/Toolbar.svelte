@@ -20,6 +20,7 @@
 
 	let collaborationMenuOpen = false;
 	let shareUrl = '';
+	let viewerUrl = '';
 	let isCreatingSession = false;
 	let errorMessage = '';
 	let shortcutsPanelOpen = false;
@@ -27,9 +28,12 @@
 	onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionId = urlParams.get('session');
-		if (sessionId) {
+		const token = urlParams.get('token');
+		const roleParam = urlParams.get('role');
+		const role: 'editor' | 'viewer' = roleParam === 'viewer' ? 'viewer' : 'editor';
+		if (sessionId && token) {
 			const wasHost = localStorage.getItem(`session_host_${sessionId}`) === 'true';
-			joinSession(sessionId, wasHost);
+			joinSession(sessionId, token, wasHost, role);
 		}
 
 		function handleClickOutside(event: MouseEvent) {
@@ -68,7 +72,8 @@
 		errorMessage = '';
 
 		try {
-			const sessionId = await createSession();
+			const sessionInfo = await createSession();
+			const sessionId = sessionInfo.session_id;
 			const clientId = generateClientId();
 			const name = generateClientName();
 			const color = generateClientColor();
@@ -78,16 +83,18 @@
 				throw new Error('Editor API not available');
 			}
 
-			await connectToSession(sessionId, clientId, name, color, api);
+			await connectToSession(sessionId, clientId, name, color, api, sessionInfo.editor_token, 'editor');
 
-			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
-			window.history.replaceState({}, '', `?session=${sessionId}`);
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=editor&token=${sessionInfo.editor_token}`;
+			viewerUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=viewer&token=${sessionInfo.viewer_token}`;
+			window.history.replaceState({}, '', `?session=${sessionId}&role=editor&token=${sessionInfo.editor_token}`);
 			localStorage.setItem(`session_host_${sessionId}`, 'true');
 
 			collaborationState.update(state => ({
 				...state,
 				sessionId,
 				clientId,
+				role: 'editor',
 				isHost: true,
 			}));
 		} catch (error) {
@@ -98,11 +105,11 @@
 		}
 	}
 
-	async function joinSession(sessionId: string, isHost: boolean = false) {
+	async function joinSession(sessionId: string, token: string, isHost: boolean = false, role: 'editor' | 'viewer' = 'editor') {
 		errorMessage = '';
-		const exists = await checkSessionExists(sessionId);
+		const exists = await checkSessionExists(sessionId, token);
 		if (!exists) {
-			errorMessage = 'Session not found. Please check the link.';
+			errorMessage = 'Session not found or token is invalid.';
 			localStorage.removeItem(`session_host_${sessionId}`);
 			return;
 		}
@@ -117,15 +124,17 @@
 				throw new Error('Editor API not available');
 			}
 
-			await connectToSession(sessionId, clientId, name, color, api);
+			await connectToSession(sessionId, clientId, name, color, api, token, role);
 
-			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
-			window.history.replaceState({}, '', `?session=${sessionId}`);
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=${role}&token=${token}`;
+			viewerUrl = role === 'viewer' ? shareUrl : '';
+			window.history.replaceState({}, '', `?session=${sessionId}&role=${role}&token=${token}`);
 
 			collaborationState.update(state => ({
 				...state,
 				sessionId,
 				clientId,
+				role,
 				isHost,
 			}));
 		} catch (error) {
@@ -134,9 +143,9 @@
 		}
 	}
 
-	function copyShareLink() {
-		navigator.clipboard.writeText(shareUrl).then(() => {
-			const button = document.getElementById('copy-button');
+	function copyShareLink(url: string = shareUrl, buttonId: string = 'copy-button') {
+		navigator.clipboard.writeText(url).then(() => {
+			const button = document.getElementById(buttonId);
 			if (button) {
 				const originalText = button.textContent;
 				button.textContent = 'Copied!';
@@ -162,13 +171,19 @@
 			isHost: false,
 			collaborators: [],
 			presenceByClient: {},
+			role: 'editor',
 		}));
 		shareUrl = '';
+		viewerUrl = '';
 		collaborationMenuOpen = false;
 		window.history.replaceState({}, '', window.location.pathname);
 	}
 
 	function setTool(tool: Tool) {
+		if ($collaborationState.isConnected && $collaborationState.role === 'viewer' && tool !== 'select') {
+			activeTool.set('select');
+			return;
+		}
 		if (tool === 'image') {
 			const fileInput = document.createElement('input');
 			fileInput.type = 'file';
@@ -355,9 +370,9 @@
 							</div>
 						</div>
 
-						<div>
-							<label for="share-link-input" class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-1 block`}>Share Link</label>
-							<div class="flex gap-2">
+							<div>
+								<label for="share-link-input" class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-1 block`}>Share Link</label>
+								<div class="flex gap-2">
 								<input
 									id="share-link-input"
 									type="text"
@@ -365,15 +380,35 @@
 									value={shareUrl}
 									class={`flex-1 px-2 py-1.5 text-xs ${$theme === 'dark' ? 'bg-stone-900 border-stone-700 text-stone-200' : 'bg-stone-50 border-stone-300 text-stone-700'} border rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
 								/>
-								<button
-									id="copy-button"
-									on:click={copyShareLink}
-									class={`px-3 py-1.5 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
-								>
-									Copy
-								</button>
+									<button
+										id="copy-button"
+										on:click={() => copyShareLink(shareUrl, 'copy-button')}
+										class={`px-3 py-1.5 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+									>
+										Copy
+									</button>
+								</div>
 							</div>
-						</div>
+							<div>
+								<label for="viewer-link-input" class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-1 block`}>Viewer Link</label>
+								<div class="flex gap-2">
+									<input
+										id="viewer-link-input"
+										type="text"
+										readonly
+										value={viewerUrl}
+										class={`flex-1 px-2 py-1.5 text-xs ${$theme === 'dark' ? 'bg-stone-900 border-stone-700 text-stone-200' : 'bg-stone-50 border-stone-300 text-stone-700'} border rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
+									/>
+									<button
+										id="copy-viewer-button"
+										on:click={() => copyShareLink(viewerUrl, 'copy-viewer-button')}
+										disabled={!viewerUrl}
+										class={`px-3 py-1.5 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600' : 'bg-stone-500 hover:bg-stone-600'} text-white`}
+									>
+										Copy
+									</button>
+								</div>
+							</div>
 
 						<div>
 							<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-2 block`}>Collaborators</div>

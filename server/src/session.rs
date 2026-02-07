@@ -12,10 +12,20 @@ pub struct Session {
     pub id: String,
     pub document: Arc<RwLock<Document>>,
     pub clients: Arc<RwLock<HashMap<String, ClientInfo>>>,
+    pub client_roles: Arc<RwLock<HashMap<String, ClientRole>>>,
     pub client_id_maps: Arc<RwLock<HashMap<String, HashMap<u64, u64>>>>,
     pub operation_seq: Arc<AtomicU64>,
     pub broadcast_tx: Arc<broadcast::Sender<ServerMessage>>,
+    pub editor_token: String,
+    pub viewer_token: String,
     pub _created_at: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ClientRole {
+    Editor,
+    Viewer,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -23,18 +33,22 @@ pub struct ClientInfo {
     pub id: String,
     pub name: String,
     pub color: String,
+    pub role: ClientRole,
 }
 
 impl Session {
-    pub fn new(id: String, document: Document) -> Self {
+    pub fn new(id: String, document: Document, editor_token: String, viewer_token: String) -> Self {
         let (tx, _) = broadcast::channel::<ServerMessage>(10000);
         Self {
             id,
             document: Arc::new(RwLock::new(document)),
             clients: Arc::new(RwLock::new(HashMap::new())),
+            client_roles: Arc::new(RwLock::new(HashMap::new())),
             client_id_maps: Arc::new(RwLock::new(HashMap::new())),
             operation_seq: Arc::new(AtomicU64::new(0)),
             broadcast_tx: Arc::new(tx),
+            editor_token,
+            viewer_token,
             _created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -42,7 +56,7 @@ impl Session {
         }
     }
 
-    pub fn add_client(&self, client_id: String, name: String, color: String) {
+    pub fn add_client(&self, client_id: String, name: String, color: String, role: ClientRole) {
         let mut clients = self.clients.write().unwrap();
         let id = client_id.clone();
         clients.insert(
@@ -51,8 +65,11 @@ impl Session {
                 id: id.clone(),
                 name,
                 color,
+                role: role.clone(),
             },
         );
+        let mut roles = self.client_roles.write().unwrap();
+        roles.insert(id.clone(), role);
         let mut maps = self.client_id_maps.write().unwrap();
         maps.entry(id).or_default();
     }
@@ -60,6 +77,8 @@ impl Session {
     pub fn remove_client(&self, client_id: &str) {
         let mut clients = self.clients.write().unwrap();
         clients.remove(client_id);
+        let mut roles = self.client_roles.write().unwrap();
+        roles.remove(client_id);
         let mut maps = self.client_id_maps.write().unwrap();
         maps.remove(client_id);
     }
@@ -85,6 +104,22 @@ impl Session {
             .and_then(|m| m.get(&incoming_id).copied())
             .unwrap_or(incoming_id)
     }
+
+    pub fn validate_token_for_role(&self, token: &str, role: ClientRole) -> bool {
+        match role {
+            ClientRole::Editor => token == self.editor_token,
+            ClientRole::Viewer => token == self.viewer_token || token == self.editor_token,
+        }
+    }
+
+    pub fn validate_any_token(&self, token: &str) -> bool {
+        token == self.editor_token || token == self.viewer_token
+    }
+
+    pub fn can_client_edit(&self, client_id: &str) -> bool {
+        let roles = self.client_roles.read().unwrap();
+        matches!(roles.get(client_id), Some(ClientRole::Editor))
+    }
 }
 
 pub struct SessionManager {
@@ -104,10 +139,6 @@ impl SessionManager {
 
     pub fn get_session(&self, session_id: &str) -> Option<Session> {
         self.sessions.get(session_id).cloned()
-    }
-
-    pub fn session_exists(&self, session_id: &str) -> bool {
-        self.sessions.contains_key(session_id)
     }
 
     #[allow(dead_code)]

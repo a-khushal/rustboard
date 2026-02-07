@@ -21,8 +21,11 @@
 	onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionId = urlParams.get('session');
-		if (sessionId) {
-			joinSession(sessionId);
+		const token = urlParams.get('token');
+		const roleParam = urlParams.get('role');
+		const role: 'editor' | 'viewer' = roleParam === 'viewer' ? 'viewer' : 'editor';
+		if (sessionId && token) {
+			joinSession(sessionId, token, role);
 		}
 	});
 
@@ -35,24 +38,26 @@
 		errorMessage = '';
 
 		try {
-			const sessionId = await createSession();
+			const sessionInfo = await createSession();
+			const sessionId = sessionInfo.session_id;
 			const clientId = generateClientId();
 			const name = generateClientName();
 			const color = generateClientColor();
 
-			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=editor&token=${sessionInfo.editor_token}`;
 
 			const api = get(editorApi);
 			if (!api) {
 				throw new Error('Editor API not available');
 			}
 
-			await connectToSession(sessionId, clientId, name, color, api);
+			await connectToSession(sessionId, clientId, name, color, api, sessionInfo.editor_token, 'editor');
 
 			collaborationState.update(state => ({
 				...state,
 				sessionId,
 				clientId,
+				role: 'editor',
 				isHost: true,
 			}));
 		} catch (error) {
@@ -63,11 +68,11 @@
 		}
 	}
 
-	async function joinSession(sessionId: string) {
+	async function joinSession(sessionId: string, token: string, role: 'editor' | 'viewer' = 'editor') {
 		errorMessage = '';
-		const exists = await checkSessionExists(sessionId);
+		const exists = await checkSessionExists(sessionId, token);
 		if (!exists) {
-			errorMessage = 'Session not found. Please check the link.';
+			errorMessage = 'Session not found or token is invalid.';
 			return;
 		}
 
@@ -81,16 +86,17 @@
 				throw new Error('Editor API not available');
 			}
 
-			await connectToSession(sessionId, clientId, name, color, api);
+			await connectToSession(sessionId, clientId, name, color, api, token, role);
 
 			collaborationState.update(state => ({
 				...state,
 				sessionId,
 				clientId,
+				role,
 				isHost: false,
 			}));
 
-			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}`;
+			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=editor&token=${token}`;
 		} catch (error) {
 			console.error('Error joining session:', error);
 			errorMessage = 'Failed to join session. Please try again.';
@@ -121,6 +127,7 @@
 			isHost: false,
 			collaborators: [],
 			presenceByClient: {},
+			role: 'editor',
 		}));
 		shareUrl = '';
 		window.history.replaceState({}, '', window.location.pathname);

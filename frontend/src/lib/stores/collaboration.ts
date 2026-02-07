@@ -18,6 +18,7 @@ export interface CollaborationState {
 	clientId: string | null;
 	collaborators: Collaborator[];
 	presenceByClient: Record<string, CollaboratorPresence>;
+	role: 'editor' | 'viewer';
 	isHost: boolean;
 }
 
@@ -27,6 +28,7 @@ const initialState: CollaborationState = {
 	clientId: null,
 	collaborators: [],
 	presenceByClient: {},
+	role: 'editor',
 	isHost: false,
 };
 

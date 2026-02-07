@@ -1,6 +1,7 @@
 use axum::{
-    extract::{ws::WebSocketUpgrade, State},
-    response::Response,
+    extract::{ws::WebSocketUpgrade, Query, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -13,7 +14,7 @@ use uuid::Uuid;
 mod session;
 mod websocket;
 
-use session::{Session, SessionManager};
+use session::{ClientRole, Session, SessionManager};
 use websocket::handle_websocket;
 
 #[derive(Clone)]
@@ -44,41 +45,97 @@ async fn main() {
 async fn websocket_handler(
     ws: WebSocketUpgrade,
     axum::extract::Path(session_id): axum::extract::Path<String>,
+    Query(query): Query<WebSocketQuery>,
     State(state): State<AppState>,
 ) -> Response {
-    ws.on_upgrade(|socket| handle_websocket(socket, session_id, state))
+    let token = match query.token {
+        Some(token) if !token.is_empty() => token,
+        _ => return (StatusCode::UNAUTHORIZED, "Missing session token").into_response(),
+    };
+    let role = match query.role.as_deref() {
+        Some("viewer") => ClientRole::Viewer,
+        _ => ClientRole::Editor,
+    };
+
+    let session = {
+        let sessions = state.sessions.read().unwrap();
+        sessions.get_session(&session_id)
+    };
+    let Some(session) = session else {
+        return (StatusCode::NOT_FOUND, "Session not found").into_response();
+    };
+    if !session.validate_token_for_role(&token, role.clone()) {
+        return (StatusCode::FORBIDDEN, "Invalid token for requested role").into_response();
+    }
+
+    ws.on_upgrade(|socket| handle_websocket(socket, session_id, role, state))
 }
 
 #[derive(Serialize)]
 struct CreateSessionResponse {
     session_id: String,
-    url: String,
+    editor_token: String,
+    viewer_token: String,
+    editor_url: String,
+    viewer_url: String,
+}
+
+#[derive(serde::Deserialize)]
+struct WebSocketQuery {
+    token: Option<String>,
+    role: Option<String>,
 }
 
 async fn create_session(State(state): State<AppState>) -> axum::Json<CreateSessionResponse> {
     let session_id = Uuid::new_v4().to_string();
+    let editor_token = Uuid::new_v4().to_string();
+    let viewer_token = Uuid::new_v4().to_string();
     let mut sessions = state.sessions.write().unwrap();
     
     let document = Document::new();
-    let session = Session::new(session_id.clone(), document);
+    let session = Session::new(
+        session_id.clone(),
+        document,
+        editor_token.clone(),
+        viewer_token.clone(),
+    );
     sessions.create_session(session);
 
-    let url = format!("http://localhost:5173/?session={}", session_id);
+    let editor_url = format!(
+        "http://localhost:5173/?session={}&role=editor&token={}",
+        session_id, editor_token
+    );
+    let viewer_url = format!(
+        "http://localhost:5173/?session={}&role=viewer&token={}",
+        session_id, viewer_token
+    );
     
-    axum::Json(CreateSessionResponse { session_id, url })
+    axum::Json(CreateSessionResponse {
+        session_id,
+        editor_token,
+        viewer_token,
+        editor_url,
+        viewer_url,
+    })
 }
 
 #[derive(Serialize)]
 struct GetSessionResponse {
     exists: bool,
+    token_valid: bool,
 }
 
 async fn get_session(
     axum::extract::Path(session_id): axum::extract::Path<String>,
+    Query(query): Query<WebSocketQuery>,
     State(state): State<AppState>,
 ) -> axum::Json<GetSessionResponse> {
     let sessions = state.sessions.read().unwrap();
-    let exists = sessions.session_exists(&session_id);
-    axum::Json(GetSessionResponse { exists })
+    let session = sessions.get_session(&session_id);
+    let exists = session.is_some();
+    let token_valid = match (session, query.token) {
+        (Some(session), Some(token)) if !token.is_empty() => session.validate_any_token(&token),
+        _ => false,
+    };
+    axum::Json(GetSessionResponse { exists, token_valid })
 }
-

@@ -1,4 +1,4 @@
-use crate::session::{ClientInfo, Session};
+use crate::session::{ClientInfo, ClientRole, Session};
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -400,6 +400,7 @@ impl Operation {
 pub async fn handle_websocket(
     socket: WebSocket,
     session_id: String,
+    access_role: ClientRole,
     state: crate::AppState,
 ) {
     let (mut sender, mut receiver) = socket.split();
@@ -428,6 +429,7 @@ pub async fn handle_websocket(
     let client_id_for_log = client_id.clone();
     
     let session_clone = session.clone();
+    let session_for_send = session.clone();
     let tx_clone = tx.clone();
     
     let (direct_tx, mut direct_rx) = tokio::sync::mpsc::unbounded_channel::<ServerMessage>();
@@ -464,6 +466,29 @@ pub async fn handle_websocket(
                                     client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
                                 };
                                 warn!("Client {} lagged behind by {} messages, skipping", client_log, skipped);
+                                let full_sync_document = {
+                                    let doc = session_for_send.document.read().unwrap();
+                                    doc.serialize()
+                                };
+                                let full_sync_msg = ServerMessage::Update {
+                                    operation: Operation::FullSync {
+                                        data: full_sync_document,
+                                    },
+                                    client_id: "__server__".to_string(),
+                                    seq: session_for_send.next_operation_seq(),
+                                    source_local_id: None,
+                                };
+                                let json = match serde_json::to_string(&full_sync_msg) {
+                                    Ok(j) => j,
+                                    Err(e) => {
+                                        error!("Failed to serialize lag recovery FullSync: {}", e);
+                                        continue;
+                                    }
+                                };
+                                if let Err(e) = sender.send(Message::Text(json)).await {
+                                    warn!("Failed to send lag recovery FullSync to client {}: {}", client_log, e);
+                                    break;
+                                }
                                 continue;
                             }
                             Err(e) => {
@@ -530,6 +555,29 @@ pub async fn handle_websocket(
                             client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
                         };
                         warn!("Client {} lagged behind by {} messages, skipping", client_log, skipped);
+                        let full_sync_document = {
+                            let doc = session_for_send.document.read().unwrap();
+                            doc.serialize()
+                        };
+                        let full_sync_msg = ServerMessage::Update {
+                            operation: Operation::FullSync {
+                                data: full_sync_document,
+                            },
+                            client_id: "__server__".to_string(),
+                            seq: session_for_send.next_operation_seq(),
+                            source_local_id: None,
+                        };
+                        let json = match serde_json::to_string(&full_sync_msg) {
+                            Ok(j) => j,
+                            Err(e) => {
+                                error!("Failed to serialize lag recovery FullSync: {}", e);
+                                continue;
+                            }
+                        };
+                        if let Err(e) = sender.send(Message::Text(json)).await {
+                            warn!("Failed to send lag recovery FullSync to client {}: {}", client_log, e);
+                            break;
+                        }
                         continue;
                     }
                     Err(e) => {
@@ -562,7 +610,7 @@ pub async fn handle_websocket(
                             color,
                         }) => {
                             *client_id.lock().unwrap() = Some(id.clone());
-                            session_clone.add_client(id.clone(), name.clone(), color.clone());
+                            session_clone.add_client(id.clone(), name.clone(), color.clone(), access_role.clone());
 
                             let document_json = {
                                 let doc = session_clone.document.read().unwrap();
@@ -586,6 +634,7 @@ pub async fn handle_websocket(
                                     id: id.clone(),
                                     name,
                                     color,
+                                    role: access_role.clone(),
                                 },
                             };
 
@@ -605,6 +654,14 @@ pub async fn handle_websocket(
                                 client_id_guard.clone()
                             };
                             if let Some(id) = id_opt {
+                                if !session_clone.can_client_edit(&id) {
+                                    if let Err(e) = direct_tx.send(ServerMessage::Error {
+                                        message: "Viewer role cannot send updates".to_string(),
+                                    }) {
+                                        warn!("Failed to send viewer-permission error to client {}: {}", id, e);
+                                    }
+                                    continue;
+                                }
                                 info!("Received operation from client {}: {:?}", id, operation);
                                 let mut canonical_operation = operation.clone();
                                 let mut source_local_id = None;
