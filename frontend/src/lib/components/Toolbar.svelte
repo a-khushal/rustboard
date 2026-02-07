@@ -161,6 +161,7 @@
 			clientId: null,
 			isHost: false,
 			collaborators: [],
+			presenceByClient: {},
 		}));
 		shareUrl = '';
 		collaborationMenuOpen = false;

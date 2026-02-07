@@ -120,6 +120,7 @@
 			clientId: null,
 			isHost: false,
 			collaborators: [],
+			presenceByClient: {},
 		}));
 		shareUrl = '';
 		window.history.replaceState({}, '', window.location.pathname);
@@ -232,4 +233,3 @@
 		position: relative;
 	}
 </style>
-

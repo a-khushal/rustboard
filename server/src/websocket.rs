@@ -2,6 +2,7 @@ use crate::session::{ClientInfo, Session};
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,6 +15,10 @@ pub enum ClientMessage {
     },
     Update {
         operation: Operation,
+    },
+    Presence {
+        cursor: Option<Point>,
+        selected_ids: Vec<u64>,
     },
     Ping,
 }
@@ -261,11 +266,135 @@ pub enum ServerMessage {
     Update {
         operation: Operation,
         client_id: String,
+        seq: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_local_id: Option<u64>,
+    },
+    Presence {
+        client_id: String,
+        cursor: Option<Point>,
+        selected_ids: Vec<u64>,
     },
     Error {
         message: String,
     },
     Pong,
+}
+
+impl Operation {
+    fn id(&self) -> Option<u64> {
+        match self {
+            Operation::AddRectangle { id, .. }
+            | Operation::MoveRectangle { id, .. }
+            | Operation::ResizeRectangle { id, .. }
+            | Operation::DeleteRectangle { id, .. }
+            | Operation::AddEllipse { id, .. }
+            | Operation::MoveEllipse { id, .. }
+            | Operation::ResizeEllipse { id, .. }
+            | Operation::DeleteEllipse { id, .. }
+            | Operation::AddDiamond { id, .. }
+            | Operation::MoveDiamond { id, .. }
+            | Operation::ResizeDiamond { id, .. }
+            | Operation::DeleteDiamond { id, .. }
+            | Operation::AddLine { id, .. }
+            | Operation::MoveLine { id, .. }
+            | Operation::DeleteLine { id, .. }
+            | Operation::AddArrow { id, .. }
+            | Operation::MoveArrow { id, .. }
+            | Operation::DeleteArrow { id, .. }
+            | Operation::AddPath { id, .. }
+            | Operation::MovePath { id, .. }
+            | Operation::SetPathPoints { id, .. }
+            | Operation::DeletePath { id, .. }
+            | Operation::AddImage { id, .. }
+            | Operation::MoveImage { id, .. }
+            | Operation::ResizeImage { id, .. }
+            | Operation::DeleteImage { id, .. }
+            | Operation::AddText { id, .. }
+            | Operation::MoveText { id, .. }
+            | Operation::ResizeText { id, .. }
+            | Operation::UpdateText { id, .. }
+            | Operation::DeleteText { id, .. }
+            | Operation::SetRectangleStyle { id, .. }
+            | Operation::SetEllipseStyle { id, .. }
+            | Operation::SetDiamondStyle { id, .. }
+            | Operation::SetLineStyle { id, .. }
+            | Operation::SetArrowStyle { id, .. }
+            | Operation::SetPathStyle { id, .. }
+            | Operation::SetImageStyle { id, .. }
+            | Operation::SetTextStyle { id, .. }
+            | Operation::BringToFront { id, .. }
+            | Operation::BringForward { id, .. }
+            | Operation::SendBackward { id, .. }
+            | Operation::SendToBack { id, .. }
+            | Operation::SetElementLock { id, .. } => Some(*id),
+            Operation::FullSync { .. } => None,
+        }
+    }
+
+    fn id_mut(&mut self) -> Option<&mut u64> {
+        match self {
+            Operation::AddRectangle { id, .. }
+            | Operation::MoveRectangle { id, .. }
+            | Operation::ResizeRectangle { id, .. }
+            | Operation::DeleteRectangle { id, .. }
+            | Operation::AddEllipse { id, .. }
+            | Operation::MoveEllipse { id, .. }
+            | Operation::ResizeEllipse { id, .. }
+            | Operation::DeleteEllipse { id, .. }
+            | Operation::AddDiamond { id, .. }
+            | Operation::MoveDiamond { id, .. }
+            | Operation::ResizeDiamond { id, .. }
+            | Operation::DeleteDiamond { id, .. }
+            | Operation::AddLine { id, .. }
+            | Operation::MoveLine { id, .. }
+            | Operation::DeleteLine { id, .. }
+            | Operation::AddArrow { id, .. }
+            | Operation::MoveArrow { id, .. }
+            | Operation::DeleteArrow { id, .. }
+            | Operation::AddPath { id, .. }
+            | Operation::MovePath { id, .. }
+            | Operation::SetPathPoints { id, .. }
+            | Operation::DeletePath { id, .. }
+            | Operation::AddImage { id, .. }
+            | Operation::MoveImage { id, .. }
+            | Operation::ResizeImage { id, .. }
+            | Operation::DeleteImage { id, .. }
+            | Operation::AddText { id, .. }
+            | Operation::MoveText { id, .. }
+            | Operation::ResizeText { id, .. }
+            | Operation::UpdateText { id, .. }
+            | Operation::DeleteText { id, .. }
+            | Operation::SetRectangleStyle { id, .. }
+            | Operation::SetEllipseStyle { id, .. }
+            | Operation::SetDiamondStyle { id, .. }
+            | Operation::SetLineStyle { id, .. }
+            | Operation::SetArrowStyle { id, .. }
+            | Operation::SetPathStyle { id, .. }
+            | Operation::SetImageStyle { id, .. }
+            | Operation::SetTextStyle { id, .. }
+            | Operation::BringToFront { id, .. }
+            | Operation::BringForward { id, .. }
+            | Operation::SendBackward { id, .. }
+            | Operation::SendToBack { id, .. }
+            | Operation::SetElementLock { id, .. } => Some(id),
+            Operation::FullSync { .. } => None,
+        }
+    }
+
+    fn is_add_operation(&self) -> bool {
+        matches!(
+            self,
+            Operation::AddRectangle { .. }
+                | Operation::AddEllipse { .. }
+                | Operation::AddDiamond { .. }
+                | Operation::AddLine { .. }
+                | Operation::AddArrow { .. }
+                | Operation::AddPath { .. }
+                | Operation::AddImage { .. }
+                | Operation::AddText { .. }
+        )
+    }
 }
 
 pub async fn handle_websocket(
@@ -295,7 +424,6 @@ pub async fn handle_websocket(
 
     let session_id_for_log = session_id.clone();
     let session_id_for_send = session_id.clone();
-    use std::sync::{Arc, Mutex};
     let client_id: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let client_id_for_log = client_id.clone();
     
@@ -478,11 +606,35 @@ pub async fn handle_websocket(
                             };
                             if let Some(id) = id_opt {
                                 info!("Received operation from client {}: {:?}", id, operation);
-                                apply_operation(&operation, &session_clone);
-                                
+                                let mut canonical_operation = operation.clone();
+                                let mut source_local_id = None;
+
+                                if canonical_operation.is_add_operation() {
+                                    if let Some(local_id) = canonical_operation.id() {
+                                        source_local_id = Some(local_id);
+                                    }
+                                    if let Some(canonical_id) =
+                                        apply_operation(&canonical_operation, &session_clone)
+                                    {
+                                        if let Some(local_id) = source_local_id {
+                                            session_clone.map_client_local_id(&id, local_id, canonical_id);
+                                        }
+                                        if let Some(op_id) = canonical_operation.id_mut() {
+                                            *op_id = canonical_id;
+                                        }
+                                    }
+                                } else {
+                                    if let Some(op_id) = canonical_operation.id_mut() {
+                                        *op_id = session_clone.resolve_client_id(&id, *op_id);
+                                    }
+                                    apply_operation(&canonical_operation, &session_clone);
+                                }
+
                                 let update_msg = ServerMessage::Update {
-                                    operation: operation.clone(),
+                                    operation: canonical_operation.clone(),
                                     client_id: id.clone(),
+                                    seq: session_clone.next_operation_seq(),
+                                    source_local_id,
                                 };
                                 
                                 let receiver_count = tx_clone.receiver_count();
@@ -505,6 +657,22 @@ pub async fn handle_websocket(
                                     message: "Must join session before sending updates".to_string(),
                                 }) {
                                     warn!("Failed to send join-first error directly to client: {}", e);
+                                }
+                            }
+                        }
+                        Ok(ClientMessage::Presence { cursor, selected_ids }) => {
+                            let id_opt = {
+                                let client_id_guard = client_id.lock().unwrap();
+                                client_id_guard.clone()
+                            };
+                            if let Some(id) = id_opt {
+                                let presence_msg = ServerMessage::Presence {
+                                    client_id: id.clone(),
+                                    cursor,
+                                    selected_ids,
+                                };
+                                if let Err(e) = tx_clone.send(presence_msg) {
+                                    warn!("Failed to broadcast Presence from client {}: {}", id, e);
                                 }
                             }
                         }
@@ -556,14 +724,14 @@ pub async fn handle_websocket(
     info!("WebSocket connection closed for session {}", session_id);
 }
 
-fn apply_operation(operation: &Operation, session: &Session) {
+fn apply_operation(operation: &Operation, session: &Session) -> Option<u64> {
     let mut doc = session.document.write().unwrap();
     use rustboard_editor::geometry::Point as EditorPoint;
 
     match operation {
-        Operation::AddRectangle { id: _, position, width, height } => {
+        Operation::AddRectangle { position, width, height, .. } => {
             let point = EditorPoint { x: position.x, y: position.y };
-            doc.add_rectangle_without_snapshot(point, *width, *height);
+            return Some(doc.add_rectangle_without_snapshot(point, *width, *height));
         }
         Operation::MoveRectangle { id, position } => {
             let point = EditorPoint { x: position.x, y: position.y };
@@ -575,9 +743,9 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeleteRectangle { id } => {
             doc.delete_rectangle_without_snapshot(*id);
         }
-        Operation::AddEllipse { id: _, position, radius_x, radius_y } => {
+        Operation::AddEllipse { position, radius_x, radius_y, .. } => {
             let point = EditorPoint { x: position.x, y: position.y };
-            doc.add_ellipse_without_snapshot(point, *radius_x, *radius_y);
+            return Some(doc.add_ellipse_without_snapshot(point, *radius_x, *radius_y));
         }
         Operation::MoveEllipse { id, position } => {
             let point = EditorPoint { x: position.x, y: position.y };
@@ -589,9 +757,9 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeleteEllipse { id } => {
             doc.delete_ellipse_without_snapshot(*id);
         }
-        Operation::AddDiamond { id: _, position, width, height } => {
+        Operation::AddDiamond { position, width, height, .. } => {
             let point = EditorPoint { x: position.x, y: position.y };
-            doc.add_diamond_without_snapshot(point, *width, *height);
+            return Some(doc.add_diamond_without_snapshot(point, *width, *height));
         }
         Operation::MoveDiamond { id, position } => {
             let point = EditorPoint { x: position.x, y: position.y };
@@ -603,10 +771,10 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeleteDiamond { id } => {
             doc.delete_diamond_without_snapshot(*id);
         }
-        Operation::AddLine { id: _, start, end } => {
+        Operation::AddLine { start, end, .. } => {
             let start_point = EditorPoint { x: start.x, y: start.y };
             let end_point = EditorPoint { x: end.x, y: end.y };
-            doc.add_line_without_snapshot(start_point, end_point);
+            return Some(doc.add_line_without_snapshot(start_point, end_point));
         }
         Operation::MoveLine { id, start, end } => {
             let start_point = EditorPoint { x: start.x, y: start.y };
@@ -616,10 +784,10 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeleteLine { id } => {
             doc.delete_line_without_snapshot(*id);
         }
-        Operation::AddArrow { id: _, start, end } => {
+        Operation::AddArrow { start, end, .. } => {
             let start_point = EditorPoint { x: start.x, y: start.y };
             let end_point = EditorPoint { x: end.x, y: end.y };
-            doc.add_arrow_without_snapshot(start_point, end_point);
+            return Some(doc.add_arrow_without_snapshot(start_point, end_point));
         }
         Operation::MoveArrow { id, start, end } => {
             let start_point = EditorPoint { x: start.x, y: start.y };
@@ -629,9 +797,9 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeleteArrow { id } => {
             doc.delete_arrow_without_snapshot(*id);
         }
-        Operation::AddPath { id: _, points } => {
+        Operation::AddPath { points, .. } => {
             let editor_points: Vec<EditorPoint> = points.iter().map(|p| EditorPoint { x: p.x, y: p.y }).collect();
-            doc.add_path_without_snapshot(editor_points);
+            return Some(doc.add_path_without_snapshot(editor_points));
         }
         Operation::MovePath { id, offset_x, offset_y } => {
             doc.move_path(*id, *offset_x, *offset_y, false);
@@ -643,9 +811,9 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeletePath { id } => {
             doc.delete_path_without_snapshot(*id);
         }
-        Operation::AddImage { id: _, position, width, height, image_data } => {
+        Operation::AddImage { position, width, height, image_data, .. } => {
             let point = EditorPoint { x: position.x, y: position.y };
-            doc.add_image_without_snapshot(point, *width, *height, image_data.clone());
+            return Some(doc.add_image_without_snapshot(point, *width, *height, image_data.clone()));
         }
         Operation::MoveImage { id, position } => {
             let point = EditorPoint { x: position.x, y: position.y };
@@ -657,9 +825,9 @@ fn apply_operation(operation: &Operation, session: &Session) {
         Operation::DeleteImage { id } => {
             doc.delete_image_without_snapshot(*id);
         }
-        Operation::AddText { id: _, position, width, height, content } => {
+        Operation::AddText { position, width, height, content, .. } => {
             let point = EditorPoint { x: position.x, y: position.y };
-            doc.add_text_without_snapshot(point, *width, *height, content.clone());
+            return Some(doc.add_text_without_snapshot(point, *width, *height, content.clone()));
         }
         Operation::MoveText { id, position } => {
             let point = EditorPoint { x: position.x, y: position.y };
@@ -811,4 +979,6 @@ fn apply_operation(operation: &Operation, session: &Session) {
             doc.deserialize(data);
         }
     }
+
+    None
 }

@@ -32,7 +32,8 @@
 	import { pasteShapes } from '$lib/utils/paste-shapes';
 	import { clearAllSelections } from '$lib/utils/selection';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
-	import { sendOperation } from '$lib/utils/collaboration';
+	import { sendOperation, sendPresence } from '$lib/utils/collaboration';
+	import { collaborationState } from '$lib/stores/collaboration';
 	import Toolbar from './Toolbar.svelte';
 	import ZoomControls from './ZoomControls.svelte';
 	import UndoRedoControls from './UndoRedoControls.svelte';
@@ -110,6 +111,7 @@
 	let resizeStartShapeType: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path' | 'text' | null = null;
 	let resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
 	let resizeStartMousePos = { x: 0, y: 0 };
+	let resizeStartTextFontSize = 16;
 	let isShiftPressedDuringResize = false;
 	let dragOffset = { x: 0, y: 0 };
 	let resizePreview: { x: number; y: number; width: number; height: number; type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'diamond' | 'image' | 'path' | 'text'; id: number } | null = null;
@@ -1141,6 +1143,113 @@ function resetRotationState() {
 			x: worldX * zoomLevel + offset.x,
 			y: worldY * zoomLevel + offset.y
 		};
+	}
+
+	function getLocalSelectionIds(): number[] {
+		return [
+			...$selectedRectangles.map((shape) => shape.id),
+			...$selectedEllipses.map((shape) => shape.id),
+			...$selectedDiamonds.map((shape) => shape.id),
+			...$selectedLines.map((shape) => shape.id),
+			...$selectedArrows.map((shape) => shape.id),
+			...$selectedPaths.map((shape) => shape.id),
+			...$selectedImages.map((shape) => shape.id),
+			...$selectedTexts.map((shape) => shape.id)
+		];
+	}
+
+	function getElementBoundsById(id: number): { x: number; y: number; width: number; height: number } | null {
+		const rect = $rectangles.find((shape) => shape.id === id);
+		if (rect) return { x: rect.position.x, y: rect.position.y, width: rect.width, height: rect.height };
+
+		const ellipse = $ellipses.find((shape) => shape.id === id);
+		if (ellipse) {
+			return {
+				x: ellipse.position.x - ellipse.radius_x,
+				y: ellipse.position.y - ellipse.radius_y,
+				width: ellipse.radius_x * 2,
+				height: ellipse.radius_y * 2
+			};
+		}
+
+		const diamond = $diamonds.find((shape) => shape.id === id);
+		if (diamond) return { x: diamond.position.x, y: diamond.position.y, width: diamond.width, height: diamond.height };
+
+		const line = $lines.find((shape) => shape.id === id);
+		if (line) {
+			return {
+				x: Math.min(line.start.x, line.end.x),
+				y: Math.min(line.start.y, line.end.y),
+				width: Math.max(1, Math.abs(line.end.x - line.start.x)),
+				height: Math.max(1, Math.abs(line.end.y - line.start.y))
+			};
+		}
+
+		const arrow = $arrows.find((shape) => shape.id === id);
+		if (arrow) {
+			return {
+				x: Math.min(arrow.start.x, arrow.end.x),
+				y: Math.min(arrow.start.y, arrow.end.y),
+				width: Math.max(1, Math.abs(arrow.end.x - arrow.start.x)),
+				height: Math.max(1, Math.abs(arrow.end.y - arrow.start.y))
+			};
+		}
+
+		const image = $images.find((shape) => shape.id === id);
+		if (image) return { x: image.position.x, y: image.position.y, width: image.width, height: image.height };
+
+		const text = $texts.find((shape) => shape.id === id);
+		if (text) return { x: text.position.x, y: text.position.y, width: text.width, height: text.height };
+
+		const path = $paths.find((shape) => shape.id === id);
+		if (path) return getPathBoundingBox(path);
+
+		return null;
+	}
+
+	function renderCollaboratorSelections(renderCtx: CanvasRenderingContext2D) {
+		const myId = $collaborationState.clientId;
+		for (const collaborator of $collaborationState.collaborators) {
+			if (collaborator.id === myId) continue;
+			const presence = $collaborationState.presenceByClient[collaborator.id];
+			if (!presence || presence.selectedIds.length === 0) continue;
+			renderCtx.save();
+			renderCtx.strokeStyle = collaborator.color;
+			renderCtx.lineWidth = 1 / $zoom;
+			renderCtx.setLineDash([6 / $zoom, 4 / $zoom]);
+			for (const id of presence.selectedIds) {
+				const bounds = getElementBoundsById(id);
+				if (!bounds) continue;
+				renderCtx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+			}
+			renderCtx.restore();
+		}
+	}
+
+	function renderCollaboratorCursors(renderCtx: CanvasRenderingContext2D) {
+		const myId = $collaborationState.clientId;
+		for (const collaborator of $collaborationState.collaborators) {
+			if (collaborator.id === myId) continue;
+			const presence = $collaborationState.presenceByClient[collaborator.id];
+			if (!presence?.cursor) continue;
+			const cursor = worldToScreen(presence.cursor.x, presence.cursor.y, $viewportOffset, $zoom);
+			renderCtx.save();
+			renderCtx.fillStyle = collaborator.color;
+			renderCtx.strokeStyle = '#ffffff';
+			renderCtx.lineWidth = 1.5;
+			renderCtx.beginPath();
+			renderCtx.moveTo(cursor.x, cursor.y);
+			renderCtx.lineTo(cursor.x + 10, cursor.y + 18);
+			renderCtx.lineTo(cursor.x + 4, cursor.y + 14);
+			renderCtx.lineTo(cursor.x, cursor.y);
+			renderCtx.closePath();
+			renderCtx.fill();
+			renderCtx.stroke();
+			renderCtx.font = '12px Arial';
+			renderCtx.fillStyle = collaborator.color;
+			renderCtx.fillText(collaborator.name, cursor.x + 12, cursor.y + 16);
+			renderCtx.restore();
+		}
 	}
 
 	function getTextContentBounds(
@@ -2375,6 +2484,7 @@ function resetRotationState() {
 							width: text.width,
 							height: text.height
 						};
+						resizeStartTextFontSize = text.font_size || 16;
 						resizeStartMousePos = { x, y };
 						isShiftPressedDuringResize = isShiftPressed;
 						return;
@@ -2867,6 +2977,7 @@ function resetRotationState() {
 		lastMouseWorldPos = { x: worldPos.x, y: worldPos.y };
 
 		const { x, y } = worldPos;
+		sendPresence({ x, y }, getLocalSelectionIds());
 
 		if ($activeTool === 'freehand' && isDrawingFreehand) {
 			if (event.buttons === 0) {
@@ -3373,15 +3484,22 @@ function resetRotationState() {
 					const adjustsHorizontal = affectsLeft || affectsRight;
 					const adjustsVertical = affectsTop || affectsBottom;
 
-					let left = resizeStartPos.x;
-					let right = resizeStartPos.x + resizeStartPos.width;
-					let top = resizeStartPos.y;
-					let bottom = resizeStartPos.y + resizeStartPos.height;
+					const startLeft = resizeStartPos.x;
+					const startRight = resizeStartPos.x + resizeStartPos.width;
+					const startTop = resizeStartPos.y;
+					const startBottom = resizeStartPos.y + resizeStartPos.height;
+					const startCenterX = (startLeft + startRight) / 2;
+					const startCenterY = (startTop + startBottom) / 2;
 
-					if (affectsLeft) left = resizeStartPos.x + deltaX;
-					if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
-					if (affectsTop) top = resizeStartPos.y + deltaY;
-					if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
+					let left = startLeft;
+					let right = startRight;
+					let top = startTop;
+					let bottom = startBottom;
+
+					if (affectsLeft) left = startLeft + deltaX;
+					if (affectsRight) right = startRight + deltaX;
+					if (affectsTop) top = startTop + deltaY;
+					if (affectsBottom) bottom = startBottom + deltaY;
 
 					if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
 						const aspectRatio = resizeStartPos.width / resizeStartPos.height;
@@ -3395,71 +3513,60 @@ function resetRotationState() {
 							if (height >= 0) {
 								bottom = top + targetHeight;
 							} else {
-								top = bottom + targetHeight;
+								top = bottom - targetHeight;
 							}
 						} else {
 							const targetWidth = absHeight * aspectRatio;
 							if (width >= 0) {
 								right = left + targetWidth;
 							} else {
-								left = right + targetWidth;
+								left = right - targetWidth;
 							}
 						}
 					}
 
-					const finalLeft = Math.min(left, right);
-					const finalRight = Math.max(left, right);
-					const finalTop = Math.min(top, bottom);
-					const finalBottom = Math.max(top, bottom);
-
+					const proposedWidth = Math.max(10, Math.abs(right - left));
+					const proposedHeight = Math.max(10, Math.abs(bottom - top));
 					const startHeight = Math.max(1, resizeStartPos.height);
-					let newWidth = Math.max(10, finalRight - finalLeft);
-					let newHeight = Math.max(10, finalBottom - finalTop);
-					let scaleFactor = newHeight / startHeight;
-					let fontSize = (text.font_size || 16) * scaleFactor;
-					const fontWeight = text.font_weight || 'normal';
-					const fontFamily = text.font_family || 'Arial';
+					const scaleFactor = proposedHeight / startHeight;
+					const nextFontSize = Math.max(1, resizeStartTextFontSize * scaleFactor);
+					const minBounds = getTextContentBounds(
+						text.content,
+						nextFontSize,
+						text.font_weight || 'normal',
+						text.font_family || 'Arial'
+					);
 
-					let minBounds = getTextContentBounds(text.content, fontSize, fontWeight, fontFamily);
-					newWidth = Math.max(newWidth, minBounds.width);
-					newHeight = Math.max(newHeight, minBounds.height);
+					const finalWidth = Math.max(proposedWidth, minBounds.width);
+					const finalHeight = Math.max(proposedHeight, minBounds.height);
 
-					scaleFactor = newHeight / startHeight;
-					fontSize = (text.font_size || 16) * scaleFactor;
-					minBounds = getTextContentBounds(text.content, fontSize, fontWeight, fontFamily);
-					newWidth = Math.max(newWidth, minBounds.width);
-					newHeight = Math.max(newHeight, minBounds.height);
+					const anchorX = affectsLeft && !affectsRight
+						? startRight
+						: affectsRight && !affectsLeft
+							? startLeft
+							: startCenterX;
+					const anchorY = affectsTop && !affectsBottom
+						? startBottom
+						: affectsBottom && !affectsTop
+							? startTop
+							: startCenterY;
 
-					if (affectsLeft && !affectsRight) {
-						left = right - newWidth;
-					} else if (affectsRight && !affectsLeft) {
-						right = left + newWidth;
-					} else {
-						const centerX = (left + right) / 2;
-						left = centerX - newWidth / 2;
-						right = centerX + newWidth / 2;
-					}
-
-					if (affectsTop && !affectsBottom) {
-						top = bottom - newHeight;
-					} else if (affectsBottom && !affectsTop) {
-						bottom = top + newHeight;
-					} else {
-						const centerY = (top + bottom) / 2;
-						top = centerY - newHeight / 2;
-						bottom = centerY + newHeight / 2;
-					}
-
-					const adjustedLeft = Math.min(left, right);
-					const adjustedRight = Math.max(left, right);
-					const adjustedTop = Math.min(top, bottom);
-					const adjustedBottom = Math.max(top, bottom);
+					const finalLeft = affectsLeft && !affectsRight
+						? anchorX - finalWidth
+						: affectsRight && !affectsLeft
+							? anchorX
+							: anchorX - finalWidth / 2;
+					const finalTop = affectsTop && !affectsBottom
+						? anchorY - finalHeight
+						: affectsBottom && !affectsTop
+							? anchorY
+							: anchorY - finalHeight / 2;
 
 					resizePreview = {
-						x: adjustedLeft,
-						y: adjustedTop,
-						width: Math.max(10, adjustedRight - adjustedLeft),
-						height: Math.max(10, adjustedBottom - adjustedTop),
+						x: finalLeft,
+						y: finalTop,
+						width: finalWidth,
+						height: finalHeight,
 						type: 'text',
 						id: text.id
 					};
@@ -3807,19 +3914,19 @@ function resetRotationState() {
 			} else if (resizePreview.type === 'image') {
 				moveImage(resizePreview.id, resizePreview.x, resizePreview.y, true);
 				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
-			} else if (resizePreview.type === 'path') {
-				resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
-				} else if (resizePreview.type === 'text') {
-					const text = $texts.find(t => t.id === resizePreview!.id);
-					if (text) {
-						const scaleFactor = resizePreview.height / Math.max(1, resizeStartPos.height);
-						const newFontSize = (text.font_size || 16) * scaleFactor;
-						
-						moveText(resizePreview.id, resizePreview.x, resizePreview.y, true);
-						setTextFontSize(resizePreview.id, newFontSize, false);
-						resizeText(resizePreview.id, resizePreview.width, resizePreview.height, true);
+				} else if (resizePreview.type === 'path') {
+					resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
+					} else if (resizePreview.type === 'text') {
+						const text = $texts.find(t => t.id === resizePreview!.id);
+						if (text) {
+							const scaleFactor = resizePreview.height / Math.max(1, resizeStartPos.height);
+							const newFontSize = Math.max(1, resizeStartTextFontSize * scaleFactor);
+							
+							moveText(resizePreview.id, resizePreview.x, resizePreview.y, true);
+							setTextFontSize(resizePreview.id, newFontSize, false);
+							resizeText(resizePreview.id, resizePreview.width, resizePreview.height, true);
+						}
 					}
-				}
 			resizePreview = null;
 		}
 		
@@ -3909,16 +4016,17 @@ function resetRotationState() {
 			scheduleRender();
 		}
 
-		if (isResizing) {
-			isResizing = false;
-			resizeHandleIndex = null;
-			resizeStartShape = null;
-			resizeStartShapeType = null;
-			resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
-			resizeStartMousePos = { x: 0, y: 0 };
-			isShiftPressedDuringResize = false;
-			resizePreview = null;
-		}
+			if (isResizing) {
+				isResizing = false;
+				resizeHandleIndex = null;
+				resizeStartShape = null;
+				resizeStartShapeType = null;
+				resizeStartPos = { x: 0, y: 0, width: 0, height: 0 };
+				resizeStartMousePos = { x: 0, y: 0 };
+				resizeStartTextFontSize = 16;
+				isShiftPressedDuringResize = false;
+				resizePreview = null;
+			}
 		
 		if (isGroupResizing) {
 			if (groupResizeCurrentBox) {
@@ -4150,6 +4258,7 @@ function resetRotationState() {
 		if (isPanning) {
 			isPanning = false;
 		}
+		sendPresence(null, getLocalSelectionIds());
 	}
 	
 	function getSelectionOutlineBounds(
@@ -4746,6 +4855,73 @@ function resetRotationState() {
 		renderRotationHandleFromBounds(ctx, { x: outlineX, y: outlineY, width: outlineWidth, height: outlineHeight }, zoom, 0);
 	}
 
+	function getViewportWorldBounds() {
+		if (!canvas) return null;
+		const width = canvas.clientWidth || window.innerWidth;
+		const height = canvas.clientHeight || window.innerHeight;
+		return {
+			minX: -$viewportOffset.x / $zoom,
+			minY: -$viewportOffset.y / $zoom,
+			maxX: (width - $viewportOffset.x) / $zoom,
+			maxY: (height - $viewportOffset.y) / $zoom
+		};
+	}
+
+	function intersectsWorldBounds(
+		bounds: { minX: number; minY: number; maxX: number; maxY: number },
+		viewportBounds: { minX: number; minY: number; maxX: number; maxY: number },
+		padding: number
+	): boolean {
+		return !(
+			bounds.maxX < viewportBounds.minX - padding ||
+			bounds.minX > viewportBounds.maxX + padding ||
+			bounds.maxY < viewportBounds.minY - padding ||
+			bounds.minY > viewportBounds.maxY + padding
+		);
+	}
+
+	function getShapeWorldBoundsForCulling(item: { type: string; data: any }) {
+		if (item.type === 'rectangle' || item.type === 'diamond' || item.type === 'image' || item.type === 'text') {
+			const shape = item.data as Rectangle | Diamond | Image | EditorText;
+			return {
+				minX: shape.position.x,
+				minY: shape.position.y,
+				maxX: shape.position.x + shape.width,
+				maxY: shape.position.y + shape.height
+			};
+		}
+		if (item.type === 'ellipse') {
+			const ellipse = item.data as Ellipse;
+			return {
+				minX: ellipse.position.x - ellipse.radius_x,
+				minY: ellipse.position.y - ellipse.radius_y,
+				maxX: ellipse.position.x + ellipse.radius_x,
+				maxY: ellipse.position.y + ellipse.radius_y
+			};
+		}
+		if (item.type === 'line' || item.type === 'arrow') {
+			const edge = item.data as Line | Arrow;
+			return {
+				minX: Math.min(edge.start.x, edge.end.x),
+				minY: Math.min(edge.start.y, edge.end.y),
+				maxX: Math.max(edge.start.x, edge.end.x),
+				maxY: Math.max(edge.start.y, edge.end.y)
+			};
+		}
+		if (item.type === 'path') {
+			const path = item.data as Path;
+			const bounds = getPathBoundingBox(path);
+			if (!bounds) return null;
+			return {
+				minX: bounds.x,
+				minY: bounds.y,
+				maxX: bounds.x + bounds.width,
+				maxY: bounds.y + bounds.height
+			};
+		}
+		return null;
+	}
+
 	function render() {
 		if (!ctx || !canvas) return;
 		const renderCtx = ctx;
@@ -4783,24 +4959,44 @@ function resetRotationState() {
 
 		const showIndividualHandles = totalSelectionCount <= 1 && selectedGroupChildIds.size === 0;
 
-		const allShapes = [
-			...$rectangles.map(r => ({ type: 'rectangle', data: r })),
-			...$ellipses.map(e => ({ type: 'ellipse', data: e })),
-			...$diamonds.map(d => ({ type: 'diamond', data: d })),
+			const allShapes = [
+				...$rectangles.map(r => ({ type: 'rectangle', data: r })),
+				...$ellipses.map(e => ({ type: 'ellipse', data: e })),
+				...$diamonds.map(d => ({ type: 'diamond', data: d })),
 			...$lines.map(l => ({ type: 'line', data: l })),
 			...$arrows.map(a => ({ type: 'arrow', data: a })),
 			...$texts.map(t => ({ type: 'text', data: t })),
 			...$paths.map(p => ({ type: 'path', data: p })),
 			...$images.map(i => ({ type: 'image', data: i }))
-		];
+			];
 
-		allShapes.sort((a, b) => (a.data.z_index || 0) - (b.data.z_index || 0));
-		
-		renderCtx.save();
-		renderCtx.translate($viewportOffset.x, $viewportOffset.y);
-		renderCtx.scale($zoom, $zoom);
-		
-		allShapes.forEach(item => {
+			allShapes.sort((a, b) => (a.data.z_index || 0) - (b.data.z_index || 0));
+			const viewportWorldBounds = getViewportWorldBounds();
+			const cullPadding = 200 / $zoom;
+			const alwaysRenderIds = new Set<number>([
+				...$selectedRectangles.map((shape) => shape.id),
+				...$selectedEllipses.map((shape) => shape.id),
+				...$selectedDiamonds.map((shape) => shape.id),
+				...$selectedLines.map((shape) => shape.id),
+				...$selectedArrows.map((shape) => shape.id),
+				...$selectedTexts.map((shape) => shape.id),
+				...$selectedPaths.map((shape) => shape.id),
+				...$selectedImages.map((shape) => shape.id)
+			]);
+			const visibleShapes = !viewportWorldBounds
+				? allShapes
+				: allShapes.filter((item) => {
+					if (alwaysRenderIds.has(item.data.id)) return true;
+					const bounds = getShapeWorldBoundsForCulling(item);
+					if (!bounds) return true;
+					return intersectsWorldBounds(bounds, viewportWorldBounds, cullPadding);
+				});
+			
+			renderCtx.save();
+			renderCtx.translate($viewportOffset.x, $viewportOffset.y);
+			renderCtx.scale($zoom, $zoom);
+			
+			visibleShapes.forEach(item => {
 			if (item.type === 'rectangle') {
 				const rect = item.data as Rectangle;
 				const isSelected = $selectedRectangles.some(selected => selected.id === rect.id);
@@ -4900,8 +5096,8 @@ function resetRotationState() {
 					let selectionBoxWidth: number, selectionBoxHeight: number;
 
 						if (isResized && resizePreview) {
-							const scaleFactor = resizePreview.height / Math.max(1, text.height);
-							fontSize = (text.font_size || 16) * scaleFactor;
+							const scaleFactor = resizePreview.height / Math.max(1, resizeStartPos.height);
+							fontSize = resizeStartTextFontSize * scaleFactor;
 
 							renderX = resizePreview.x;
 							renderY = resizePreview.y;
@@ -5654,8 +5850,11 @@ function resetRotationState() {
 			renderCtx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 			renderCtx.setLineDash([]);
 		}
+
+		renderCollaboratorSelections(renderCtx);
 		
 		renderCtx.restore();
+		renderCollaboratorCursors(renderCtx);
 		
 		if ($activeTool === 'eraser') {
 			const currentPos = eraserPosition || lastMouseWorldPos;
@@ -5737,6 +5936,18 @@ function resetRotationState() {
 	});
 
 	$: if (canvas && $editorApi && !ctx) initCanvas();
+
+	$: {
+		$selectedRectangles;
+		$selectedEllipses;
+		$selectedDiamonds;
+		$selectedLines;
+		$selectedArrows;
+		$selectedPaths;
+		$selectedImages;
+		$selectedTexts;
+		sendPresence(lastMouseWorldPos, getLocalSelectionIds());
+	}
 	
 	$: {
 		const currentImageIds = new Set($images.map(img => img.id));
@@ -5780,6 +5991,7 @@ function resetRotationState() {
 		$groups;
 		$selectedGroups;
 		$theme;
+		$collaborationState;
 		$renderTrigger;
 		scheduleRender();
 	}

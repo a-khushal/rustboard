@@ -18,20 +18,26 @@ export interface Operation {
 }
 
 export interface ClientMessage {
-	type: 'Join' | 'Update' | 'Ping';
+	type: 'Join' | 'Update' | 'Presence' | 'Ping';
 	client_id?: string;
 	name?: string;
 	color?: string;
 	operation?: Operation;
+	cursor?: { x: number; y: number } | null;
+	selected_ids?: number[];
 }
 
 export interface ServerMessage {
-	type: 'Joined' | 'ClientJoined' | 'ClientLeft' | 'Update' | 'Error' | 'Pong';
+	type: 'Joined' | 'ClientJoined' | 'ClientLeft' | 'Update' | 'Presence' | 'Error' | 'Pong';
 	client_id?: string;
 	clients?: Array<{ id: string; name: string; color: string }>;
 	document?: string;
 	operation?: Operation;
 	client?: { id: string; name: string; color: string };
+	seq?: number;
+	source_local_id?: number;
+	cursor?: { x: number; y: number } | null;
+	selected_ids?: number[];
 	message?: string;
 }
 
@@ -41,6 +47,56 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 1000;
 let operationQueue: Operation[] = [];
+let lastAppliedSeq = 0;
+const localToServerId = new Map<number, number>();
+const serverToLocalId = new Map<number, number>();
+let pendingPresencePayload: { cursor: { x: number; y: number } | null; selected_ids: number[] } | null = null;
+let lastPresenceSentAt = 0;
+let lastPresenceSignature = '';
+const PRESENCE_THROTTLE_MS = 50;
+
+function resetRealtimeSyncState() {
+	lastAppliedSeq = 0;
+	localToServerId.clear();
+	serverToLocalId.clear();
+	pendingPresencePayload = null;
+	lastPresenceSentAt = 0;
+	lastPresenceSignature = '';
+}
+
+function registerIdMapping(localId: number, serverId: number) {
+	localToServerId.set(localId, serverId);
+	serverToLocalId.set(serverId, localId);
+}
+
+function resolveOutgoingId(id: number): number {
+	return localToServerId.get(id) ?? id;
+}
+
+function resolveIncomingId(id: number): number {
+	return serverToLocalId.get(id) ?? id;
+}
+
+function cloneOperation(operation: Operation): Operation {
+	return JSON.parse(JSON.stringify(operation)) as Operation;
+}
+
+function operationHasId(operation: Operation): boolean {
+	return typeof operation.id === 'number';
+}
+
+function isAddOperation(operation: Operation): boolean {
+	return operation.op.startsWith('Add');
+}
+
+function remapOperationId(operation: Operation, resolveId: (id: number) => number): Operation {
+	if (!operationHasId(operation)) {
+		return operation;
+	}
+	const mapped = cloneOperation(operation);
+	mapped.id = resolveId(mapped.id);
+	return mapped;
+}
 
 export function generateClientId(): string {
 	return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -104,6 +160,7 @@ export function connectToSession(
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			ws.close();
 		}
+		resetRealtimeSyncState();
 
 		const wsUrl = `${WS_URL}/ws/${sessionId}`;
 		ws = new WebSocket(wsUrl);
@@ -127,6 +184,7 @@ export function connectToSession(
 			collaborationState.update(state => ({
 				...state,
 				sessionId: state.sessionId || sessionId,
+				presenceByClient: {},
 			}));
 			
 			connectionTimeout = setTimeout(() => {
@@ -184,6 +242,7 @@ export function connectToSession(
 			collaborationState.update(state => ({
 				...state,
 				isConnected: false,
+				presenceByClient: {},
 			}));
 
 			const state = get(collaborationState);
@@ -218,6 +277,7 @@ async function handleServerMessage(
 					isConnected: true,
 					clientId: state.clientId || message.client_id!,
 					collaborators: message.clients!,
+					presenceByClient: {},
 				}));
 
 				if (message.document !== undefined) {
@@ -258,34 +318,82 @@ async function handleServerMessage(
 				collaborationState.update(state => ({
 					...state,
 					collaborators: state.collaborators.filter(c => c.id !== message.client_id),
+					presenceByClient: Object.fromEntries(
+						Object.entries(state.presenceByClient).filter(([id]) => id !== message.client_id)
+					),
 				}));
 			}
 			break;
 
 		case 'Update':
-			if (message.operation && message.client_id) {
+			if (message.operation && message.client_id && typeof message.seq === 'number') {
+				if (message.seq <= lastAppliedSeq) {
+					break;
+				}
+				lastAppliedSeq = message.seq;
+
 				const state = get(collaborationState);
 				console.log('Update received:', {
 					operation: message.operation.op,
 					fromClientId: message.client_id,
+					seq: message.seq,
 					myClientId: state.clientId,
 					isConnected: state.isConnected,
 					willApply: message.client_id !== state.clientId && state.isConnected
 				});
-				if (state.isConnected && message.client_id !== state.clientId) {
-					console.log('Applying remote operation:', message.operation.op);
-					applyOperation(message.operation, editorApi);
+				if (!state.isConnected) {
+					console.warn('Received Update but not connected yet, ignoring');
+					break;
+				}
+
+				if (message.client_id === state.clientId) {
+					if (
+						isAddOperation(message.operation) &&
+						typeof message.source_local_id === 'number' &&
+						typeof message.operation.id === 'number'
+					) {
+						registerIdMapping(message.source_local_id, message.operation.id);
+					}
+					break;
+				}
+
+				const incomingServerId = typeof message.operation.id === 'number' ? message.operation.id : null;
+				if (isAddOperation(message.operation) && incomingServerId !== null && serverToLocalId.has(incomingServerId)) {
+					break;
+				}
+
+				const localOperation = remapOperationId(message.operation, resolveIncomingId);
+				console.log('Applying remote operation:', localOperation.op);
+					const appliedId = await applyOperation(localOperation, editorApi);
+					if (isAddOperation(message.operation) && incomingServerId !== null && typeof appliedId === 'number') {
+						registerIdMapping(appliedId, incomingServerId);
+					}
 					await tick();
 					if (onUpdate) {
-						onUpdate(message.operation);
+						onUpdate(localOperation);
 					}
-				} else if (!state.isConnected) {
-					console.warn('Received Update but not connected yet, ignoring');
 				} else {
-					console.log('Ignoring own operation');
+				console.warn('Update message missing required fields:', message);
+			}
+			break;
+
+		case 'Presence':
+			if (message.client_id) {
+				const state = get(collaborationState);
+				if (message.client_id !== state.clientId) {
+					const mappedSelectedIds = (message.selected_ids ?? []).map((id) => resolveIncomingId(id));
+					collaborationState.update((current) => ({
+						...current,
+						presenceByClient: {
+							...current.presenceByClient,
+							[message.client_id!]: {
+								cursor: message.cursor ?? null,
+								selectedIds: mappedSelectedIds,
+								updatedAt: Date.now(),
+							},
+						},
+					}));
 				}
-			} else {
-				console.warn('Update message missing operation or client_id:', message);
 			}
 			break;
 
@@ -298,18 +406,19 @@ async function handleServerMessage(
 	}
 }
 
-async function applyOperation(operation: Operation, editorApi: EditorApi) {
+async function applyOperation(operation: Operation, editorApi: EditorApi): Promise<number | null> {
 	const op = operation.op;
 	
 	try {
+		let createdId: number | null = null;
 		switch (op) {
 			case 'AddRectangle':
-				editorApi.add_rectangle_without_snapshot(
+				createdId = Number(editorApi.add_rectangle_without_snapshot(
 					operation.position.x,
 					operation.position.y,
 					operation.width,
 					operation.height
-				);
+				));
 				break;
 			case 'MoveRectangle':
 				editorApi.move_rectangle(BigInt(operation.id), operation.position.x, operation.position.y, false);
@@ -321,12 +430,12 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				editorApi.delete_rectangle_without_snapshot(BigInt(operation.id));
 				break;
 			case 'AddEllipse':
-				editorApi.add_ellipse_without_snapshot(
+				createdId = Number(editorApi.add_ellipse_without_snapshot(
 					operation.position.x,
 					operation.position.y,
 					operation.radius_x,
 					operation.radius_y
-				);
+				));
 				break;
 			case 'MoveEllipse':
 				editorApi.move_ellipse(BigInt(operation.id), operation.position.x, operation.position.y, false);
@@ -338,12 +447,12 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				editorApi.delete_ellipse_without_snapshot(BigInt(operation.id));
 				break;
 			case 'AddDiamond':
-				editorApi.add_diamond_without_snapshot(
+				createdId = Number(editorApi.add_diamond_without_snapshot(
 					operation.position.x,
 					operation.position.y,
 					operation.width,
 					operation.height
-				);
+				));
 				break;
 			case 'MoveDiamond':
 				editorApi.move_diamond(BigInt(operation.id), operation.position.x, operation.position.y, false);
@@ -355,12 +464,12 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				editorApi.delete_diamond_without_snapshot(BigInt(operation.id));
 				break;
 			case 'AddLine':
-				editorApi.add_line_without_snapshot(
+				createdId = Number(editorApi.add_line_without_snapshot(
 					operation.start.x,
 					operation.start.y,
 					operation.end.x,
 					operation.end.y
-				);
+				));
 				break;
 			case 'MoveLine':
 				editorApi.move_line(
@@ -376,12 +485,12 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				editorApi.delete_line_without_snapshot(BigInt(operation.id));
 				break;
 			case 'AddArrow':
-				editorApi.add_arrow_without_snapshot(
+				createdId = Number(editorApi.add_arrow_without_snapshot(
 					operation.start.x,
 					operation.start.y,
 					operation.end.x,
 					operation.end.y
-				);
+				));
 				break;
 			case 'MoveArrow':
 				editorApi.move_arrow(
@@ -402,6 +511,7 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				const strokeColor = getStore(defaultStrokeColor);
 				editorApi.set_path_line_width(BigInt(pathId), strokeWidth, false);
 				editorApi.set_path_stroke_color(BigInt(pathId), strokeColor, false);
+				createdId = Number(pathId);
 				break;
 			case 'MovePath':
 				editorApi.move_path(BigInt(operation.id), operation.offset_x, operation.offset_y, false);
@@ -424,13 +534,13 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				editorApi.delete_path_without_snapshot(BigInt(operation.id));
 				break;
 			case 'AddImage':
-				editorApi.add_image_without_snapshot(
+				createdId = Number(editorApi.add_image_without_snapshot(
 					operation.position.x,
 					operation.position.y,
 					operation.width,
 					operation.height,
 					operation.image_data
-				);
+				));
 				break;
 			case 'MoveImage':
 				editorApi.move_image(BigInt(operation.id), operation.position.x, operation.position.y, false);
@@ -442,13 +552,13 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				editorApi.delete_image_without_snapshot(BigInt(operation.id));
 				break;
 			case 'AddText':
-				editorApi.add_text_without_snapshot(
+				createdId = Number(editorApi.add_text_without_snapshot(
 					operation.position.x,
 					operation.position.y,
 					operation.width,
 					operation.height,
 					operation.content
-				);
+				));
 				break;
 			case 'MoveText':
 				editorApi.move_text(BigInt(operation.id), operation.position.x, operation.position.y, false);
@@ -607,15 +717,18 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 		updateStores();
 		await tick();
 		renderTrigger.update(n => n + 1);
+		return createdId;
 	} catch (error) {
 		console.error('Error applying operation:', error, operation);
+		return null;
 	}
 }
 
 export function sendOperation(operation: Operation) {
 	const state = get(collaborationState);
+	const outgoingOperation = remapOperationId(operation, resolveOutgoingId);
 	console.log('sendOperation called:', {
-		op: operation.op,
+		op: outgoingOperation.op,
 		isConnected: state.isConnected,
 		clientId: state.clientId,
 		wsExists: !!ws,
@@ -630,22 +743,22 @@ export function sendOperation(operation: Operation) {
 	if (ws && ws.readyState === WebSocket.OPEN && state.isConnected && state.clientId) {
 		const message: ClientMessage = {
 			type: 'Update',
-			operation,
+			operation: outgoingOperation,
 		};
 		try {
 			const json = JSON.stringify(message);
-			console.log('Sending operation:', operation.op, operation);
+			console.log('Sending operation:', outgoingOperation.op, outgoingOperation);
 			ws.send(json);
 		} catch (error) {
-			console.error('Failed to serialize operation:', error, operation);
+			console.error('Failed to serialize operation:', error, outgoingOperation);
 		}
 	} else if (state.sessionId) {
-		console.log('Queueing operation until connection is ready:', operation.op, {
+		console.log('Queueing operation until connection is ready:', outgoingOperation.op, {
 			wsReady: ws?.readyState === WebSocket.OPEN,
 			isConnected: state.isConnected,
 			hasClientId: !!state.clientId
 		});
-		operationQueue.push(operation);
+		operationQueue.push(outgoingOperation);
 	} else {
 		console.warn('Cannot send operation - not connected:', {
 			isConnected: state.isConnected,
@@ -654,6 +767,50 @@ export function sendOperation(operation: Operation) {
 			clientId: state.clientId
 		});
 	}
+}
+
+function flushPresence() {
+	const state = get(collaborationState);
+	if (
+		!pendingPresencePayload ||
+		!ws ||
+		ws.readyState !== WebSocket.OPEN ||
+		!state.isConnected ||
+		!state.clientId
+	) {
+		return;
+	}
+
+	const now = Date.now();
+	if (now - lastPresenceSentAt < PRESENCE_THROTTLE_MS) {
+		setTimeout(flushPresence, PRESENCE_THROTTLE_MS - (now - lastPresenceSentAt));
+		return;
+	}
+
+	const payload = pendingPresencePayload;
+	pendingPresencePayload = null;
+	lastPresenceSentAt = now;
+
+	const signature = JSON.stringify(payload);
+	if (signature === lastPresenceSignature) {
+		return;
+	}
+	lastPresenceSignature = signature;
+
+	const message: ClientMessage = {
+		type: 'Presence',
+		cursor: payload.cursor,
+		selected_ids: payload.selected_ids,
+	};
+	ws.send(JSON.stringify(message));
+}
+
+export function sendPresence(cursor: { x: number; y: number } | null, selectedIds: number[]) {
+	pendingPresencePayload = {
+		cursor,
+		selected_ids: selectedIds.map((id) => resolveOutgoingId(id)),
+	};
+	flushPresence();
 }
 
 export function isCollaborationActive(): boolean {
@@ -670,11 +827,13 @@ export function disconnect() {
 		reconnectTimeout = null;
 	}
 	operationQueue = [];
+	resetRealtimeSyncState();
 	collaborationState.set({
 		isConnected: false,
 		sessionId: null,
 		clientId: null,
 		collaborators: [],
+		presenceByClient: {},
 		isHost: false,
 	});
 }
