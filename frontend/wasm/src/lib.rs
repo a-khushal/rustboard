@@ -256,6 +256,13 @@ impl EditorApi {
     }
 
     #[wasm_bindgen]
+    pub fn set_path_dash_pattern(&self, id: u64, pattern: String, save_history: bool) {
+        self.document
+            .borrow_mut()
+            .set_path_dash_pattern(id, pattern, save_history);
+    }
+
+    #[wasm_bindgen]
     pub fn set_path_rotation(&self, id: u64, angle: f64, save_history: bool) {
         self.document.borrow_mut().set_path_rotation(id, angle, save_history);
     }

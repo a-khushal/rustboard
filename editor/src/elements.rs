@@ -237,6 +237,8 @@ pub struct Path {
     pub stroke_color: String,
     #[serde(default = "default_line_width")]
     pub line_width: f64,
+    #[serde(default = "default_dash_pattern")]
+    pub dash_pattern: String,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
@@ -252,6 +254,7 @@ impl Path {
             points,
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
+            dash_pattern: default_dash_pattern(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
             locked: default_locked(),

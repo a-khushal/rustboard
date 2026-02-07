@@ -752,6 +752,17 @@ impl Document {
         }
     }
 
+    pub fn set_path_dash_pattern(&mut self, id: u64, pattern: String, save_history: bool) {
+        if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
+            if path.dash_pattern != pattern {
+                path.dash_pattern = pattern;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn move_path(&mut self, id: u64, delta_x: f64, delta_y: f64, save_history: bool) {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             for point in &mut path.points {

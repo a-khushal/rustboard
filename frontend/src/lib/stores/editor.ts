@@ -70,6 +70,7 @@ export interface Path {
 	points: Array<{ x: number; y: number }>;
 	stroke_color?: string;
 	line_width?: number;
+	dash_pattern?: string;
 	rotation_angle?: number;
 	z_index?: number;
 }

@@ -3,6 +3,7 @@ import { editorApi, paths, selectedPaths, type Path } from '$lib/stores/editor';
 import { get as getStore } from 'svelte/store';
 import { defaultStrokeWidth } from '$lib/stores/stroke-width';
 import { defaultStrokeColor } from '$lib/stores/stroke-color';
+import { dashPattern } from '$lib/stores/dash-pattern';
 import { sendOperation } from '$lib/utils/collaboration';
 
 export function addPath(points: Array<{ x: number; y: number }>): number | null {
@@ -11,10 +12,14 @@ export function addPath(points: Array<{ x: number; y: number }>): number | null 
 
     const strokeWidth = getStore(defaultStrokeWidth);
     const strokeColor = getStore(defaultStrokeColor);
+    const dashPatternValue = getStore(dashPattern);
 
     const newId = api.add_path(points);
     api.set_path_line_width(BigInt(newId), strokeWidth, false);
     api.set_path_stroke_color(BigInt(newId), strokeColor, false);
+    if (dashPatternValue !== 'solid') {
+        (api as any).set_path_dash_pattern(BigInt(newId), dashPatternValue, false);
+    }
     const updatedPaths = Array.from(api.get_paths() as Path[]);
     paths.set(updatedPaths);
 
@@ -60,7 +65,7 @@ export function setPathRotation(id: number, angle: number, saveHistory: boolean 
     if (!api) return;
 
     api.set_path_rotation(BigInt(id), angle, saveHistory);
-    updatePaths
+    updatePaths();
 }
 
 export function setPathPoints(id: number, points: Array<{ x: number; y: number }>, saveHistory: boolean = true): void {
@@ -90,4 +95,3 @@ export function updatePaths(): void {
         selectedPaths.set(updatedSelection.length > 0 ? updatedSelection : []);
     }
 }
-

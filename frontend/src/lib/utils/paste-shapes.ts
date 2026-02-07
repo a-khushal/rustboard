@@ -253,6 +253,9 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
             if (path.line_width) {
                 api.set_path_line_width(BigInt(newId), path.line_width, false);
             }
+            if (path.dash_pattern) {
+                (api as any).set_path_dash_pattern(BigInt(newId), path.dash_pattern, false);
+            }
             if (path.rotation_angle !== undefined) {
                 api.set_path_rotation(BigInt(newId), path.rotation_angle, false);
             }
@@ -313,4 +316,3 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
 
     return pastedIds;
 }
-

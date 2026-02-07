@@ -205,16 +205,22 @@ async function handleServerMessage(
 ) {
 	switch (message.type) {
 		case 'Joined':
-			if (message.client_id && message.clients && message.document) {
+			if (message.client_id && message.clients && message.document !== undefined) {
+				const currentState = get(collaborationState);
+				if (currentState.clientId && currentState.clientId !== message.client_id) {
+					console.log('Ignoring Joined message intended for another client:', message.client_id);
+					break;
+				}
+
 				console.log('Joined session, client_id:', message.client_id, 'isConnected: true');
 				collaborationState.update(state => ({
 					...state,
 					isConnected: true,
-					clientId: message.client_id!,
+					clientId: state.clientId || message.client_id!,
 					collaborators: message.clients!,
 				}));
 
-				if (message.document) {
+				if (message.document !== undefined) {
 					editorApi.deserialize(message.document);
 					updateStores();
 					await tick();
@@ -542,6 +548,9 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				if (operation.line_width !== undefined) {
 					editorApi.set_path_line_width(BigInt(operation.id), operation.line_width, false);
 				}
+				if (operation.dash_pattern !== undefined) {
+					(editorApi as any).set_path_dash_pattern(BigInt(operation.id), operation.dash_pattern, false);
+				}
 				if (operation.rotation_angle !== undefined) {
 					editorApi.set_path_rotation(BigInt(operation.id), operation.rotation_angle, false);
 				}
@@ -654,4 +663,3 @@ export function disconnect() {
 		isHost: false,
 	});
 }
-

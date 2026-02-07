@@ -44,6 +44,7 @@
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
 	import { defaultStrokeColor } from '$lib/stores/stroke-color';
+	import { dashPattern } from '$lib/stores/dash-pattern';
 	import { get as getStore } from 'svelte/store';
 
 	function getDefaultStrokeColor(): string {
@@ -1899,11 +1900,11 @@ function resetRotationState() {
 					break;
 				}
 
-				if (i > 0) {
-					const prevPoint = path.points[i - 1];
-					const segDx = prevPoint.x - point.x;
-					const segDy = prevPoint.y - point.y;
-					const segLength = Math.sqrt(segDx * segDx + segDy * segDy);
+					if (i > 0) {
+						const prevPoint = path.points[i - 1];
+						const segDx = point.x - prevPoint.x;
+						const segDy = point.y - prevPoint.y;
+						const segLength = Math.sqrt(segDx * segDx + segDy * segDy);
 
 					if (segLength > 0) {
 						const t = Math.max(0, Math.min(1, ((x - prevPoint.x) * segDx + (y - prevPoint.y) * segDy) / (segLength * segLength)));
@@ -5248,9 +5249,10 @@ function resetRotationState() {
 				const isDragged = isDragging && isSelected && selectedShapesStartPositions.paths.has(path.id);
 				const isResized = isResizing && resizePreview && resizePreview.type === 'path' && resizePreview.id === path.id;
 				const isRotated = isRotating && rotationPreview && rotationPreview.type === 'path' && rotationPreview.id === path.id;
-				const rotation = isRotated ? rotationPreview!.angle : (path.rotation_angle ?? 0);
-				const strokeColor = adaptColorToTheme(path.stroke_color, getDefaultStrokeColor());
-				const lineWidth = path.line_width || 2;
+					const rotation = isRotated ? rotationPreview!.angle : (path.rotation_angle ?? 0);
+					const strokeColor = adaptColorToTheme(path.stroke_color, getDefaultStrokeColor());
+					const lineWidth = path.line_width || 2;
+					const dashPatternValue = path.dash_pattern || 'solid';
 				
 				if (path.points.length > 0) {
 					let points: Array<{ x: number; y: number }>;
@@ -5287,11 +5289,18 @@ function resetRotationState() {
 							y: p.y - centerY
 						}));
 						
-						renderCtx.strokeStyle = strokeColor;
-						renderCtx.lineWidth = lineWidth;
-						renderCtx.lineCap = 'round';
-						renderCtx.lineJoin = 'round';
-						renderCtx.beginPath();
+							renderCtx.strokeStyle = strokeColor;
+							renderCtx.lineWidth = lineWidth;
+							if (dashPatternValue === 'dashed') {
+								renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+							} else if (dashPatternValue === 'dotted') {
+								renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+							} else {
+								renderCtx.setLineDash([]);
+							}
+							renderCtx.lineCap = 'round';
+							renderCtx.lineJoin = 'round';
+							renderCtx.beginPath();
 						
 						if (relativePoints.length === 1) {
 							renderCtx.moveTo(relativePoints[0].x, relativePoints[0].y);
@@ -5318,10 +5327,11 @@ function resetRotationState() {
 							const last = relativePoints[relativePoints.length - 1];
 							const secondLast = relativePoints[relativePoints.length - 2];
 							renderCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
-						}
-						
-						renderCtx.stroke();
-						renderCtx.restore();
+							}
+							
+							renderCtx.stroke();
+							renderCtx.setLineDash([]);
+							renderCtx.restore();
 						
 						if (isSelected && !selectedGroupChildIds.has(path.id)) {
 							const minX = pathBounds.x;
@@ -5477,12 +5487,20 @@ function resetRotationState() {
 			renderCtx.globalAlpha = 1.0;
 		}
 
-		if (isDrawingFreehand && freehandPoints.length > 0) {
-			renderCtx.strokeStyle = getDefaultStrokeColor();
-			renderCtx.lineWidth = 2;
-			renderCtx.lineCap = 'round';
-			renderCtx.lineJoin = 'round';
-			renderCtx.globalAlpha = 0.5;
+			if (isDrawingFreehand && freehandPoints.length > 0) {
+				renderCtx.strokeStyle = getDefaultStrokeColor();
+				renderCtx.lineWidth = 2;
+				const defaultDashPattern = getStore(dashPattern);
+				if (defaultDashPattern === 'dashed') {
+					renderCtx.setLineDash([8 / $zoom, 4 / $zoom]);
+				} else if (defaultDashPattern === 'dotted') {
+					renderCtx.setLineDash([2 / $zoom, 2 / $zoom]);
+				} else {
+					renderCtx.setLineDash([]);
+				}
+				renderCtx.lineCap = 'round';
+				renderCtx.lineJoin = 'round';
+				renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
 			
 			if (freehandPoints.length === 1) {
@@ -5511,10 +5529,11 @@ function resetRotationState() {
 				const secondLast = freehandPoints[freehandPoints.length - 2];
 				renderCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
 			}
-			
-			renderCtx.stroke();
-			renderCtx.globalAlpha = 1.0;
-		}
+				
+				renderCtx.stroke();
+				renderCtx.setLineDash([]);
+				renderCtx.globalAlpha = 1.0;
+			}
 		
 		renderCtx.restore();
 		
@@ -5725,4 +5744,3 @@ function resetRotationState() {
 		tabindex="0"
 	></canvas>
 </div>
-

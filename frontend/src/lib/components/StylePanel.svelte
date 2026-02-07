@@ -570,6 +570,7 @@
 		$selectedDiamonds.length > 0 ||
 		$selectedLines.length > 0 ||
 		$selectedArrows.length > 0 ||
+		$selectedPaths.length > 0 ||
 		$selectedImages.length > 0;
 
 	$: showDashPatternControls =
@@ -578,7 +579,8 @@
 		$activeTool === 'ellipse' ||
 		$activeTool === 'diamond' ||
 		$activeTool === 'line' ||
-		$activeTool === 'arrow';
+		$activeTool === 'arrow' ||
+		$activeTool === 'freehand';
 
 	$: hasImagesOnly = $selectedImages.length > 0 &&
 		$selectedRectangles.length === 0 &&
@@ -851,6 +853,10 @@
 			$editorApi.set_arrow_dash_pattern(BigInt(arrow.id), patternStr, false);
 		});
 
+		$selectedPaths.forEach((path) => {
+			($editorApi as any).set_path_dash_pattern(BigInt(path.id), patternStr, false);
+		});
+
 		$editorApi.save_snapshot();
 		updateStores();
 		saveStateToLocalStorage();
@@ -901,6 +907,10 @@
 			});
 			$selectedArrows.forEach(a => {
 				const dp = a.dash_pattern || 'solid';
+				allDashPatterns.push(dp);
+			});
+			$selectedPaths.forEach(p => {
+				const dp = p.dash_pattern || 'solid';
 				allDashPatterns.push(dp);
 			});
 

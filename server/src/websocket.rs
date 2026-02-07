@@ -201,6 +201,7 @@ pub enum Operation {
         id: u64,
         stroke_color: Option<String>,
         line_width: Option<f64>,
+        dash_pattern: Option<String>,
         rotation_angle: Option<f64>,
     },
     SetImageStyle {
@@ -285,7 +286,7 @@ pub async fn handle_websocket(
     let session_clone = session.clone();
     let tx_clone = tx.clone();
     
-    let (_direct_tx, mut direct_rx) = tokio::sync::mpsc::unbounded_channel::<ServerMessage>();
+    let (direct_tx, mut direct_rx) = tokio::sync::mpsc::unbounded_channel::<ServerMessage>();
     let mut direct_channel_open = true;
 
     let mut send_task = tokio::spawn(async move {
@@ -406,6 +407,7 @@ pub async fn handle_websocket(
     });
 
     let mut recv_task = tokio::spawn(async move {
+        let direct_tx = direct_tx;
         while let Some(Ok(msg)) = receiver.next().await {
             match msg {
                 Message::Text(text) => {
@@ -430,16 +432,9 @@ pub async fn handle_websocket(
                                 document: document_json,
                             };
                             
-                            let receiver_count = tx_clone.receiver_count();
-                            info!("Client {} joining, broadcasting Joined message to {} receivers", id, receiver_count);
-                            
-                            match tx_clone.send(join_msg) {
-                                Ok(sent_count) => {
-                                    info!("Joined message sent to {} receivers", sent_count);
-                                }
-                                Err(e) => {
-                                    error!("Failed to broadcast Joined message: {}", e);
-                                }
+                            if let Err(e) = direct_tx.send(join_msg) {
+                                error!("Failed to send Joined message directly to client {}: {}", id, e);
+                                continue;
                             }
 
                             let client_joined_msg = ServerMessage::ClientJoined {
@@ -490,20 +485,25 @@ pub async fn handle_websocket(
                                 }
                             } else {
                                 warn!("Received Update message but client_id is not set - client must join first");
-                                let _ = tx_clone.send(ServerMessage::Error {
+                                if let Err(e) = direct_tx.send(ServerMessage::Error {
                                     message: "Must join session before sending updates".to_string(),
-                                });
+                                }) {
+                                    warn!("Failed to send join-first error directly to client: {}", e);
+                                }
                             }
                         }
                         Ok(ClientMessage::Ping) => {
-                            let pong = ServerMessage::Pong;
-                            let _ = tx_clone.send(pong);
+                            if let Err(e) = direct_tx.send(ServerMessage::Pong) {
+                                warn!("Failed to send Pong directly to client: {}", e);
+                            }
                         }
                         Err(e) => {
                             warn!("Failed to parse message: {}", e);
-                            let _ = tx_clone.send(ServerMessage::Error {
+                            if let Err(send_err) = direct_tx.send(ServerMessage::Error {
                                 message: format!("Invalid message: {}", e),
-                            });
+                            }) {
+                                warn!("Failed to send parse error directly to client: {}", send_err);
+                            }
                         }
                     }
                 }
@@ -737,12 +737,15 @@ fn apply_operation(operation: &Operation, session: &Session) {
                 doc.set_arrow_dash_pattern(*id, pattern.clone(), false);
             }
         }
-        Operation::SetPathStyle { id, stroke_color, line_width, rotation_angle } => {
+        Operation::SetPathStyle { id, stroke_color, line_width, dash_pattern, rotation_angle } => {
             if let Some(color) = stroke_color {
                 doc.set_path_stroke_color(*id, color.clone(), false);
             }
             if let Some(width) = line_width {
                 doc.set_path_line_width(*id, *width, false);
+            }
+            if let Some(pattern) = dash_pattern {
+                doc.set_path_dash_pattern(*id, pattern.clone(), false);
             }
             if let Some(angle) = rotation_angle {
                 doc.set_path_rotation(*id, *angle, false);

@@ -207,18 +207,21 @@ export function exportToSVG(
 
 			svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="${lineWidth}"/>\n`;
 			svg += `<polygon points="${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}" fill="${strokeColor}"/>\n`;
-		} else if (item.type === 'path') {
-			const path = item.data as Path;
-			if (path.points.length > 0) {
-				const strokeColor = path.stroke_color || '#000000';
-				const lineWidth = path.line_width || 2;
-				let pathData = `M ${path.points[0].x + offsetX} ${path.points[0].y + offsetY}`;
-				for (let i = 1; i < path.points.length; i++) {
-					pathData += ` L ${path.points[i].x + offsetX} ${path.points[i].y + offsetY}`;
+			} else if (item.type === 'path') {
+				const path = item.data as Path;
+				if (path.points.length > 0) {
+					const strokeColor = path.stroke_color || '#000000';
+					const lineWidth = path.line_width || 2;
+					const dashPattern = path.dash_pattern || 'solid';
+					const dashArray = dashPattern === 'dashed' ? '8 4' : dashPattern === 'dotted' ? '2 2' : '';
+					let pathData = `M ${path.points[0].x + offsetX} ${path.points[0].y + offsetY}`;
+					for (let i = 1; i < path.points.length; i++) {
+						pathData += ` L ${path.points[i].x + offsetX} ${path.points[i].y + offsetY}`;
+					}
+					const dashAttr = dashArray ? ` stroke-dasharray="${dashArray}"` : '';
+					svg += `<path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"${dashAttr}/>\n`;
 				}
-				svg += `<path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>\n`;
-			}
-		} else if (item.type === 'image') {
+			} else if (item.type === 'image') {
 			const image = item.data as Image;
 			const x = image.position.x + offsetX;
 			const y = image.position.y + offsetY;
@@ -303,4 +306,3 @@ function escapeXml(text: string): string {
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&apos;');
 }
-
