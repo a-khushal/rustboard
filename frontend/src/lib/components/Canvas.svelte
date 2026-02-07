@@ -22,7 +22,7 @@
 		addArrow, moveArrow,
 		addPath, movePath, resizePath, setPathRotation, setPathPoints,
 		moveImage, resizeImage, setImageRotation,
-		moveText, resizeText, setTextContent, setTextFontSize, setTextFontFamily, setTextTextAlign, setTextColor, setTextRotation
+		addText, moveText, resizeText, setTextContent, setTextFontSize, setTextFontFamily, setTextTextAlign, setTextColor, setTextRotation
 	} from '$lib/utils/canvas-operations/index';
 	import { updatePaths } from '$lib/utils/canvas-operations/path';
 	import { handleViewportScroll } from '$lib/utils/viewport-scroll';
@@ -188,6 +188,8 @@
 	let isGroupRotating = false;
 	let groupRotationState: { center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	const imageCache = new Map<number, HTMLImageElement>();
+	let textMeasureCanvas: HTMLCanvasElement | null = null;
+	let textMeasureCtx: CanvasRenderingContext2D | null = null;
 	const resizeCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
 	const ROTATION_HANDLE_DISTANCE = 18;
 	const ROTATION_HANDLE_RADIUS = 5;
@@ -1138,6 +1140,38 @@ function resetRotationState() {
 		return {
 			x: worldX * zoomLevel + offset.x,
 			y: worldY * zoomLevel + offset.y
+		};
+	}
+
+	function getTextContentBounds(
+		content: string,
+		fontSize: number,
+		fontWeight: string,
+		fontFamily: string
+	): { width: number; height: number } {
+		if (!textMeasureCanvas) {
+			textMeasureCanvas = document.createElement('canvas');
+			textMeasureCtx = textMeasureCanvas.getContext('2d');
+		}
+
+		const measureCtx = textMeasureCtx;
+		if (!measureCtx) {
+			const lines = content.split('\n');
+			const lineHeight = fontSize * 1.1;
+			return { width: 10, height: Math.max(10, lines.length * lineHeight) };
+		}
+
+		measureCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+		const lines = content.split('\n');
+		let maxWidth = 0;
+		for (const line of lines) {
+			const width = measureCtx.measureText(line).width;
+			if (width > maxWidth) maxWidth = width;
+		}
+		const lineHeight = fontSize * 1.1;
+		return {
+			width: Math.max(10, maxWidth + 4),
+			height: Math.max(10, lines.length * lineHeight)
 		};
 	}
 
@@ -2535,9 +2569,11 @@ function resetRotationState() {
 		} else if ($activeTool === 'text') {
 			resetRotationState();
 			clearAllSelections();
-			const newId = $editorApi.add_text(x, y, 100, 30, '');
+			const newId = addText(x, y, '');
+			if (newId === null) return;
 			const strokeColor = getStore(defaultStrokeColor);
 			$editorApi.set_text_color(BigInt(newId), strokeColor, false);
+			sendOperation({ op: 'SetTextStyle', id: newId, color: strokeColor });
 			const allTexts = Array.from($editorApi.get_texts() as EditorText[]);
 			const newText = allTexts.find(t => t.id === Number(newId));
 			if (newText) {
@@ -2627,13 +2663,13 @@ function resetRotationState() {
 			const newContent = input.value;
 			const trimmedContent = newContent.trim();
 
-			if (trimmedContent === '') {
-				deleteShapes([], [], [], [], [], [text.id], [], []);
-				selectedTexts.set([]);
-			} else {
-				if (newContent !== text.content) {
-					$editorApi!.set_text_content(BigInt(text.id), newContent, true);
-				}
+				if (trimmedContent === '') {
+					deleteShapes([], [], [], [], [], [text.id], [], []);
+					selectedTexts.set([]);
+				} else {
+					if (newContent !== text.content) {
+						setTextContent(text.id, newContent, true);
+					}
 
 				const lines = newContent.split('\n');
 				const fontSize = text.font_size || 16;
@@ -3328,45 +3364,107 @@ function resetRotationState() {
 
 				resizePreview = { x: finalLeft, y: finalTop, width: newWidth, height: newHeight, type: 'path', id: path.id };
 				scheduleRender();
-			} else if (resizeStartShapeType === 'text') {
-				const text = resizeStartShape as EditorText;
-				const centerX = resizeStartPos.x + resizeStartPos.width / 2;
-				const centerY = resizeStartPos.y + resizeStartPos.height / 2;
+				} else if (resizeStartShapeType === 'text') {
+					const text = resizeStartShape as EditorText;
+					const affectsLeft = resizeHandleIndex === 0 || resizeHandleIndex === 3 || resizeHandleIndex === 7;
+					const affectsRight = resizeHandleIndex === 1 || resizeHandleIndex === 2 || resizeHandleIndex === 5;
+					const affectsTop = resizeHandleIndex === 0 || resizeHandleIndex === 1 || resizeHandleIndex === 4;
+					const affectsBottom = resizeHandleIndex === 2 || resizeHandleIndex === 3 || resizeHandleIndex === 6;
+					const adjustsHorizontal = affectsLeft || affectsRight;
+					const adjustsVertical = affectsTop || affectsBottom;
 
-				const handlePositions = [
-					{ x: resizeStartPos.x, y: resizeStartPos.y },
-					{ x: resizeStartPos.x + resizeStartPos.width, y: resizeStartPos.y },
-					{ x: resizeStartPos.x + resizeStartPos.width, y: resizeStartPos.y + resizeStartPos.height },
-					{ x: resizeStartPos.x, y: resizeStartPos.y + resizeStartPos.height }
-				];
+					let left = resizeStartPos.x;
+					let right = resizeStartPos.x + resizeStartPos.width;
+					let top = resizeStartPos.y;
+					let bottom = resizeStartPos.y + resizeStartPos.height;
 
-				const handleIndex = resizeHandleIndex || 0;
-				const originalHandlePos = handlePositions[handleIndex];
-				const originalDistance = Math.sqrt(
-					Math.pow(originalHandlePos.x - centerX, 2) + Math.pow(originalHandlePos.y - centerY, 2)
-				);
+					if (affectsLeft) left = resizeStartPos.x + deltaX;
+					if (affectsRight) right = resizeStartPos.x + resizeStartPos.width + deltaX;
+					if (affectsTop) top = resizeStartPos.y + deltaY;
+					if (affectsBottom) bottom = resizeStartPos.y + resizeStartPos.height + deltaY;
 
-				const currentMouseX = resizeStartMousePos.x + deltaX;
-				const currentMouseY = resizeStartMousePos.y + deltaY;
-				const currentDistance = Math.sqrt(
-					Math.pow(currentMouseX - centerX, 2) + Math.pow(currentMouseY - centerY, 2)
-				);
+					if (isShiftPressedDuringResize && adjustsHorizontal && adjustsVertical && resizeStartPos.height !== 0) {
+						const aspectRatio = resizeStartPos.width / resizeStartPos.height;
+						const width = right - left;
+						const height = bottom - top;
+						const absWidth = Math.abs(width);
+						const absHeight = Math.abs(height);
 
-				const scale = Math.max(0.1, currentDistance / originalDistance);
+						if (absHeight === 0 || absWidth / absHeight > aspectRatio) {
+							const targetHeight = absWidth / aspectRatio;
+							if (height >= 0) {
+								bottom = top + targetHeight;
+							} else {
+								top = bottom + targetHeight;
+							}
+						} else {
+							const targetWidth = absHeight * aspectRatio;
+							if (width >= 0) {
+								right = left + targetWidth;
+							} else {
+								left = right + targetWidth;
+							}
+						}
+					}
 
-				const newWidth = Math.max(10, resizeStartPos.width * scale);
-				const newHeight = Math.max(10, resizeStartPos.height * scale);
+					const finalLeft = Math.min(left, right);
+					const finalRight = Math.max(left, right);
+					const finalTop = Math.min(top, bottom);
+					const finalBottom = Math.max(top, bottom);
 
-				resizePreview = {
-					x: centerX - newWidth / 2,
-					y: centerY - newHeight / 2,
-					width: newWidth,
-					height: newHeight,
-					type: 'text',
-					id: text.id
-				};
-				scheduleRender();
-			}
+					const startHeight = Math.max(1, resizeStartPos.height);
+					let newWidth = Math.max(10, finalRight - finalLeft);
+					let newHeight = Math.max(10, finalBottom - finalTop);
+					let scaleFactor = newHeight / startHeight;
+					let fontSize = (text.font_size || 16) * scaleFactor;
+					const fontWeight = text.font_weight || 'normal';
+					const fontFamily = text.font_family || 'Arial';
+
+					let minBounds = getTextContentBounds(text.content, fontSize, fontWeight, fontFamily);
+					newWidth = Math.max(newWidth, minBounds.width);
+					newHeight = Math.max(newHeight, minBounds.height);
+
+					scaleFactor = newHeight / startHeight;
+					fontSize = (text.font_size || 16) * scaleFactor;
+					minBounds = getTextContentBounds(text.content, fontSize, fontWeight, fontFamily);
+					newWidth = Math.max(newWidth, minBounds.width);
+					newHeight = Math.max(newHeight, minBounds.height);
+
+					if (affectsLeft && !affectsRight) {
+						left = right - newWidth;
+					} else if (affectsRight && !affectsLeft) {
+						right = left + newWidth;
+					} else {
+						const centerX = (left + right) / 2;
+						left = centerX - newWidth / 2;
+						right = centerX + newWidth / 2;
+					}
+
+					if (affectsTop && !affectsBottom) {
+						top = bottom - newHeight;
+					} else if (affectsBottom && !affectsTop) {
+						bottom = top + newHeight;
+					} else {
+						const centerY = (top + bottom) / 2;
+						top = centerY - newHeight / 2;
+						bottom = centerY + newHeight / 2;
+					}
+
+					const adjustedLeft = Math.min(left, right);
+					const adjustedRight = Math.max(left, right);
+					const adjustedTop = Math.min(top, bottom);
+					const adjustedBottom = Math.max(top, bottom);
+
+					resizePreview = {
+						x: adjustedLeft,
+						y: adjustedTop,
+						width: Math.max(10, adjustedRight - adjustedLeft),
+						height: Math.max(10, adjustedBottom - adjustedTop),
+						type: 'text',
+						id: text.id
+					};
+					scheduleRender();
+				}
 			return;
 		}
 		
@@ -3711,41 +3809,17 @@ function resetRotationState() {
 				resizeImage(resizePreview.id, resizePreview.width, resizePreview.height, false);
 			} else if (resizePreview.type === 'path') {
 				resizePath(resizePreview.id, resizePreview.x, resizePreview.y, resizePreview.width, resizePreview.height, true);
-			} else if (resizePreview.type === 'text') {
-				const text = $texts.find(t => t.id === resizePreview!.id);
-				if (text) {
-					const oldHeight = text.height;
-					const newHeight = resizePreview.height;
-					const scaleFactor = newHeight / oldHeight;
-					const newFontSize = (text.font_size || 16) * scaleFactor;
-					
-					moveText(resizePreview.id, resizePreview.x, resizePreview.y, true);
-					setTextFontSize(resizePreview.id, newFontSize, true);
-					
-					const lines = text.content.split('\n');
-					const lineHeight = newFontSize * 1.1;
-					const calculatedHeight = lines.length * lineHeight;
-					
-					let calculatedWidth = 4;
-					
-					if (canvas) {
-						const ctx = canvas.getContext('2d');
-						if (ctx) {
-							ctx.font = `${text.font_weight || 'normal'} ${newFontSize}px ${text.font_family || 'Arial'}`;
-							let maxW = 0;
-							for (const line of lines) {
-								const w = ctx.measureText(line).width;
-								if (w > maxW) maxW = w;
-							}
-							if (maxW > 0) {
-								calculatedWidth = maxW + 4;
-							}
-						}
+				} else if (resizePreview.type === 'text') {
+					const text = $texts.find(t => t.id === resizePreview!.id);
+					if (text) {
+						const scaleFactor = resizePreview.height / Math.max(1, resizeStartPos.height);
+						const newFontSize = (text.font_size || 16) * scaleFactor;
+						
+						moveText(resizePreview.id, resizePreview.x, resizePreview.y, true);
+						setTextFontSize(resizePreview.id, newFontSize, false);
+						resizeText(resizePreview.id, resizePreview.width, resizePreview.height, true);
 					}
-					
-					resizeText(resizePreview.id, calculatedWidth, calculatedHeight, true);
 				}
-			}
 			resizePreview = null;
 		}
 		
@@ -4825,38 +4899,17 @@ function resetRotationState() {
 					let fontSize = text.font_size || 16;
 					let selectionBoxWidth: number, selectionBoxHeight: number;
 
-					if (isResized && resizePreview) {
-						const scaleFactor = resizePreview.height / text.height;
-						fontSize = (text.font_size || 16) * scaleFactor;
-						
-						const lines = text.content.split('\n');
-						const lineHeight = fontSize * 1.1;
-						const calculatedHeight = lines.length * lineHeight;
-						
-						let calculatedWidth = 4;
-						
-						if (canvas) {
-							const ctx = canvas.getContext('2d');
-							if (ctx) {
-								ctx.font = `${text.font_weight || 'normal'} ${fontSize}px ${text.font_family || 'Arial'}`;
-								let maxW = 0;
-								for (const line of lines) {
-									const w = ctx.measureText(line).width;
-									if (w > maxW) maxW = w;
-								}
-								if (maxW > 0) {
-									calculatedWidth = maxW + 4;
-								}
-							}
-						}
-						
-						renderX = resizePreview.x;
-						renderY = resizePreview.y;
-						renderWidth = calculatedWidth;
-						renderHeight = calculatedHeight;
-						selectionBoxWidth = calculatedWidth;
-						selectionBoxHeight = calculatedHeight;
-					} else if (isDragged) {
+						if (isResized && resizePreview) {
+							const scaleFactor = resizePreview.height / Math.max(1, text.height);
+							fontSize = (text.font_size || 16) * scaleFactor;
+
+							renderX = resizePreview.x;
+							renderY = resizePreview.y;
+							renderWidth = resizePreview.width;
+							renderHeight = resizePreview.height;
+							selectionBoxWidth = resizePreview.width;
+							selectionBoxHeight = resizePreview.height;
+						} else if (isDragged) {
 						const startPos = selectedShapesStartPositions.texts?.get(text.id)!;
 						renderX = startPos.x + dragOffset.x;
 						renderY = startPos.y + dragOffset.y;
@@ -4888,28 +4941,32 @@ function resetRotationState() {
 					}
 				}
 
-				renderCtx.save();
-				renderCtx.translate(renderX + renderWidth / 2, renderY + renderHeight / 2);
-				renderCtx.rotate(rotation);
+					renderCtx.save();
+					renderCtx.translate(renderX + renderWidth / 2, renderY + renderHeight / 2);
+					renderCtx.rotate(rotation);
 
-				const lines = text.content.split('\n');
+					const lines = text.content.split('\n');
 
-				renderCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-				renderCtx.fillStyle = color;
-				renderCtx.textAlign = 'center';
-				renderCtx.textBaseline = 'middle';
+					renderCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+					renderCtx.fillStyle = color;
+					renderCtx.textAlign = textAlign as CanvasTextAlign;
+					renderCtx.textBaseline = 'top';
 
-				const opacity = (text as any).opacity ?? 1.0;
-				renderCtx.globalAlpha = opacity;
+					const opacity = (text as any).opacity ?? 1.0;
+					renderCtx.globalAlpha = opacity;
 
-				const lineHeight = fontSize * 1.1;
-				const totalTextHeight = lines.length * lineHeight;
-				const textY = -totalTextHeight / 2 + lineHeight / 2;
+					const lineHeight = fontSize * 1.1;
+					const textY = -renderHeight / 2;
+					const textX = textAlign === 'left'
+						? -renderWidth / 2
+						: textAlign === 'right'
+							? renderWidth / 2
+							: 0;
 
-				for (let i = 0; i < lines.length; i++) {
-					renderCtx.fillText(lines[i], 0, textY + i * lineHeight);
-				}
-				}
+					for (let i = 0; i < lines.length; i++) {
+						renderCtx.fillText(lines[i], textX, textY + i * lineHeight);
+					}
+					}
 
 				renderCtx.restore();
 			} else if (item.type === 'ellipse') {
@@ -5405,13 +5462,15 @@ function resetRotationState() {
 			}
 		});
 		
-		if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
-			renderCtx.strokeStyle = getDefaultStrokeColor();
-			renderCtx.lineWidth = 2;
-			renderCtx.globalAlpha = 0.5;
-			renderCtx.strokeRect(previewRect.x, previewRect.y, previewRect.width, previewRect.height);
-			renderCtx.globalAlpha = 1.0;
-		}
+			const previewStrokeColor = adaptColorToTheme(getStore(defaultStrokeColor), getDefaultStrokeColor());
+
+			if (isCreatingRectangle && previewRect && previewRect.width > 0 && previewRect.height > 0) {
+				renderCtx.strokeStyle = previewStrokeColor;
+				renderCtx.lineWidth = 2;
+				renderCtx.globalAlpha = 0.5;
+				renderCtx.strokeRect(previewRect.x, previewRect.y, previewRect.width, previewRect.height);
+				renderCtx.globalAlpha = 1.0;
+			}
 		
 		if (isCreatingEllipse) {
 			const minX = Math.min(createStartPos.x, createCurrentPos.x);
@@ -5434,26 +5493,26 @@ function resetRotationState() {
 				radius_y = maxRadius;
 			}
 			
-			if (radius_x > 0 && radius_y > 0) {
-				renderCtx.strokeStyle = getDefaultStrokeColor();
-				renderCtx.lineWidth = 2;
-				renderCtx.globalAlpha = 0.5;
-				renderCtx.beginPath();
-				renderCtx.ellipse(centerX, centerY, radius_x, radius_y, 0, 0, 2 * Math.PI);
+				if (radius_x > 0 && radius_y > 0) {
+					renderCtx.strokeStyle = previewStrokeColor;
+					renderCtx.lineWidth = 2;
+					renderCtx.globalAlpha = 0.5;
+					renderCtx.beginPath();
+					renderCtx.ellipse(centerX, centerY, radius_x, radius_y, 0, 0, 2 * Math.PI);
 				renderCtx.stroke();
 				renderCtx.globalAlpha = 1.0;
 			}
 		}
 		
-		if (isCreatingDiamond && previewRect && previewRect.width > 0 && previewRect.height > 0) {
-			const centerX = previewRect.x + previewRect.width / 2;
-			const centerY = previewRect.y + previewRect.height / 2;
-			const halfWidth = previewRect.width / 2;
-			const halfHeight = previewRect.height / 2;
-			
-			renderCtx.strokeStyle = getDefaultStrokeColor();
-			renderCtx.lineWidth = 2;
-			renderCtx.globalAlpha = 0.5;
+			if (isCreatingDiamond && previewRect && previewRect.width > 0 && previewRect.height > 0) {
+				const centerX = previewRect.x + previewRect.width / 2;
+				const centerY = previewRect.y + previewRect.height / 2;
+				const halfWidth = previewRect.width / 2;
+				const halfHeight = previewRect.height / 2;
+				
+				renderCtx.strokeStyle = previewStrokeColor;
+				renderCtx.lineWidth = 2;
+				renderCtx.globalAlpha = 0.5;
 			
 			renderCtx.beginPath();
 			renderCtx.moveTo(centerX, centerY - halfHeight);
@@ -5465,10 +5524,10 @@ function resetRotationState() {
 			renderCtx.globalAlpha = 1.0;
 		}
 		
-		if (isCreatingShape && $activeTool === 'line' && lineStart && lineEnd) {
-			renderCtx.strokeStyle = getDefaultStrokeColor();
-			renderCtx.lineWidth = 2;
-			renderCtx.globalAlpha = 0.5;
+			if (isCreatingShape && $activeTool === 'line' && lineStart && lineEnd) {
+				renderCtx.strokeStyle = previewStrokeColor;
+				renderCtx.lineWidth = 2;
+				renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
 			renderCtx.moveTo(lineStart.x, lineStart.y);
 			renderCtx.lineTo(lineEnd.x, lineEnd.y);
@@ -5476,10 +5535,10 @@ function resetRotationState() {
 			renderCtx.globalAlpha = 1.0;
 		}
 		
-		if (isCreatingShape && $activeTool === 'arrow' && arrowStart && arrowEnd) {
-			renderCtx.strokeStyle = getDefaultStrokeColor();
-			renderCtx.lineWidth = 2;
-			renderCtx.globalAlpha = 0.5;
+			if (isCreatingShape && $activeTool === 'arrow' && arrowStart && arrowEnd) {
+				renderCtx.strokeStyle = previewStrokeColor;
+				renderCtx.lineWidth = 2;
+				renderCtx.globalAlpha = 0.5;
 			renderCtx.beginPath();
 			renderCtx.moveTo(arrowStart.x, arrowStart.y);
 			renderCtx.lineTo(arrowEnd.x, arrowEnd.y);
@@ -5488,7 +5547,7 @@ function resetRotationState() {
 		}
 
 			if (isDrawingFreehand && freehandPoints.length > 0) {
-				renderCtx.strokeStyle = getDefaultStrokeColor();
+				renderCtx.strokeStyle = previewStrokeColor;
 				renderCtx.lineWidth = 2;
 				const defaultDashPattern = getStore(dashPattern);
 				if (defaultDashPattern === 'dashed') {
