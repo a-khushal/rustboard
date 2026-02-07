@@ -217,6 +217,22 @@ pub enum Operation {
         text_align: Option<String>,
         rotation_angle: Option<f64>,
     },
+    BringToFront {
+        id: u64,
+    },
+    BringForward {
+        id: u64,
+    },
+    SendBackward {
+        id: u64,
+    },
+    SendToBack {
+        id: u64,
+    },
+    SetElementLock {
+        id: u64,
+        locked: bool,
+    },
     FullSync {
         data: String,
     },
@@ -775,6 +791,21 @@ fn apply_operation(operation: &Operation, session: &Session) {
             if let Some(angle) = rotation_angle {
                 doc.set_text_rotation(*id, *angle, false);
             }
+        }
+        Operation::BringToFront { id } => {
+            doc.bring_shape_to_front(*id);
+        }
+        Operation::BringForward { id } => {
+            doc.bring_shape_forward(*id);
+        }
+        Operation::SendBackward { id } => {
+            doc.send_shape_backward(*id);
+        }
+        Operation::SendToBack { id } => {
+            doc.send_shape_to_back(*id);
+        }
+        Operation::SetElementLock { id, locked } => {
+            doc.set_element_locked(*id, *locked, false);
         }
         Operation::FullSync { data } => {
             doc.deserialize(data);

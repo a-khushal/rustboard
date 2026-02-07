@@ -18,7 +18,7 @@ export function addPath(points: Array<{ x: number; y: number }>): number | null 
     api.set_path_line_width(BigInt(newId), strokeWidth, false);
     api.set_path_stroke_color(BigInt(newId), strokeColor, false);
     if (dashPatternValue !== 'solid') {
-        (api as any).set_path_dash_pattern(BigInt(newId), dashPatternValue, false);
+        api.set_path_dash_pattern(BigInt(newId), dashPatternValue, false);
     }
     const updatedPaths = Array.from(api.get_paths() as Path[]);
     paths.set(updatedPaths);

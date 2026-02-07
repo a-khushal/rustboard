@@ -243,14 +243,14 @@
     function bringToFront() {
         if (!$editorApi) return;
         
-        $selectedRectangles.forEach(r => $editorApi!.bring_shape_to_front(BigInt(r.id)));
-        $selectedEllipses.forEach(e => $editorApi!.bring_shape_to_front(BigInt(e.id)));
-        $selectedDiamonds.forEach(d => $editorApi!.bring_shape_to_front(BigInt(d.id)));
-        $selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
-        $selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
-        $selectedPaths.forEach(p => $editorApi!.bring_shape_to_front(BigInt(p.id)));
-        $selectedImages.forEach(i => $editorApi!.bring_shape_to_front(BigInt(i.id)));
-        $selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
+        $selectedRectangles.forEach(r => { $editorApi!.bring_shape_to_front(BigInt(r.id)); sendOperation({ op: 'BringToFront', id: r.id }); });
+        $selectedEllipses.forEach(e => { $editorApi!.bring_shape_to_front(BigInt(e.id)); sendOperation({ op: 'BringToFront', id: e.id }); });
+        $selectedDiamonds.forEach(d => { $editorApi!.bring_shape_to_front(BigInt(d.id)); sendOperation({ op: 'BringToFront', id: d.id }); });
+        $selectedLines.forEach(l => { $editorApi!.bring_shape_to_front(BigInt(l.id)); sendOperation({ op: 'BringToFront', id: l.id }); });
+        $selectedArrows.forEach(a => { $editorApi!.bring_shape_to_front(BigInt(a.id)); sendOperation({ op: 'BringToFront', id: a.id }); });
+        $selectedPaths.forEach(p => { $editorApi!.bring_shape_to_front(BigInt(p.id)); sendOperation({ op: 'BringToFront', id: p.id }); });
+        $selectedImages.forEach(i => { $editorApi!.bring_shape_to_front(BigInt(i.id)); sendOperation({ op: 'BringToFront', id: i.id }); });
+        $selectedTexts.forEach(t => { $editorApi!.bring_shape_to_front(BigInt(t.id)); sendOperation({ op: 'BringToFront', id: t.id }); });
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -259,14 +259,14 @@
     function bringForward() {
         if (!$editorApi) return;
         
-        $selectedRectangles.forEach(r => $editorApi!.bring_shape_forward(BigInt(r.id)));
-        $selectedEllipses.forEach(e => $editorApi!.bring_shape_forward(BigInt(e.id)));
-        $selectedDiamonds.forEach(d => $editorApi!.bring_shape_forward(BigInt(d.id)));
-        $selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
-        $selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
-        $selectedPaths.forEach(p => $editorApi!.bring_shape_forward(BigInt(p.id)));
-        $selectedImages.forEach(i => $editorApi!.bring_shape_forward(BigInt(i.id)));
-        $selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
+        $selectedRectangles.forEach(r => { $editorApi!.bring_shape_forward(BigInt(r.id)); sendOperation({ op: 'BringForward', id: r.id }); });
+        $selectedEllipses.forEach(e => { $editorApi!.bring_shape_forward(BigInt(e.id)); sendOperation({ op: 'BringForward', id: e.id }); });
+        $selectedDiamonds.forEach(d => { $editorApi!.bring_shape_forward(BigInt(d.id)); sendOperation({ op: 'BringForward', id: d.id }); });
+        $selectedLines.forEach(l => { $editorApi!.bring_shape_forward(BigInt(l.id)); sendOperation({ op: 'BringForward', id: l.id }); });
+        $selectedArrows.forEach(a => { $editorApi!.bring_shape_forward(BigInt(a.id)); sendOperation({ op: 'BringForward', id: a.id }); });
+        $selectedPaths.forEach(p => { $editorApi!.bring_shape_forward(BigInt(p.id)); sendOperation({ op: 'BringForward', id: p.id }); });
+        $selectedImages.forEach(i => { $editorApi!.bring_shape_forward(BigInt(i.id)); sendOperation({ op: 'BringForward', id: i.id }); });
+        $selectedTexts.forEach(t => { $editorApi!.bring_shape_forward(BigInt(t.id)); sendOperation({ op: 'BringForward', id: t.id }); });
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -275,14 +275,14 @@
     function sendBackward() {
         if (!$editorApi) return;
         
-        $selectedRectangles.forEach(r => $editorApi!.send_shape_backward(BigInt(r.id)));
-        $selectedEllipses.forEach(e => $editorApi!.send_shape_backward(BigInt(e.id)));
-        $selectedDiamonds.forEach(d => $editorApi!.send_shape_backward(BigInt(d.id)));
-        $selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
-        $selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
-        $selectedPaths.forEach(p => $editorApi!.send_shape_backward(BigInt(p.id)));
-        $selectedImages.forEach(i => $editorApi!.send_shape_backward(BigInt(i.id)));
-        $selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
+        $selectedRectangles.forEach(r => { $editorApi!.send_shape_backward(BigInt(r.id)); sendOperation({ op: 'SendBackward', id: r.id }); });
+        $selectedEllipses.forEach(e => { $editorApi!.send_shape_backward(BigInt(e.id)); sendOperation({ op: 'SendBackward', id: e.id }); });
+        $selectedDiamonds.forEach(d => { $editorApi!.send_shape_backward(BigInt(d.id)); sendOperation({ op: 'SendBackward', id: d.id }); });
+        $selectedLines.forEach(l => { $editorApi!.send_shape_backward(BigInt(l.id)); sendOperation({ op: 'SendBackward', id: l.id }); });
+        $selectedArrows.forEach(a => { $editorApi!.send_shape_backward(BigInt(a.id)); sendOperation({ op: 'SendBackward', id: a.id }); });
+        $selectedPaths.forEach(p => { $editorApi!.send_shape_backward(BigInt(p.id)); sendOperation({ op: 'SendBackward', id: p.id }); });
+        $selectedImages.forEach(i => { $editorApi!.send_shape_backward(BigInt(i.id)); sendOperation({ op: 'SendBackward', id: i.id }); });
+        $selectedTexts.forEach(t => { $editorApi!.send_shape_backward(BigInt(t.id)); sendOperation({ op: 'SendBackward', id: t.id }); });
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();
@@ -291,14 +291,14 @@
     function sendToBack() {
         if (!$editorApi) return;
         
-        $selectedRectangles.forEach(r => $editorApi!.send_shape_to_back(BigInt(r.id)));
-        $selectedEllipses.forEach(e => $editorApi!.send_shape_to_back(BigInt(e.id)));
-        $selectedDiamonds.forEach(d => $editorApi!.send_shape_to_back(BigInt(d.id)));
-        $selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
-        $selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
-        $selectedPaths.forEach(p => $editorApi!.send_shape_to_back(BigInt(p.id)));
-        $selectedImages.forEach(i => $editorApi!.send_shape_to_back(BigInt(i.id)));
-        $selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
+        $selectedRectangles.forEach(r => { $editorApi!.send_shape_to_back(BigInt(r.id)); sendOperation({ op: 'SendToBack', id: r.id }); });
+        $selectedEllipses.forEach(e => { $editorApi!.send_shape_to_back(BigInt(e.id)); sendOperation({ op: 'SendToBack', id: e.id }); });
+        $selectedDiamonds.forEach(d => { $editorApi!.send_shape_to_back(BigInt(d.id)); sendOperation({ op: 'SendToBack', id: d.id }); });
+        $selectedLines.forEach(l => { $editorApi!.send_shape_to_back(BigInt(l.id)); sendOperation({ op: 'SendToBack', id: l.id }); });
+        $selectedArrows.forEach(a => { $editorApi!.send_shape_to_back(BigInt(a.id)); sendOperation({ op: 'SendToBack', id: a.id }); });
+        $selectedPaths.forEach(p => { $editorApi!.send_shape_to_back(BigInt(p.id)); sendOperation({ op: 'SendToBack', id: p.id }); });
+        $selectedImages.forEach(i => { $editorApi!.send_shape_to_back(BigInt(i.id)); sendOperation({ op: 'SendToBack', id: i.id }); });
+        $selectedTexts.forEach(t => { $editorApi!.send_shape_to_back(BigInt(t.id)); sendOperation({ op: 'SendToBack', id: t.id }); });
         
         updateAllStoresAfterUndoRedo();
         scheduleRender();

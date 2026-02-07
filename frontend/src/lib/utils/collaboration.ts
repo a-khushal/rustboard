@@ -549,7 +549,7 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 					editorApi.set_path_line_width(BigInt(operation.id), operation.line_width, false);
 				}
 				if (operation.dash_pattern !== undefined) {
-					(editorApi as any).set_path_dash_pattern(BigInt(operation.id), operation.dash_pattern, false);
+					editorApi.set_path_dash_pattern(BigInt(operation.id), operation.dash_pattern, false);
 				}
 				if (operation.rotation_angle !== undefined) {
 					editorApi.set_path_rotation(BigInt(operation.id), operation.rotation_angle, false);
@@ -579,6 +579,21 @@ async function applyOperation(operation: Operation, editorApi: EditorApi) {
 				if (operation.rotation_angle !== undefined) {
 					editorApi.set_text_rotation(BigInt(operation.id), operation.rotation_angle, false);
 				}
+				break;
+			case 'BringToFront':
+				editorApi.bring_shape_to_front(BigInt(operation.id));
+				break;
+			case 'BringForward':
+				editorApi.bring_shape_forward(BigInt(operation.id));
+				break;
+			case 'SendBackward':
+				editorApi.send_shape_backward(BigInt(operation.id));
+				break;
+			case 'SendToBack':
+				editorApi.send_shape_to_back(BigInt(operation.id));
+				break;
+			case 'SetElementLock':
+				editorApi.set_element_locked(BigInt(operation.id), operation.locked, false);
 				break;
 			case 'FullSync':
 				if (operation.data) {

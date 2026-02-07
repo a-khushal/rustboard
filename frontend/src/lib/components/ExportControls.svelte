@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { theme } from '$lib/stores/theme';
 	import { 
-		rectangles, ellipses, diamonds, lines, arrows, paths, images
+		rectangles, ellipses, diamonds, lines, arrows, paths, images, texts
 	} from '$lib/stores/editor';
 	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 
@@ -84,4 +84,3 @@
 		<span>PDF</span>
 	</button>
 </div>
-

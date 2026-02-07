@@ -35,6 +35,7 @@
 	import { copyToClipboard, getClipboard } from '$lib/utils/clipboard';
 	import { pasteShapes } from '$lib/utils/paste-shapes';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
+	import { sendOperation } from '$lib/utils/collaboration';
 	import { edgeStyle, type EdgeStyle } from '$lib/stores/edge-style';
 	import { dashPattern, type DashPattern } from '$lib/stores/dash-pattern';
 	import { defaultStrokeWidth } from '$lib/stores/stroke-width';
@@ -258,24 +259,31 @@
 
 		selectedRects.forEach((rect: Rectangle) => {
 			$editorApi.set_rectangle_stroke_color(BigInt(rect.id), color, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, stroke_color: color });
 		});
 		selectedElls.forEach((ellipse: Ellipse) => {
 			$editorApi.set_ellipse_stroke_color(BigInt(ellipse.id), color, false);
+			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, stroke_color: color });
 		});
 		selectedDias.forEach((diamond: Diamond) => {
 			$editorApi.set_diamond_stroke_color(BigInt(diamond.id), color, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, stroke_color: color });
 		});
 		selectedLns.forEach((line: Line) => {
 			$editorApi.set_line_stroke_color(BigInt(line.id), color, false);
+			sendOperation({ op: 'SetLineStyle', id: line.id, stroke_color: color });
 		});
 		selectedArrs.forEach((arrow: Arrow) => {
 			$editorApi.set_arrow_stroke_color(BigInt(arrow.id), color, false);
+			sendOperation({ op: 'SetArrowStyle', id: arrow.id, stroke_color: color });
 		});
 		selectedPths.forEach((path: Path) => {
 			$editorApi.set_path_stroke_color(BigInt(path.id), color, false);
+			sendOperation({ op: 'SetPathStyle', id: path.id, stroke_color: color });
 		});
 		selectedTxts.forEach((text: Text) => {
 			$editorApi.set_text_color(BigInt(text.id), color, false);
+			sendOperation({ op: 'SetTextStyle', id: text.id, color });
 		});
 
 		$editorApi.save_snapshot();
@@ -297,12 +305,15 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_rectangle_fill_color(BigInt(rect.id), colorValue, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, fill_color: colorValue });
 		});
 		$selectedEllipses.forEach((ellipse) => {
 			$editorApi.set_ellipse_fill_color(BigInt(ellipse.id), colorValue, false);
+			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, fill_color: colorValue });
 		});
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_diamond_fill_color(BigInt(diamond.id), colorValue, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, fill_color: colorValue });
 		});
 
 		$editorApi.save_snapshot();
@@ -319,21 +330,27 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_rectangle_line_width(BigInt(rect.id), lineWidth, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, line_width: lineWidth });
 		});
 		$selectedEllipses.forEach((ellipse) => {
 			$editorApi.set_ellipse_line_width(BigInt(ellipse.id), lineWidth, false);
+			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, line_width: lineWidth });
 		});
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_diamond_line_width(BigInt(diamond.id), lineWidth, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, line_width: lineWidth });
 		});
 		$selectedLines.forEach((line) => {
 			$editorApi.set_line_line_width(BigInt(line.id), lineWidth, false);
+			sendOperation({ op: 'SetLineStyle', id: line.id, line_width: lineWidth });
 		});
 		$selectedArrows.forEach((arrow) => {
 			$editorApi.set_arrow_line_width(BigInt(arrow.id), lineWidth, false);
+			sendOperation({ op: 'SetArrowStyle', id: arrow.id, line_width: lineWidth });
 		});
 		$selectedPaths.forEach((path) => {
 			$editorApi.set_path_line_width(BigInt(path.id), lineWidth, false);
+			sendOperation({ op: 'SetPathStyle', id: path.id, line_width: lineWidth });
 		});
 
 		$editorApi.save_snapshot();
@@ -347,6 +364,7 @@
 
 		$selectedTexts.forEach((text) => {
 			$editorApi.set_text_font_size(BigInt(text.id), fontSize, false);
+			sendOperation({ op: 'SetTextStyle', id: text.id, font_size: fontSize });
 		});
 
 		$editorApi.save_snapshot();
@@ -359,6 +377,7 @@
 
 		$selectedTexts.forEach((text) => {
 			$editorApi.set_text_font_weight(BigInt(text.id), fontWeight, false);
+			sendOperation({ op: 'SetTextStyle', id: text.id, font_weight: fontWeight });
 		});
 
 		$editorApi.save_snapshot();
@@ -371,6 +390,7 @@
 
 		$selectedTexts.forEach((text) => {
 			$editorApi.set_text_text_align(BigInt(text.id), textAlign, false);
+			sendOperation({ op: 'SetTextStyle', id: text.id, text_align: textAlign });
 		});
 
 		$editorApi.save_snapshot();
@@ -407,21 +427,27 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_rectangle_line_width(BigInt(rect.id), width, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, line_width: width });
 		});
 		$selectedEllipses.forEach((ellipse) => {
 			$editorApi.set_ellipse_line_width(BigInt(ellipse.id), width, false);
+			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, line_width: width });
 		});
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_diamond_line_width(BigInt(diamond.id), width, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, line_width: width });
 		});
 		$selectedLines.forEach((line) => {
 			$editorApi.set_line_line_width(BigInt(line.id), width, false);
+			sendOperation({ op: 'SetLineStyle', id: line.id, line_width: width });
 		});
 		$selectedArrows.forEach((arrow) => {
 			$editorApi.set_arrow_line_width(BigInt(arrow.id), width, false);
+			sendOperation({ op: 'SetArrowStyle', id: arrow.id, line_width: width });
 		});
 		$selectedPaths.forEach((path) => {
 			$editorApi.set_path_line_width(BigInt(path.id), width, false);
+			sendOperation({ op: 'SetPathStyle', id: path.id, line_width: width });
 		});
 
 		$editorApi.save_snapshot();
@@ -432,56 +458,56 @@
 
 	function bringToFront() {
 		if (!$editorApi) return;
-		$selectedRectangles.forEach(r => $editorApi!.bring_shape_to_front(BigInt(r.id)));
-		$selectedEllipses.forEach(e => $editorApi!.bring_shape_to_front(BigInt(e.id)));
-		$selectedDiamonds.forEach(d => $editorApi!.bring_shape_to_front(BigInt(d.id)));
-		$selectedLines.forEach(l => $editorApi!.bring_shape_to_front(BigInt(l.id)));
-		$selectedArrows.forEach(a => $editorApi!.bring_shape_to_front(BigInt(a.id)));
-		$selectedPaths.forEach(p => $editorApi!.bring_shape_to_front(BigInt(p.id)));
-		$selectedImages.forEach(i => $editorApi!.bring_shape_to_front(BigInt(i.id)));
-		$selectedTexts.forEach(t => $editorApi!.bring_shape_to_front(BigInt(t.id)));
+		$selectedRectangles.forEach(r => { $editorApi!.bring_shape_to_front(BigInt(r.id)); sendOperation({ op: 'BringToFront', id: r.id }); });
+		$selectedEllipses.forEach(e => { $editorApi!.bring_shape_to_front(BigInt(e.id)); sendOperation({ op: 'BringToFront', id: e.id }); });
+		$selectedDiamonds.forEach(d => { $editorApi!.bring_shape_to_front(BigInt(d.id)); sendOperation({ op: 'BringToFront', id: d.id }); });
+		$selectedLines.forEach(l => { $editorApi!.bring_shape_to_front(BigInt(l.id)); sendOperation({ op: 'BringToFront', id: l.id }); });
+		$selectedArrows.forEach(a => { $editorApi!.bring_shape_to_front(BigInt(a.id)); sendOperation({ op: 'BringToFront', id: a.id }); });
+		$selectedPaths.forEach(p => { $editorApi!.bring_shape_to_front(BigInt(p.id)); sendOperation({ op: 'BringToFront', id: p.id }); });
+		$selectedImages.forEach(i => { $editorApi!.bring_shape_to_front(BigInt(i.id)); sendOperation({ op: 'BringToFront', id: i.id }); });
+		$selectedTexts.forEach(t => { $editorApi!.bring_shape_to_front(BigInt(t.id)); sendOperation({ op: 'BringToFront', id: t.id }); });
 		updateStores();
 		saveStateToLocalStorage();
 	}
 
 	function bringForward() {
 		if (!$editorApi) return;
-		$selectedRectangles.forEach(r => $editorApi!.bring_shape_forward(BigInt(r.id)));
-		$selectedEllipses.forEach(e => $editorApi!.bring_shape_forward(BigInt(e.id)));
-		$selectedDiamonds.forEach(d => $editorApi!.bring_shape_forward(BigInt(d.id)));
-		$selectedLines.forEach(l => $editorApi!.bring_shape_forward(BigInt(l.id)));
-		$selectedArrows.forEach(a => $editorApi!.bring_shape_forward(BigInt(a.id)));
-		$selectedPaths.forEach(p => $editorApi!.bring_shape_forward(BigInt(p.id)));
-		$selectedImages.forEach(i => $editorApi!.bring_shape_forward(BigInt(i.id)));
-		$selectedTexts.forEach(t => $editorApi!.bring_shape_forward(BigInt(t.id)));
+		$selectedRectangles.forEach(r => { $editorApi!.bring_shape_forward(BigInt(r.id)); sendOperation({ op: 'BringForward', id: r.id }); });
+		$selectedEllipses.forEach(e => { $editorApi!.bring_shape_forward(BigInt(e.id)); sendOperation({ op: 'BringForward', id: e.id }); });
+		$selectedDiamonds.forEach(d => { $editorApi!.bring_shape_forward(BigInt(d.id)); sendOperation({ op: 'BringForward', id: d.id }); });
+		$selectedLines.forEach(l => { $editorApi!.bring_shape_forward(BigInt(l.id)); sendOperation({ op: 'BringForward', id: l.id }); });
+		$selectedArrows.forEach(a => { $editorApi!.bring_shape_forward(BigInt(a.id)); sendOperation({ op: 'BringForward', id: a.id }); });
+		$selectedPaths.forEach(p => { $editorApi!.bring_shape_forward(BigInt(p.id)); sendOperation({ op: 'BringForward', id: p.id }); });
+		$selectedImages.forEach(i => { $editorApi!.bring_shape_forward(BigInt(i.id)); sendOperation({ op: 'BringForward', id: i.id }); });
+		$selectedTexts.forEach(t => { $editorApi!.bring_shape_forward(BigInt(t.id)); sendOperation({ op: 'BringForward', id: t.id }); });
 		updateStores();
 		saveStateToLocalStorage();
 	}
 
 	function sendBackward() {
 		if (!$editorApi) return;
-		$selectedRectangles.forEach(r => $editorApi!.send_shape_backward(BigInt(r.id)));
-		$selectedEllipses.forEach(e => $editorApi!.send_shape_backward(BigInt(e.id)));
-		$selectedDiamonds.forEach(d => $editorApi!.send_shape_backward(BigInt(d.id)));
-		$selectedLines.forEach(l => $editorApi!.send_shape_backward(BigInt(l.id)));
-		$selectedArrows.forEach(a => $editorApi!.send_shape_backward(BigInt(a.id)));
-		$selectedPaths.forEach(p => $editorApi!.send_shape_backward(BigInt(p.id)));
-		$selectedImages.forEach(i => $editorApi!.send_shape_backward(BigInt(i.id)));
-		$selectedTexts.forEach(t => $editorApi!.send_shape_backward(BigInt(t.id)));
+		$selectedRectangles.forEach(r => { $editorApi!.send_shape_backward(BigInt(r.id)); sendOperation({ op: 'SendBackward', id: r.id }); });
+		$selectedEllipses.forEach(e => { $editorApi!.send_shape_backward(BigInt(e.id)); sendOperation({ op: 'SendBackward', id: e.id }); });
+		$selectedDiamonds.forEach(d => { $editorApi!.send_shape_backward(BigInt(d.id)); sendOperation({ op: 'SendBackward', id: d.id }); });
+		$selectedLines.forEach(l => { $editorApi!.send_shape_backward(BigInt(l.id)); sendOperation({ op: 'SendBackward', id: l.id }); });
+		$selectedArrows.forEach(a => { $editorApi!.send_shape_backward(BigInt(a.id)); sendOperation({ op: 'SendBackward', id: a.id }); });
+		$selectedPaths.forEach(p => { $editorApi!.send_shape_backward(BigInt(p.id)); sendOperation({ op: 'SendBackward', id: p.id }); });
+		$selectedImages.forEach(i => { $editorApi!.send_shape_backward(BigInt(i.id)); sendOperation({ op: 'SendBackward', id: i.id }); });
+		$selectedTexts.forEach(t => { $editorApi!.send_shape_backward(BigInt(t.id)); sendOperation({ op: 'SendBackward', id: t.id }); });
 		updateStores();
 		saveStateToLocalStorage();
 	}
 
 	function sendToBack() {
 		if (!$editorApi) return;
-		$selectedRectangles.forEach(r => $editorApi!.send_shape_to_back(BigInt(r.id)));
-		$selectedEllipses.forEach(e => $editorApi!.send_shape_to_back(BigInt(e.id)));
-		$selectedDiamonds.forEach(d => $editorApi!.send_shape_to_back(BigInt(d.id)));
-		$selectedLines.forEach(l => $editorApi!.send_shape_to_back(BigInt(l.id)));
-		$selectedArrows.forEach(a => $editorApi!.send_shape_to_back(BigInt(a.id)));
-		$selectedPaths.forEach(p => $editorApi!.send_shape_to_back(BigInt(p.id)));
-		$selectedImages.forEach(i => $editorApi!.send_shape_to_back(BigInt(i.id)));
-		$selectedTexts.forEach(t => $editorApi!.send_shape_to_back(BigInt(t.id)));
+		$selectedRectangles.forEach(r => { $editorApi!.send_shape_to_back(BigInt(r.id)); sendOperation({ op: 'SendToBack', id: r.id }); });
+		$selectedEllipses.forEach(e => { $editorApi!.send_shape_to_back(BigInt(e.id)); sendOperation({ op: 'SendToBack', id: e.id }); });
+		$selectedDiamonds.forEach(d => { $editorApi!.send_shape_to_back(BigInt(d.id)); sendOperation({ op: 'SendToBack', id: d.id }); });
+		$selectedLines.forEach(l => { $editorApi!.send_shape_to_back(BigInt(l.id)); sendOperation({ op: 'SendToBack', id: l.id }); });
+		$selectedArrows.forEach(a => { $editorApi!.send_shape_to_back(BigInt(a.id)); sendOperation({ op: 'SendToBack', id: a.id }); });
+		$selectedPaths.forEach(p => { $editorApi!.send_shape_to_back(BigInt(p.id)); sendOperation({ op: 'SendToBack', id: p.id }); });
+		$selectedImages.forEach(i => { $editorApi!.send_shape_to_back(BigInt(i.id)); sendOperation({ op: 'SendToBack', id: i.id }); });
+		$selectedTexts.forEach(t => { $editorApi!.send_shape_to_back(BigInt(t.id)); sendOperation({ op: 'SendToBack', id: t.id }); });
 		updateStores();
 		saveStateToLocalStorage();
 	}
@@ -618,21 +644,27 @@
 		const selectedPths = get(selectedPaths);
 		selectedRects.forEach((rect: Rectangle) => {
 			$editorApi.set_rectangle_stroke_color(BigInt(rect.id), color, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, stroke_color: color });
 		});
 		selectedElls.forEach((ellipse: Ellipse) => {
 			$editorApi.set_ellipse_stroke_color(BigInt(ellipse.id), color, false);
+			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, stroke_color: color });
 		});
 		selectedDias.forEach((diamond: Diamond) => {
 			$editorApi.set_diamond_stroke_color(BigInt(diamond.id), color, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, stroke_color: color });
 		});
 		selectedLns.forEach((line: Line) => {
 			$editorApi.set_line_stroke_color(BigInt(line.id), color, false);
+			sendOperation({ op: 'SetLineStyle', id: line.id, stroke_color: color });
 		});
 		selectedArrs.forEach((arrow: Arrow) => {
 			$editorApi.set_arrow_stroke_color(BigInt(arrow.id), color, false);
+			sendOperation({ op: 'SetArrowStyle', id: arrow.id, stroke_color: color });
 		});
 		selectedPths.forEach((path: Path) => {
 			$editorApi.set_path_stroke_color(BigInt(path.id), color, false);
+			sendOperation({ op: 'SetPathStyle', id: path.id, stroke_color: color });
 		});
 
 		$editorApi.save_snapshot();
@@ -725,30 +757,39 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_element_locked(BigInt(rect.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: rect.id, locked: true });
 		});
 		$selectedEllipses.forEach((ellipse) => {
 			$editorApi.set_element_locked(BigInt(ellipse.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: ellipse.id, locked: true });
 		});
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_element_locked(BigInt(diamond.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: diamond.id, locked: true });
 		});
 		$selectedLines.forEach((line) => {
 			$editorApi.set_element_locked(BigInt(line.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: line.id, locked: true });
 		});
 		$selectedArrows.forEach((arrow) => {
 			$editorApi.set_element_locked(BigInt(arrow.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: arrow.id, locked: true });
 		});
 		$selectedPaths.forEach((path) => {
 			$editorApi.set_element_locked(BigInt(path.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: path.id, locked: true });
 		});
 		$selectedImages.forEach((image) => {
 			$editorApi.set_element_locked(BigInt(image.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: image.id, locked: true });
 		});
 		$selectedTexts.forEach((text) => {
 			$editorApi.set_element_locked(BigInt(text.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: text.id, locked: true });
 		});
 		$selectedGroups.forEach((group) => {
 			$editorApi.set_element_locked(BigInt(group.id), true, false);
+			sendOperation({ op: 'SetElementLock', id: group.id, locked: true });
 		});
 
 		$editorApi.save_snapshot();
@@ -761,30 +802,39 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_element_locked(BigInt(rect.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: rect.id, locked: false });
 		});
 		$selectedEllipses.forEach((ellipse) => {
 			$editorApi.set_element_locked(BigInt(ellipse.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: ellipse.id, locked: false });
 		});
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_element_locked(BigInt(diamond.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: diamond.id, locked: false });
 		});
 		$selectedLines.forEach((line) => {
 			$editorApi.set_element_locked(BigInt(line.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: line.id, locked: false });
 		});
 		$selectedArrows.forEach((arrow) => {
 			$editorApi.set_element_locked(BigInt(arrow.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: arrow.id, locked: false });
 		});
 		$selectedPaths.forEach((path) => {
 			$editorApi.set_element_locked(BigInt(path.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: path.id, locked: false });
 		});
 		$selectedImages.forEach((image) => {
 			$editorApi.set_element_locked(BigInt(image.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: image.id, locked: false });
 		});
 		$selectedTexts.forEach((text) => {
 			$editorApi.set_element_locked(BigInt(text.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: text.id, locked: false });
 		});
 		$selectedGroups.forEach((group) => {
 			$editorApi.set_element_locked(BigInt(group.id), false, false);
+			sendOperation({ op: 'SetElementLock', id: group.id, locked: false });
 		});
 
 		$editorApi.save_snapshot();
@@ -816,10 +866,12 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_rectangle_border_radius(BigInt(rect.id), radius, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, border_radius: radius });
 		});
 
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_diamond_border_radius(BigInt(diamond.id), radius, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, border_radius: radius });
 		});
 
 		$editorApi.save_snapshot();
@@ -835,26 +887,32 @@
 
 		$selectedRectangles.forEach((rect) => {
 			$editorApi.set_rectangle_dash_pattern(BigInt(rect.id), patternStr, false);
+			sendOperation({ op: 'SetRectangleStyle', id: rect.id, dash_pattern: patternStr });
 		});
 
 		$selectedEllipses.forEach((ellipse) => {
 			$editorApi.set_ellipse_dash_pattern(BigInt(ellipse.id), patternStr, false);
+			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, dash_pattern: patternStr });
 		});
 
 		$selectedDiamonds.forEach((diamond) => {
 			$editorApi.set_diamond_dash_pattern(BigInt(diamond.id), patternStr, false);
+			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, dash_pattern: patternStr });
 		});
 
 		$selectedLines.forEach((line) => {
 			$editorApi.set_line_dash_pattern(BigInt(line.id), patternStr, false);
+			sendOperation({ op: 'SetLineStyle', id: line.id, dash_pattern: patternStr });
 		});
 
 		$selectedArrows.forEach((arrow) => {
 			$editorApi.set_arrow_dash_pattern(BigInt(arrow.id), patternStr, false);
+			sendOperation({ op: 'SetArrowStyle', id: arrow.id, dash_pattern: patternStr });
 		});
 
 		$selectedPaths.forEach((path) => {
-			($editorApi as any).set_path_dash_pattern(BigInt(path.id), patternStr, false);
+			$editorApi.set_path_dash_pattern(BigInt(path.id), patternStr, false);
+			sendOperation({ op: 'SetPathStyle', id: path.id, dash_pattern: patternStr });
 		});
 
 		$editorApi.save_snapshot();
