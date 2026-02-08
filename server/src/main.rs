@@ -1,5 +1,7 @@
 use axum::{
+    extract::connect_info::ConnectInfo,
     extract::{ws::WebSocketUpgrade, Query, State},
+    http::HeaderMap,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
@@ -7,8 +9,12 @@ use axum::{
 };
 use rustboard_editor::Document;
 use serde::Serialize;
+use std::collections::{HashMap, VecDeque};
+use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 use std::time::Duration;
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
@@ -20,8 +26,86 @@ use session::{ClientRole, Session, SessionManager};
 use websocket::handle_websocket;
 
 #[derive(Clone)]
-struct AppState {
-    sessions: Arc<RwLock<SessionManager>>,
+pub(crate) struct AppState {
+    pub(crate) sessions: Arc<RwLock<SessionManager>>,
+    pub(crate) metrics: Arc<AppMetrics>,
+    pub(crate) create_session_limiter: Arc<RateLimiter>,
+    pub(crate) ws_connect_limiter: Arc<RateLimiter>,
+}
+
+struct AppMetrics {
+    sessions_created: AtomicU64,
+    ws_connections: AtomicU64,
+    ws_disconnections: AtomicU64,
+    ws_errors: AtomicU64,
+    operations_applied: AtomicU64,
+    full_syncs_sent: AtomicU64,
+    rate_limited_requests: AtomicU64,
+}
+
+impl AppMetrics {
+    fn new() -> Self {
+        Self {
+            sessions_created: AtomicU64::new(0),
+            ws_connections: AtomicU64::new(0),
+            ws_disconnections: AtomicU64::new(0),
+            ws_errors: AtomicU64::new(0),
+            operations_applied: AtomicU64::new(0),
+            full_syncs_sent: AtomicU64::new(0),
+            rate_limited_requests: AtomicU64::new(0),
+        }
+    }
+}
+
+struct RateLimiter {
+    window: Duration,
+    max_requests: usize,
+    events: std::sync::Mutex<HashMap<String, VecDeque<Instant>>>,
+}
+
+fn origin_allowed(headers: &HeaderMap) -> bool {
+    let allowed = std::env::var("ALLOWED_ORIGINS").unwrap_or_default();
+    if allowed.trim().is_empty() {
+        return true;
+    }
+    let Some(origin) = headers.get("origin") else {
+        return false;
+    };
+    let Ok(origin_value) = origin.to_str() else {
+        return false;
+    };
+    allowed
+        .split(',')
+        .map(|value| value.trim())
+        .any(|allowed_origin| !allowed_origin.is_empty() && allowed_origin == origin_value)
+}
+
+impl RateLimiter {
+    fn new(max_requests: usize, window: Duration) -> Self {
+        Self {
+            window,
+            max_requests,
+            events: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn allow(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let mut events = self.events.lock().unwrap();
+        let queue = events.entry(key.to_string()).or_default();
+        while let Some(timestamp) = queue.front() {
+            if now.duration_since(*timestamp) > self.window {
+                queue.pop_front();
+            } else {
+                break;
+            }
+        }
+        if queue.len() >= self.max_requests {
+            return false;
+        }
+        queue.push_back(now);
+        true
+    }
 }
 
 #[tokio::main]
@@ -47,6 +131,9 @@ async fn main() {
             session_store_path,
             session_ttl_secs,
         ))),
+        metrics: Arc::new(AppMetrics::new()),
+        create_session_limiter: Arc::new(RateLimiter::new(10, Duration::from_secs(60))),
+        ws_connect_limiter: Arc::new(RateLimiter::new(60, Duration::from_secs(60))),
     };
 
     let sessions_for_maintenance = state.sessions.clone();
@@ -69,21 +156,43 @@ async fn main() {
         .route("/ws/:session_id", get(websocket_handler))
         .route("/api/sessions", get(create_session))
         .route("/api/sessions/:session_id", get(get_session))
+        .route("/healthz", get(healthz))
+        .route("/metrics", get(metrics))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
     let bind_address = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
     tracing::info!("Server running on http://{bind_address}");
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn websocket_handler(
     ws: WebSocketUpgrade,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     axum::extract::Path(session_id): axum::extract::Path<String>,
     Query(query): Query<WebSocketQuery>,
     State(state): State<AppState>,
 ) -> Response {
+    if !origin_allowed(&headers) {
+        return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
+    }
+
+    let client_ip = addr.ip().to_string();
+    if !state.ws_connect_limiter.allow(&client_ip) {
+        state
+            .metrics
+            .rate_limited_requests
+            .fetch_add(1, Ordering::Relaxed);
+        return (StatusCode::TOO_MANY_REQUESTS, "Too many websocket attempts").into_response();
+    }
+
     let token = match query.token {
         Some(token) if !token.is_empty() => token,
         _ => return (StatusCode::UNAUTHORIZED, "Missing session token").into_response(),
@@ -123,7 +232,19 @@ struct WebSocketQuery {
     role: Option<String>,
 }
 
-async fn create_session(State(state): State<AppState>) -> axum::Json<CreateSessionResponse> {
+async fn create_session(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    State(state): State<AppState>,
+) -> Result<axum::Json<CreateSessionResponse>, (StatusCode, &'static str)> {
+    let client_ip = addr.ip().to_string();
+    if !state.create_session_limiter.allow(&client_ip) {
+        state
+            .metrics
+            .rate_limited_requests
+            .fetch_add(1, Ordering::Relaxed);
+        return Err((StatusCode::TOO_MANY_REQUESTS, "Too many session creations"));
+    }
+
     let session_id = Uuid::new_v4().to_string();
     let editor_token = Uuid::new_v4().to_string();
     let viewer_token = Uuid::new_v4().to_string();
@@ -137,6 +258,10 @@ async fn create_session(State(state): State<AppState>) -> axum::Json<CreateSessi
         viewer_token.clone(),
     );
     sessions.create_session(session);
+    state
+        .metrics
+        .sessions_created
+        .fetch_add(1, Ordering::Relaxed);
 
     let editor_url = format!(
         "http://localhost:5173/?session={}&role=editor&token={}",
@@ -147,13 +272,13 @@ async fn create_session(State(state): State<AppState>) -> axum::Json<CreateSessi
         session_id, viewer_token
     );
     
-    axum::Json(CreateSessionResponse {
+    Ok(axum::Json(CreateSessionResponse {
         session_id,
         editor_token,
         viewer_token,
         editor_url,
         viewer_url,
-    })
+    }))
 }
 
 #[derive(Serialize)]
@@ -176,4 +301,42 @@ async fn get_session(
         _ => false,
     };
     axum::Json(GetSessionResponse { exists, token_valid })
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: &'static str,
+}
+
+async fn healthz() -> axum::Json<HealthResponse> {
+    axum::Json(HealthResponse { status: "ok" })
+}
+
+#[derive(Serialize)]
+struct MetricsResponse {
+    active_sessions: usize,
+    sessions_created: u64,
+    ws_connections: u64,
+    ws_disconnections: u64,
+    ws_errors: u64,
+    operations_applied: u64,
+    full_syncs_sent: u64,
+    rate_limited_requests: u64,
+}
+
+async fn metrics(State(state): State<AppState>) -> axum::Json<MetricsResponse> {
+    let active_sessions = {
+        let sessions = state.sessions.read().unwrap();
+        sessions.session_count()
+    };
+    axum::Json(MetricsResponse {
+        active_sessions,
+        sessions_created: state.metrics.sessions_created.load(Ordering::Relaxed),
+        ws_connections: state.metrics.ws_connections.load(Ordering::Relaxed),
+        ws_disconnections: state.metrics.ws_disconnections.load(Ordering::Relaxed),
+        ws_errors: state.metrics.ws_errors.load(Ordering::Relaxed),
+        operations_applied: state.metrics.operations_applied.load(Ordering::Relaxed),
+        full_syncs_sent: state.metrics.full_syncs_sent.load(Ordering::Relaxed),
+        rate_limited_requests: state.metrics.rate_limited_requests.load(Ordering::Relaxed),
+    })
 }

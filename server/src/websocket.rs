@@ -21,6 +21,7 @@ pub enum ClientMessage {
         selected_ids: Vec<u64>,
     },
     Ping,
+    RequestSync,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -427,6 +428,11 @@ pub async fn handle_websocket(
     access_role: ClientRole,
     state: crate::AppState,
 ) {
+    state
+        .metrics
+        .ws_connections
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
     let (mut sender, mut receiver) = socket.split();
 
     let session = {
@@ -449,6 +455,9 @@ pub async fn handle_websocket(
 
     let session_id_for_log = session_id.clone();
     let session_id_for_send = session_id.clone();
+    let metrics_for_send = state.metrics.clone();
+    let metrics_for_recv = state.metrics.clone();
+    let metrics_for_connection = state.metrics.clone();
     let client_id: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let client_id_for_log = client_id.clone();
     
@@ -502,6 +511,9 @@ pub async fn handle_websocket(
                                     seq: session_for_send.next_operation_seq(),
                                     source_local_id: None,
                                 };
+                                metrics_for_send
+                                    .full_syncs_sent
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                                 let json = match serde_json::to_string(&full_sync_msg) {
                                     Ok(j) => j,
                                     Err(e) => {
@@ -516,6 +528,9 @@ pub async fn handle_websocket(
                                 continue;
                             }
                             Err(e) => {
+                                metrics_for_send
+                                    .ws_errors
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                                 let client_log = {
                                     let client_id_guard = client_id_for_log.lock().unwrap();
                                     client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
@@ -591,6 +606,9 @@ pub async fn handle_websocket(
                             seq: session_for_send.next_operation_seq(),
                             source_local_id: None,
                         };
+                        metrics_for_send
+                            .full_syncs_sent
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         let json = match serde_json::to_string(&full_sync_msg) {
                             Ok(j) => j,
                             Err(e) => {
@@ -605,6 +623,9 @@ pub async fn handle_websocket(
                         continue;
                     }
                     Err(e) => {
+                        metrics_for_send
+                            .ws_errors
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         let client_log = {
                             let client_id_guard = client_id_for_log.lock().unwrap();
                             client_id_guard.as_ref().map(|id| id.as_str()).unwrap_or("unknown").to_string()
@@ -718,6 +739,9 @@ pub async fn handle_websocket(
                                     apply_operation(&canonical_operation, &session_clone);
                                 }
                                 session_clone.touch();
+                                metrics_for_recv
+                                    .operations_applied
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
                                 let update_msg = ServerMessage::Update {
                                     operation: canonical_operation.clone(),
@@ -771,7 +795,28 @@ pub async fn handle_websocket(
                                 warn!("Failed to send Pong directly to client: {}", e);
                             }
                         }
+                        Ok(ClientMessage::RequestSync) => {
+                            let document = {
+                                let doc = session_clone.document.read().unwrap();
+                                doc.serialize()
+                            };
+                            let full_sync_msg = ServerMessage::Update {
+                                operation: Operation::FullSync { data: document },
+                                client_id: "__server__".to_string(),
+                                seq: session_clone.next_operation_seq(),
+                                source_local_id: None,
+                            };
+                            metrics_for_recv
+                                .full_syncs_sent
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            if let Err(e) = direct_tx.send(full_sync_msg) {
+                                warn!("Failed to send full sync directly to client: {}", e);
+                            }
+                        }
                         Err(e) => {
+                            metrics_for_recv
+                                .ws_errors
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                             warn!("Failed to parse message: {}", e);
                             if let Err(send_err) = direct_tx.send(ServerMessage::Error {
                                 message: format!("Invalid message: {}", e),
@@ -812,6 +857,9 @@ pub async fn handle_websocket(
     }
 
     info!("WebSocket connection closed for session {}", session_id);
+    metrics_for_connection
+        .ws_disconnections
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 fn apply_operation(operation: &Operation, session: &Session) -> Option<u64> {

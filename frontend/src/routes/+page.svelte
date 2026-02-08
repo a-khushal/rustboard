@@ -7,6 +7,7 @@
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
 	import { collaborationState } from '$lib/stores/collaboration';
+	import { requestFullSync } from '$lib/utils/collaboration';
 	import Canvas from '$lib/components/Canvas.svelte';
 
 	let unsubscribeRectangles: (() => void) | null = null;
@@ -113,7 +114,14 @@
 	{#if $collaborationState.connectionStatus === 'reconnecting' || $collaborationState.isResyncing || $collaborationState.connectionStatus === 'error'}
 		<div class="absolute top-14 left-1/2 z-50 -translate-x-1/2 rounded-md border border-stone-300 bg-white/95 px-3 py-1.5 text-xs text-stone-700 shadow-sm">
 			{#if $collaborationState.connectionStatus === 'error'}
-				Collaboration issue: {$collaborationState.lastError ?? 'Connection interrupted'}
+				<span>Collaboration issue: {$collaborationState.lastError ?? 'Connection interrupted'}</span>
+				<button
+					type="button"
+					on:click={requestFullSync}
+					class="ml-2 rounded border border-stone-300 bg-white px-2 py-0.5 text-[11px] text-stone-700 hover:bg-stone-50"
+				>
+					Resync now
+				</button>
 			{:else if $collaborationState.isResyncing}
 				Resyncing board state...
 			{:else}

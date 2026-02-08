@@ -18,7 +18,7 @@ export interface Operation {
 }
 
 export interface ClientMessage {
-	type: 'Join' | 'Update' | 'Presence' | 'Ping';
+	type: 'Join' | 'Update' | 'Presence' | 'Ping' | 'RequestSync';
 	client_id?: string;
 	name?: string;
 	color?: string;
@@ -63,6 +63,7 @@ let pendingPresencePayload: { cursor: { x: number; y: number } | null; selected_
 let lastPresenceSentAt = 0;
 let lastPresenceSignature = '';
 const PRESENCE_THROTTLE_MS = 50;
+let presenceFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function resetRealtimeSyncState() {
 	lastAppliedSeq = 0;
@@ -190,7 +191,7 @@ export function connectToSession(
 		let connectionTimeout: NodeJS.Timeout | null = null;
 
 		ws.onopen = () => {
-			console.log('WebSocket connected, readyState:', ws?.readyState);
+	console.log('WebSocket connected, readyState:', ws?.readyState);
 			reconnectAttempts = 0;
 
 			const joinMessage: ClientMessage = {
@@ -199,7 +200,6 @@ export function connectToSession(
 				name,
 				color,
 			};
-			console.log('Sending Join message:', joinMessage);
 			ws!.send(JSON.stringify(joinMessage));
 			
 			collaborationState.update(state => ({
@@ -227,7 +227,7 @@ export function connectToSession(
 		ws.onmessage = async (event) => {
 			try {
 				const message: ServerMessage = JSON.parse(event.data);
-				console.log('Received server message:', message.type, message);
+				
 				
 				if (message.type === 'Joined' && !joined) {
 					joined = true;
@@ -811,13 +811,6 @@ export function sendOperation(operation: Operation) {
 		return;
 	}
 	const outgoingOperation = remapOperationId(operation, resolveOutgoingId);
-	console.log('sendOperation called:', {
-		op: outgoingOperation.op,
-		isConnected: state.isConnected,
-		clientId: state.clientId,
-		wsExists: !!ws,
-		readyState: ws?.readyState
-	});
 	
 	if (!state.sessionId) {
 		console.warn('Cannot send operation - no session ID');
@@ -831,25 +824,12 @@ export function sendOperation(operation: Operation) {
 		};
 		try {
 			const json = JSON.stringify(message);
-			console.log('Sending operation:', outgoingOperation.op, outgoingOperation);
 			ws.send(json);
 		} catch (error) {
 			console.error('Failed to serialize operation:', error, outgoingOperation);
 		}
 	} else if (state.sessionId) {
-		console.log('Queueing operation until connection is ready:', outgoingOperation.op, {
-			wsReady: ws?.readyState === WebSocket.OPEN,
-			isConnected: state.isConnected,
-			hasClientId: !!state.clientId
-		});
 		operationQueue.push(outgoingOperation);
-	} else {
-		console.warn('Cannot send operation - not connected:', {
-			isConnected: state.isConnected,
-			wsExists: !!ws,
-			readyState: ws?.readyState,
-			clientId: state.clientId
-		});
 	}
 }
 
@@ -867,7 +847,12 @@ function flushPresence() {
 
 	const now = Date.now();
 	if (now - lastPresenceSentAt < PRESENCE_THROTTLE_MS) {
-		setTimeout(flushPresence, PRESENCE_THROTTLE_MS - (now - lastPresenceSentAt));
+		if (!presenceFlushTimer) {
+			presenceFlushTimer = setTimeout(() => {
+				presenceFlushTimer = null;
+				flushPresence();
+			}, PRESENCE_THROTTLE_MS - (now - lastPresenceSentAt));
+		}
 		return;
 	}
 
@@ -914,6 +899,10 @@ export function disconnect() {
 		clearTimeout(reconnectTimeout);
 		reconnectTimeout = null;
 	}
+	if (presenceFlushTimer) {
+		clearTimeout(presenceFlushTimer);
+		presenceFlushTimer = null;
+	}
 	operationQueue = [];
 	resetRealtimeSyncState();
 	collaborationState.set({
@@ -928,4 +917,12 @@ export function disconnect() {
 		role: 'editor',
 		isHost: false,
 	});
+}
+
+export function requestFullSync() {
+	if (!ws || ws.readyState !== WebSocket.OPEN) return;
+	const message: ClientMessage = {
+		type: 'RequestSync',
+	};
+	ws.send(JSON.stringify(message));
 }

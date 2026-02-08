@@ -241,8 +241,11 @@ impl SessionManager {
         let json = serde_json::to_string_pretty(&payload)
             .map_err(|e| format!("Failed to serialize session store: {e}"))?;
 
-        std::fs::write(&self.store_path, json)
-            .map_err(|e| format!("Failed to write session store: {e}"))
+        let temp_path = self.store_path.with_extension("tmp");
+        std::fs::write(&temp_path, json)
+            .map_err(|e| format!("Failed to write temp session store: {e}"))?;
+        std::fs::rename(&temp_path, &self.store_path)
+            .map_err(|e| format!("Failed to atomically replace session store: {e}"))
     }
 
     pub fn cleanup_expired_sessions(&mut self) -> usize {
@@ -271,6 +274,10 @@ impl SessionManager {
             let session = Session::from_persisted(snapshot);
             self.sessions.insert(session.id.clone(), session);
         }
+    }
+
+    pub fn session_count(&self) -> usize {
+        self.sessions.len()
     }
 
     #[allow(dead_code)]
