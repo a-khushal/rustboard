@@ -127,6 +127,9 @@
 	let eraserRadius = 5;
 	let eraserPosition: { x: number; y: number } | null = null;
 	let eraserShadowPosition: { x: number; y: number } | null = null;
+	let eraserTrail: Array<{ x: number; y: number; t: number }> = [];
+	const ERASER_TRAIL_MAX_POINTS = 10;
+	const ERASER_TRAIL_MAX_AGE_MS = 180;
 	let renderRequestId: number | null = null;
 	let isTextEditing = false;
 	let editingTextId: number | null = null;
@@ -255,8 +258,37 @@
 		canvas.style.cursor = 'default';
 	}
 
+	function pruneEraserTrail(now: number) {
+		eraserTrail = eraserTrail.filter((point) => now - point.t <= ERASER_TRAIL_MAX_AGE_MS);
+		if (eraserTrail.length > ERASER_TRAIL_MAX_POINTS) {
+			eraserTrail = eraserTrail.slice(eraserTrail.length - ERASER_TRAIL_MAX_POINTS);
+		}
+	}
+
+	function updateEraserTrail(x: number, y: number) {
+		const now = performance.now();
+		pruneEraserTrail(now);
+		const last = eraserTrail[eraserTrail.length - 1];
+		if (!last) {
+			eraserTrail = [{ x, y, t: now }];
+			return;
+		}
+		const dx = x - last.x;
+		const dy = y - last.y;
+		if (dx * dx + dy * dy < 0.25) return;
+		eraserTrail = [...eraserTrail, { x, y, t: now }];
+		if (eraserTrail.length > ERASER_TRAIL_MAX_POINTS) {
+			eraserTrail = eraserTrail.slice(eraserTrail.length - ERASER_TRAIL_MAX_POINTS);
+		}
+	}
+
 	$: if (canvas && $activeTool !== lastAppliedToolCursor) {
 		lastAppliedToolCursor = $activeTool;
+		if ($activeTool !== 'eraser') {
+			eraserTrail = [];
+			eraserPosition = null;
+			eraserShadowPosition = null;
+		}
 		applyToolCursorImmediately();
 	}
 	const arrowBindings = new Map<number, ArrowBinding>();
@@ -2992,6 +3024,7 @@ function resetRotationState() {
 			isErasing = true;
 			eraserPosition = { x, y };
 			eraserShadowPosition = { x, y };
+			updateEraserTrail(x, y);
 			performErase(x, y);
 			scheduleRender();
 		}
@@ -3297,6 +3330,7 @@ function resetRotationState() {
 		if ($activeTool === 'eraser') {
 			if (isErasing && event.buttons !== 0) {
 				eraserPosition = { x, y };
+				updateEraserTrail(x, y);
 				if (eraserShadowPosition) {
 					const dx = x - eraserShadowPosition.x;
 					const dy = y - eraserShadowPosition.y;
@@ -3314,7 +3348,13 @@ function resetRotationState() {
 				scheduleRender();
 			} else {
 				eraserPosition = { x, y };
-				eraserShadowPosition = { x, y };
+				updateEraserTrail(x, y);
+				if (!eraserShadowPosition) {
+					eraserShadowPosition = { x, y };
+				} else {
+					eraserShadowPosition.x += (x - eraserShadowPosition.x) * 0.45;
+					eraserShadowPosition.y += (y - eraserShadowPosition.y) * 0.45;
+				}
 				scheduleRender();
 			}
 			canvas.style.cursor = 'none';
@@ -4584,6 +4624,10 @@ function resetRotationState() {
 		if (isPanning) {
 			isPanning = false;
 		}
+		eraserTrail = [];
+		eraserPosition = null;
+		eraserShadowPosition = null;
+		scheduleRender();
 		sendPresence(null, getLocalSelectionIds());
 	}
 	
@@ -6208,8 +6252,25 @@ function resetRotationState() {
 		if ($activeTool === 'eraser') {
 			const currentPos = eraserPosition || lastMouseWorldPos;
 			if (currentPos) {
+				const now = performance.now();
+				pruneEraserTrail(now);
 				const screenPos = worldToScreen(currentPos.x, currentPos.y, $viewportOffset, $zoom);
 				const screenRadius = eraserRadius;
+
+				for (let i = 0; i < eraserTrail.length; i++) {
+					const point = eraserTrail[i];
+					const age = now - point.t;
+					if (age < 0 || age > ERASER_TRAIL_MAX_AGE_MS) continue;
+					const ageProgress = 1 - age / ERASER_TRAIL_MAX_AGE_MS;
+					const pointScreen = worldToScreen(point.x, point.y, $viewportOffset, $zoom);
+					renderCtx.save();
+					renderCtx.globalAlpha = 0.08 + ageProgress * 0.14;
+					renderCtx.fillStyle = $theme === 'dark' ? '#f5f5f4' : '#1c1917';
+					renderCtx.beginPath();
+					renderCtx.arc(pointScreen.x, pointScreen.y, screenRadius * (0.55 + ageProgress * 0.25), 0, 2 * Math.PI);
+					renderCtx.fill();
+					renderCtx.restore();
+				}
 				
 				if (eraserShadowPosition) {
 					const shadowScreenPos = worldToScreen(eraserShadowPosition.x, eraserShadowPosition.y, $viewportOffset, $zoom);

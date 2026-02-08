@@ -484,11 +484,11 @@
 	}
 </script>
 
-<div bind:this={toolbarRef} class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap items-center justify-center gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap md:justify-start ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div bind:this={toolbarRef} class={`pointer-events-none fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap items-center justify-center gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap md:justify-start ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool, index (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
-			class={`relative flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans md:h-auto md:w-auto md:px-2 ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
+			class={`pointer-events-auto relative flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans md:h-auto md:w-auto md:px-2 ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
 				transition-colors duration-150 rounded-sm
 				${$activeTool === tool.id
 					? $theme === 'dark'
@@ -560,7 +560,7 @@
 
 	<button
 		on:click={toggleGridSnap}
-		class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
+		class={`pointer-events-auto flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$gridEnabled
 				? $theme === 'dark'
 					? 'text-stone-100 bg-stone-700 border border-stone-500'
@@ -576,7 +576,7 @@
 		</svg>
 	</button>
 	
-	<div class="relative collaboration-menu-container">
+	<div class="pointer-events-auto relative collaboration-menu-container">
 		<button
 			on:click={(e) => {
 				e.stopPropagation();
@@ -755,7 +755,7 @@
 		{/if}
 	</div>
 
-	<div class="flex items-center gap-1 md:hidden">
+	<div class="pointer-events-auto flex items-center gap-1 md:hidden">
 		<button
 			type="button"
 			on:click={undo}
@@ -810,7 +810,7 @@
 
 	<button
 		on:click={toggleTheme}
-	class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
+	class={`pointer-events-auto flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
@@ -837,7 +837,7 @@
 
 	<button
 		on:click={() => shortcutsPanelOpen = true}
-	class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
+	class={`pointer-events-auto flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
