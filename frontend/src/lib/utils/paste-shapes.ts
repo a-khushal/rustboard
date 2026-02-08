@@ -215,22 +215,22 @@ export function pasteShapes(clipboard: ClipboardData, offsetX: number, offsetY: 
         const newX = text.position.x - minX + offsetX;
         const newY = text.position.y - minY + offsetY;
         const newId = api.add_text_without_snapshot(newX, newY, text.width, text.height, text.content);
-        if (text.font_family !== 'Arial') {
+        if (text.font_family !== undefined && text.font_family !== 'Arial') {
             api.set_text_font_family(BigInt(newId), text.font_family, false);
         }
-        if (text.font_size !== 16.0) {
+        if (text.font_size !== undefined && text.font_size !== 16.0) {
             api.set_text_font_size(BigInt(newId), text.font_size, false);
         }
-        if (text.font_weight !== 'normal') {
+        if (text.font_weight !== undefined && text.font_weight !== 'normal') {
             api.set_text_font_weight(BigInt(newId), text.font_weight, false);
         }
-        if (text.text_align !== 'left') {
+        if (text.text_align !== undefined && text.text_align !== 'left') {
             api.set_text_text_align(BigInt(newId), text.text_align, false);
         }
-        if (text.color !== '#000000') {
+        if (text.color !== undefined && text.color !== '#000000') {
             api.set_text_color(BigInt(newId), text.color, false);
         }
-        if (text.rotation_angle !== 0.0) {
+        if (text.rotation_angle !== undefined && text.rotation_angle !== 0.0) {
             api.set_text_rotation(BigInt(newId), text.rotation_angle, false);
         }
         const opacity = (text as any).opacity;

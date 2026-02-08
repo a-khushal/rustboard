@@ -23,7 +23,7 @@ export function addEllipse(x: number, y: number, radius_x: number = 50, radius_y
     const updatedEllipses = Array.from(api.get_ellipses() as Ellipse[]);
     ellipses.set(updatedEllipses);
 
-    const newEllipse = updatedEllipses.find((e: Ellipse) => e.id === newId);
+    const newEllipse = updatedEllipses.find((e: Ellipse) => e.id === Number(newId));
     if (newEllipse) {
         selectedEllipses.set([newEllipse]);
     }

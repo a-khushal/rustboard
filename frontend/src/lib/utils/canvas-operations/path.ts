@@ -23,7 +23,7 @@ export function addPath(points: Array<{ x: number; y: number }>): number | null 
     const updatedPaths = Array.from(api.get_paths() as Path[]);
     paths.set(updatedPaths);
 
-    const newPath = updatedPaths.find((p: Path) => p.id === newId);
+    const newPath = updatedPaths.find((p: Path) => p.id === Number(newId));
     if (newPath) {
         selectedPaths.set([newPath]);
     }

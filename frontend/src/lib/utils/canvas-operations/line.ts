@@ -23,7 +23,7 @@ export function addLine(startX: number, startY: number, endX: number, endY: numb
     const updatedLines = Array.from(api.get_lines() as Line[]);
     lines.set(updatedLines);
 
-    const newLine = updatedLines.find((l: Line) => l.id === newId);
+    const newLine = updatedLines.find((l: Line) => l.id === Number(newId));
     if (newLine) {
         selectedLines.set([newLine]);
     }
@@ -74,4 +74,3 @@ export function updateLines(): void {
         selectedLines.set(updatedSelection.length > 0 ? updatedSelection : []);
     }
 }
-

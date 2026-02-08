@@ -28,7 +28,7 @@ export function addDiamond(x: number, y: number, width: number = 100, height: nu
     const updatedDiamonds = Array.from(api.get_diamonds() as Diamond[]);
     diamonds.set(updatedDiamonds);
 
-    const newDiamond = updatedDiamonds.find((d: Diamond) => d.id === newId);
+    const newDiamond = updatedDiamonds.find((d: Diamond) => d.id === Number(newId));
     if (newDiamond) {
         selectedDiamonds.set([newDiamond]);
     }
@@ -94,4 +94,3 @@ export function updateDiamonds(): void {
         selectedDiamonds.set(updatedSelection.length > 0 ? updatedSelection : []);
     }
 }
-

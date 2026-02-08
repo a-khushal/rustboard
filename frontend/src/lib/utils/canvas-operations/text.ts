@@ -43,7 +43,7 @@ export function addText(x: number, y: number, content: string, width: number = 1
     const updatedTexts = Array.from(api.get_texts() as Text[]);
     texts.set(updatedTexts);
 
-    const newText = updatedTexts.find((t: Text) => t.id === newId);
+    const newText = updatedTexts.find((t: Text) => t.id === Number(newId));
     if (newText) {
         selectedTexts.set([newText]);
     }

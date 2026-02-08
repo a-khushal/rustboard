@@ -28,7 +28,7 @@ export function addRectangle(x: number, y: number, width: number = 100, height: 
     const updatedRectangles = Array.from(api.get_rectangles() as Rectangle[]);
     rectangles.set(updatedRectangles);
 
-    const newRect = updatedRectangles.find((r: Rectangle) => r.id === newId);
+    const newRect = updatedRectangles.find((r: Rectangle) => r.id === Number(newId));
     if (newRect) {
         selectedRectangles.set([newRect]);
     }

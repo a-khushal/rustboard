@@ -806,6 +806,7 @@
 	function updateStores() {
 		if (!$editorApi) return;
 		const api = get(editorApi);
+		if (!api) return;
 		
 		const selectedRectIds = new Set($selectedRectangles.map(r => r.id));
 		const selectedEllipseIds = new Set($selectedEllipses.map(e => e.id));

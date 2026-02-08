@@ -23,7 +23,7 @@ export function addArrow(startX: number, startY: number, endX: number, endY: num
     const updatedArrows = Array.from(api.get_arrows() as Arrow[]);
     arrows.set(updatedArrows);
 
-    const newArrow = updatedArrows.find((a: Arrow) => a.id === newId);
+    const newArrow = updatedArrows.find((a: Arrow) => a.id === Number(newId));
     if (newArrow) {
         selectedArrows.set([newArrow]);
     }
@@ -74,4 +74,3 @@ export function updateArrows(): void {
         selectedArrows.set(updatedSelection.length > 0 ? updatedSelection : []);
     }
 }
-

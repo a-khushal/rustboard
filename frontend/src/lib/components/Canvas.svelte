@@ -2859,10 +2859,12 @@ function resetRotationState() {
 			clearAllSelections();
 			const newId = addText(x, y, '');
 			if (newId === null) return;
+			const api = get(editorApi);
+			if (!api) return;
 			const strokeColor = getStore(defaultStrokeColor);
-			$editorApi.set_text_color(BigInt(newId), strokeColor, false);
+			api.set_text_color(BigInt(newId), strokeColor, false);
 			sendOperation({ op: 'SetTextStyle', id: newId, color: strokeColor });
-			const allTexts = Array.from($editorApi.get_texts() as EditorText[]);
+			const allTexts = Array.from(api.get_texts() as EditorText[]);
 			const newText = allTexts.find(t => t.id === Number(newId));
 			if (newText) {
 				selectedTexts.set([newText]);
@@ -3009,6 +3011,7 @@ function resetRotationState() {
 	function updateStores() {
 		if (!$editorApi) return;
 		const api = get(editorApi);
+		if (!api) return;
 
 		const selectedRectIds = new Set($selectedRectangles.map(r => r.id));
 		const selectedEllipseIds = new Set($selectedEllipses.map(e => e.id));
