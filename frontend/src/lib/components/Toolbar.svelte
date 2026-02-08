@@ -401,11 +401,11 @@
 	}
 </script>
 
-<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
-	{#each tools as tool (tool.id)}
+<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap items-center justify-center gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap md:justify-start ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+	{#each tools as tool, index (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
-			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
+			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans md:h-auto md:w-auto md:px-2 ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
 				transition-colors duration-150 rounded-sm
 				${$activeTool === tool.id
 					? $theme === 'dark'
@@ -464,11 +464,14 @@
 				</svg>
 			{/if}
 		</button>
+		{#if index === 7}
+			<div class="basis-full md:hidden"></div>
+		{/if}
 	{/each}
 
 	<button
 		on:click={toggleGridSnap}
-		class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+		class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$gridEnabled
 				? $theme === 'dark'
 					? 'text-stone-100 bg-stone-700 border border-stone-500'
@@ -484,7 +487,7 @@
 		</svg>
 	</button>
 	
-	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<div class="relative collaboration-menu-container">
 		<button
@@ -492,7 +495,7 @@
 				e.stopPropagation();
 				collaborationMenuOpen = !collaborationMenuOpen;
 			}}
-			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm relative
+			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm relative md:h-auto md:w-auto md:px-2
 				${collaborationMenuOpen
 					? $theme === 'dark'
 						? 'bg-stone-700 border border-stone-500'
@@ -504,7 +507,7 @@
 		>
 			{#if $isCollaborating}
 				<div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-				<span class="text-xs">{$collaboratorCount}</span>
+				<span class="hidden text-xs md:inline">{$collaboratorCount}</span>
 			{:else}
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -665,14 +668,14 @@
 		{/if}
 	</div>
 
-	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<div class="flex items-center gap-1 md:hidden">
 		<button
 			type="button"
 			on:click={undo}
 			disabled={$isCollaborating}
-			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 				${$theme === 'dark'
 					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700 disabled:opacity-50 disabled:cursor-not-allowed'
 					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 disabled:opacity-50 disabled:cursor-not-allowed'}`}
@@ -686,7 +689,7 @@
 			type="button"
 			on:click={redo}
 			disabled={$isCollaborating}
-			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 				${$theme === 'dark'
 					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700 disabled:opacity-50 disabled:cursor-not-allowed'
 					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 disabled:opacity-50 disabled:cursor-not-allowed'}`}
@@ -699,7 +702,7 @@
 		<button
 			type="button"
 			on:click={zoomIn}
-			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 				${$theme === 'dark'
 					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
@@ -710,7 +713,7 @@
 		<button
 			type="button"
 			on:click={zoomOut}
-			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 				${$theme === 'dark'
 					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
@@ -720,11 +723,11 @@
 		</button>
 	</div>
 
-	<div class={`w-px md:hidden ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<button
 		on:click={toggleTheme}
-	class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+	class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
@@ -749,11 +752,11 @@
 		{/if}
 	</button>
 
-	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<button
 		on:click={() => shortcutsPanelOpen = true}
-	class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+	class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}

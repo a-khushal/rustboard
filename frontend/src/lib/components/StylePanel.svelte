@@ -909,6 +909,20 @@
 		$selectedTexts.length > 0 ||
 		$selectedPaths.length > 0;
 
+	$: hasStrokeWidthControls =
+		(hasShapes || $activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'freehand') &&
+		$selectedTexts.length === 0;
+
+	$: showStrokeColors =
+		!hasImagesOnly &&
+		(hasShapes || $activeTool === 'freehand' || $activeTool === 'line' || $activeTool === 'arrow');
+
+	$: compactFreehandStrokeRow =
+		hasStrokeWidthControls &&
+		($activeTool === 'freehand' || $activeTool === 'line' || $activeTool === 'arrow') &&
+		!hasFillableShapes &&
+		showStrokeColors;
+
 	$: isSingleSelection =
 		($selectedRectangles.length + $selectedEllipses.length + $selectedDiamonds.length +
 		 $selectedLines.length + $selectedArrows.length + $selectedTexts.length + $selectedPaths.length) === 1;
@@ -1268,8 +1282,8 @@
 	}</script>
 
 {#if hasSelection}
-	<div bind:this={stylePanelRef} class={`fixed right-1.5 bottom-16 left-1.5 z-50 max-h-[45vh] overflow-y-auto overscroll-contain backdrop-blur-sm border rounded-lg p-3 md:absolute md:top-2 md:right-2 md:bottom-auto md:left-auto md:max-h-[calc(100vh-1rem)] md:w-[240px] md:min-w-[240px] ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
-		<div class="space-y-2.5 min-w-0">
+	<div bind:this={stylePanelRef} class={`fixed right-1.5 bottom-24 left-1.5 z-50 max-h-[40vh] overflow-y-auto overscroll-contain backdrop-blur-sm border rounded-lg p-2.5 md:absolute md:top-2 md:right-2 md:bottom-auto md:left-auto md:max-h-[calc(100vh-1rem)] md:w-[240px] md:min-w-[240px] md:p-3 ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
+		<div class="space-y-2 min-w-0 md:space-y-2.5">
 			<div class="space-y-1.5">
 				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Arrange</div>
 				<div class="grid grid-cols-3 gap-1">
@@ -1286,35 +1300,118 @@
 				</div>
 			</div>
 
-			{#if !hasImagesOnly}
-				{#if hasShapes}
-					<div class="space-y-1.5">
-						<fieldset class="flex flex-col gap-2 w-full min-w-0">
-							<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke</legend>
-							<div class="flex items-center gap-1.5 w-full">
-								<button
-									type="button"
-									bind:this={strokeColorPickerButton}
-									on:click={openStrokeColorPicker}
-									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-									style="background-color: {displayStrokeColor};"
-									title="Current color - click to change"
-								>
-								</button>
-								{#each strokeColors as color}
+			{#if showStrokeColors || hasFillableShapes}
+				<div class={`grid gap-2 ${((showStrokeColors && hasFillableShapes) || compactFreehandStrokeRow) ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-1'}`}>
+					{#if showStrokeColors}
+						<div class="space-y-1.5 min-w-0">
+							<fieldset class="flex flex-col gap-1.5 w-full min-w-0">
+								<legend class={`text-xs font-medium mb-0.5 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke</legend>
+								<div class="flex flex-wrap items-center gap-1 md:gap-1.5 w-full">
 									<button
 										type="button"
-										on:click={() => updateStrokeColor(displayStrokeColor === color ? getDefaultStrokeColor() : color)}
-										class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
-										style="background-color: {color};"
-										title={color}
+										bind:this={strokeColorPickerButton}
+										on:click={openStrokeColorPicker}
+										class={`h-7 w-7 rounded-full border-2 transition-all hover:scale-105 md:h-8 md:w-8 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
+										style="background-color: {displayStrokeColor};"
+										title="Current color - click to change"
 									>
 									</button>
-								{/each}
-							</div>
-						</fieldset>
-					</div>
-				{/if}
+									{#each strokeColors as color}
+										<button
+											type="button"
+											on:click={() => updateStrokeColor(displayStrokeColor === color ? getDefaultStrokeColor() : color)}
+											class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'h-7 w-7 md:h-8 md:w-8' : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+											style="background-color: {color};"
+											title={color}
+										>
+										</button>
+									{/each}
+								</div>
+							</fieldset>
+						</div>
+					{/if}
+
+					{#if compactFreehandStrokeRow}
+						<div class="space-y-1.5 min-w-0">
+							<fieldset class="space-y-1.5">
+								<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
+								<div class="flex items-center gap-1">
+									<button
+										on:click={() => updateStrokeWidthType(1)}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$defaultStrokeWidth === 1 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Thin"
+										aria-label="Thin stroke"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="3" y1="12" x2="21" y2="12"></line>
+										</svg>
+									</button>
+									<button
+										on:click={() => updateStrokeWidthType(2)}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$defaultStrokeWidth === 2 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Medium"
+										aria-label="Medium stroke"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="3" y1="12" x2="21" y2="12"></line>
+										</svg>
+									</button>
+									<button
+										on:click={() => updateStrokeWidthType(4)}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$defaultStrokeWidth === 4 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Thick"
+										aria-label="Thick stroke"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="3" y1="12" x2="21" y2="12"></line>
+										</svg>
+									</button>
+								</div>
+							</fieldset>
+						</div>
+					{/if}
+
+					{#if hasFillableShapes}
+						<div class="space-y-1.5 min-w-0">
+							<fieldset class="flex flex-col gap-1.5 w-full min-w-0">
+								<legend class={`text-xs font-medium mb-0.5 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Background</legend>
+								<div class="flex flex-wrap items-center gap-1 md:gap-1.5 w-full">
+									{#if fillColor === null}
+										<button
+											type="button"
+											bind:this={fillColorPickerButton}
+											on:click={openFillColorPicker}
+											class={`h-7 w-7 rounded-full border-2 transition-all hover:scale-105 relative md:h-8 md:w-8 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
+											title="No fill - click to change"
+										>
+											<div class={`w-full h-full rounded-full absolute inset-0 ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'}`} style="background-image: repeating-conic-gradient(${$theme === 'dark' ? '#374151' : '#e5e7eb'} 0% 25%, transparent 0% 50%); background-size: 50% 50%;"></div>
+										</button>
+									{:else}
+										<button
+											type="button"
+											bind:this={fillColorPickerButton}
+											on:click={openFillColorPicker}
+											class={`h-7 w-7 rounded-full border-2 transition-all hover:scale-105 md:h-8 md:w-8 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
+											style="background-color: {fillColor};"
+											title="Current color - click to change"
+										>
+										</button>
+									{/if}
+									{#each fillColors as color}
+										<button
+											type="button"
+											on:click={() => updateFillColor(fillColor === color ? null : color)}
+											class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'h-7 w-7 md:h-8 md:w-8' : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+											style="background-color: {color};"
+											title={color}
+										>
+										</button>
+									{/each}
+								</div>
+							</fieldset>
+						</div>
+					{/if}
+				</div>
 			{/if}
 
 			{#if false}
@@ -1343,115 +1440,78 @@
 				</div>
 			{/if}
 
-			{#if hasFillableShapes}
-				<div class="space-y-1.5">
-					<fieldset class="flex flex-col gap-2 w-full min-w-0">
-						<legend class={`text-xs font-medium mb-1 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Background</legend>
-						<div class="flex items-center gap-1.5 w-full">
-							{#if fillColor === null}
-								<button
-									type="button"
-									bind:this={fillColorPickerButton}
-									on:click={openFillColorPicker}
-									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 relative ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-									title="No fill - click to change"
-								>
-									<div class={`w-full h-full rounded-full absolute inset-0 ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'}`} style="background-image: repeating-conic-gradient(${$theme === 'dark' ? '#374151' : '#e5e7eb'} 0% 25%, transparent 0% 50%); background-size: 50% 50%;"></div>
-								</button>
-							{:else}
-								<button
-									type="button"
-									bind:this={fillColorPickerButton}
-									on:click={openFillColorPicker}
-									class={`w-8 h-8 rounded-full border-2 transition-all hover:scale-105 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-									style="background-color: {fillColor};"
-									title="Current color - click to change"
-								>
-								</button>
-							{/if}
-							{#each fillColors as color}
-								<button
-									type="button"
-									on:click={() => updateFillColor(fillColor === color ? null : color)}
-									class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
-									style="background-color: {color};"
-									title={color}
-								>
-								</button>
-							{/each}
+			{#if hasEditableEdges || (hasStrokeWidthControls && !compactFreehandStrokeRow)}
+				<div class={`grid gap-2 ${hasEditableEdges && (hasStrokeWidthControls && !compactFreehandStrokeRow) ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-1'}`}>
+					{#if hasEditableEdges}
+						<div class="space-y-1.5 min-w-0">
+							<fieldset class="space-y-1.5">
+								<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Edges</legend>
+								<div class="flex items-center gap-1">
+									<button
+										on:click={() => handleEdgeStyleChange('sharp')}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$edgeStyle === 'sharp' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Sharp"
+										aria-label="Sharp edges"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+											<rect x="3" y="3" width="18" height="18" rx="0" ry="0" stroke-dasharray="2 2"></rect>
+										</svg>
+									</button>
+									<button
+										on:click={() => handleEdgeStyleChange('rounded')}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$edgeStyle === 'rounded' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Rounded"
+										aria-label="Rounded edges"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+											<rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="2 2"></rect>
+											<path d="M15 3h6v6" stroke-width="2.5" fill="none"></path>
+										</svg>
+									</button>
+								</div>
+							</fieldset>
 						</div>
-					</fieldset>
-				</div>
-			{/if}
+					{/if}
 
-			{#if hasEditableEdges}
-				<div class="space-y-1.5">
-					<fieldset class="space-y-1.5">
-						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Edges</legend>
-						<div class="flex items-center gap-1">
-							<button
-								on:click={() => handleEdgeStyleChange('sharp')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$edgeStyle === 'sharp' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Sharp"
-								aria-label="Sharp edges"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-									<rect x="3" y="3" width="18" height="18" rx="0" ry="0" stroke-dasharray="2 2"></rect>
-								</svg>
-							</button>
-							<button
-								on:click={() => handleEdgeStyleChange('rounded')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$edgeStyle === 'rounded' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Rounded"
-								aria-label="Rounded edges"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-									<rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="2 2"></rect>
-									<path d="M15 3h6v6" stroke-width="2.5" fill="none"></path>
-								</svg>
-							</button>
+					{#if hasStrokeWidthControls && !compactFreehandStrokeRow}
+						<div class="space-y-1.5 min-w-0">
+							<fieldset class="space-y-1.5">
+								<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
+								<div class="flex items-center gap-1">
+									<button
+										on:click={() => updateStrokeWidthType(1)}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$defaultStrokeWidth === 1 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Thin"
+										aria-label="Thin stroke"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="3" y1="12" x2="21" y2="12"></line>
+										</svg>
+									</button>
+									<button
+										on:click={() => updateStrokeWidthType(2)}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$defaultStrokeWidth === 2 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Medium"
+										aria-label="Medium stroke"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="3" y1="12" x2="21" y2="12"></line>
+										</svg>
+									</button>
+									<button
+										on:click={() => updateStrokeWidthType(4)}
+										class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$defaultStrokeWidth === 4 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+										title="Thick"
+										aria-label="Thick stroke"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="3" y1="12" x2="21" y2="12"></line>
+										</svg>
+									</button>
+								</div>
+							</fieldset>
 						</div>
-					</fieldset>
-				</div>
-			{/if}
-
-			{#if (hasShapes || $activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'freehand') && $selectedTexts.length === 0}
-				<div class="space-y-1.5">
-					<fieldset class="space-y-1.5">
-						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
-						<div class="flex items-center gap-1">
-							<button
-								on:click={() => updateStrokeWidthType(1)}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$defaultStrokeWidth === 1 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Thin"
-								aria-label="Thin stroke"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-									<line x1="3" y1="12" x2="21" y2="12"></line>
-								</svg>
-							</button>
-							<button
-								on:click={() => updateStrokeWidthType(2)}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$defaultStrokeWidth === 2 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Medium"
-								aria-label="Medium stroke"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<line x1="3" y1="12" x2="21" y2="12"></line>
-								</svg>
-							</button>
-							<button
-								on:click={() => updateStrokeWidthType(4)}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$defaultStrokeWidth === 4 ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Thick"
-								aria-label="Thick stroke"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-									<line x1="3" y1="12" x2="21" y2="12"></line>
-								</svg>
-							</button>
-						</div>
-					</fieldset>
+					{/if}
 				</div>
 			{/if}
 
@@ -1530,38 +1590,140 @@
 			{/if}
 
 			{#if showDashPatternControls}
+				<div class="grid grid-cols-2 gap-2 md:grid-cols-1">
+					<div class="space-y-1.5 min-w-0">
+						<fieldset class="space-y-1.5">
+							<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke Style</legend>
+							<div class="flex items-center gap-1">
+								<button
+									on:click={() => handleDashPatternChange('solid')}
+									class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$dashPattern === 'solid' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+									title="Solid"
+									aria-label="Solid line"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="3" y1="12" x2="21" y2="12"></line>
+									</svg>
+								</button>
+								<button
+									on:click={() => handleDashPatternChange('dashed')}
+									class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$dashPattern === 'dashed' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+									title="Dashed"
+									aria-label="Dashed line"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4">
+										<line x1="3" y1="12" x2="21" y2="12"></line>
+									</svg>
+								</button>
+								<button
+									on:click={() => handleDashPatternChange('dotted')}
+									class={`flex flex-1 items-center justify-center p-1 md:p-1.5 rounded transition-colors ${$dashPattern === 'dotted' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+									title="Dotted"
+									aria-label="Dotted line"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 2">
+										<line x1="3" y1="12" x2="21" y2="12"></line>
+									</svg>
+								</button>
+							</div>
+						</fieldset>
+					</div>
+
+					<div class="space-y-1.5 min-w-0">
+						<fieldset class="space-y-1.5">
+							<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Layers</legend>
+							<div class="flex items-center gap-1">
+								<button
+									on:click={sendToBack}
+									class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+									title="Send to Back (Ctrl+Shift+[)"
+									aria-label="Send to Back"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="12" y1="5" x2="12" y2="19"></line>
+										<polyline points="19 12 12 19 5 12"></polyline>
+									</svg>
+								</button>
+								<button
+									on:click={sendBackward}
+									class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+									title="Send Backward (Ctrl+[)"
+									aria-label="Send Backward"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<polyline points="19 12 12 19 5 12"></polyline>
+									</svg>
+								</button>
+								<button
+									on:click={bringForward}
+									class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+									title="Bring Forward (Ctrl+])"
+									aria-label="Bring Forward"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<polyline points="5 12 12 5 19 12"></polyline>
+									</svg>
+								</button>
+								<button
+									on:click={bringToFront}
+									class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+									title="Bring to Front (Ctrl+Shift+])"
+									aria-label="Bring to Front"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="12" y1="19" x2="12" y2="5"></line>
+										<polyline points="5 12 12 5 19 12"></polyline>
+									</svg>
+								</button>
+							</div>
+						</fieldset>
+					</div>
+				</div>
+			{:else}
 				<div class="space-y-1.5">
 					<fieldset class="space-y-1.5">
-						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke Style</legend>
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Layers</legend>
 						<div class="flex items-center gap-1">
 							<button
-								on:click={() => handleDashPatternChange('solid')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$dashPattern === 'solid' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Solid"
-								aria-label="Solid line"
+								on:click={sendToBack}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Send to Back (Ctrl+Shift+[)"
+								aria-label="Send to Back"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<line x1="3" y1="12" x2="21" y2="12"></line>
+									<line x1="12" y1="5" x2="12" y2="19"></line>
+									<polyline points="19 12 12 19 5 12"></polyline>
 								</svg>
 							</button>
 							<button
-								on:click={() => handleDashPatternChange('dashed')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$dashPattern === 'dashed' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Dashed"
-								aria-label="Dashed line"
+								on:click={sendBackward}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Send Backward (Ctrl+[)"
+								aria-label="Send Backward"
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4">
-									<line x1="3" y1="12" x2="21" y2="12"></line>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="19 12 12 19 5 12"></polyline>
 								</svg>
 							</button>
 							<button
-								on:click={() => handleDashPatternChange('dotted')}
-								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$dashPattern === 'dotted' ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-								title="Dotted"
-								aria-label="Dotted line"
+								on:click={bringForward}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Bring Forward (Ctrl+])"
+								aria-label="Bring Forward"
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 2">
-									<line x1="3" y1="12" x2="21" y2="12"></line>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="5 12 12 5 19 12"></polyline>
+								</svg>
+							</button>
+							<button
+								on:click={bringToFront}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Bring to Front (Ctrl+Shift+])"
+								aria-label="Bring to Front"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="12" y1="19" x2="12" y2="5"></line>
+									<polyline points="5 12 12 5 19 12"></polyline>
 								</svg>
 							</button>
 						</div>
@@ -1569,116 +1731,68 @@
 				</div>
 			{/if}
 
-			<div class="space-y-1.5">
-				<fieldset class="space-y-1.5">
-					<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Layers</legend>
-					<div class="flex items-center gap-1">
-						<button
-							on:click={sendToBack}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-							title="Send to Back (Ctrl+Shift+[)"
-							aria-label="Send to Back"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<line x1="12" y1="5" x2="12" y2="19"></line>
-								<polyline points="19 12 12 19 5 12"></polyline>
-							</svg>
-						</button>
-						<button
-							on:click={sendBackward}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-							title="Send Backward (Ctrl+[)"
-							aria-label="Send Backward"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<polyline points="19 12 12 19 5 12"></polyline>
-							</svg>
-						</button>
-						<button
-							on:click={bringForward}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-							title="Bring Forward (Ctrl+])"
-							aria-label="Bring Forward"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<polyline points="5 12 12 5 19 12"></polyline>
-							</svg>
-						</button>
-						<button
-							on:click={bringToFront}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-							title="Bring to Front (Ctrl+Shift+])"
-							aria-label="Bring to Front"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<line x1="12" y1="19" x2="12" y2="5"></line>
-								<polyline points="5 12 12 5 19 12"></polyline>
-							</svg>
-						</button>
-					</div>
-				</fieldset>
-			</div>
+			<div class="grid grid-cols-2 gap-2 md:grid-cols-1">
+				<div class="space-y-1.5 min-w-0">
+					<fieldset class="space-y-1.5">
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Lock</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={handleLock}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${allLocked ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Lock"
+								aria-label="Lock"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+									<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+								</svg>
+							</button>
+							<button
+								on:click={handleUnlock}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${!allLocked ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
+								title="Unlock"
+								aria-label="Unlock"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+									<path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+								</svg>
+							</button>
+						</div>
+					</fieldset>
+				</div>
 
-			<div class="space-y-1.5">
-				<fieldset class="space-y-1.5">
-					<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Lock</legend>
-					<div class="flex items-center gap-1">
-						<button
-							on:click={handleLock}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${allLocked ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-							title="Lock"
-							aria-label="Lock"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-								<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-							</svg>
-						</button>
-						<button
-							on:click={handleUnlock}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${!allLocked ? ($theme === 'dark' ? 'bg-stone-600 hover:bg-stone-500 text-stone-200 ring-2 ring-stone-500' : 'bg-stone-300 hover:bg-stone-400 text-stone-800 ring-2 ring-stone-400') : ($theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700')}`}
-							title="Unlock"
-							aria-label="Unlock"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-								<path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
-							</svg>
-						</button>
-					</div>
-				</fieldset>
-			</div>
-
-			<div class="space-y-1.5">
-				<fieldset class="space-y-1.5">
-					<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Actions</legend>
-					<div class="flex items-center gap-1">
-						<button
-							on:click={handleDuplicate}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-							title="Duplicate (Ctrl+D)"
-							aria-label="Duplicate"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-								<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-							</svg>
-						</button>
-						<button
-							on:click={handleDelete}
-							class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
-							title="Delete"
-							aria-label="Delete"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<polyline points="3 6 5 6 21 6"></polyline>
-								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-								<line x1="10" y1="11" x2="10" y2="17"></line>
-								<line x1="14" y1="11" x2="14" y2="17"></line>
-							</svg>
-						</button>
-					</div>
-				</fieldset>
+				<div class="space-y-1.5 min-w-0">
+					<fieldset class="space-y-1.5">
+						<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Actions</legend>
+						<div class="flex items-center gap-1">
+							<button
+								on:click={handleDuplicate}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Duplicate (Ctrl+D)"
+								aria-label="Duplicate"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+								</svg>
+							</button>
+							<button
+								on:click={handleDelete}
+								class={`flex flex-1 items-center justify-center p-1.5 rounded transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600 text-stone-200' : 'bg-stone-100 hover:bg-stone-200 text-stone-700'}`}
+								title="Delete"
+								aria-label="Delete"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="3 6 5 6 21 6"></polyline>
+									<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+									<line x1="10" y1="11" x2="10" y2="17"></line>
+									<line x1="14" y1="11" x2="14" y2="17"></line>
+								</svg>
+							</button>
+						</div>
+					</fieldset>
+				</div>
 			</div>
 		</div>
 	</div>
