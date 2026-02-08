@@ -25,7 +25,7 @@ rustboard/
 │       │   │   └── canvas-operations/
 │       │   └── wasm.ts          # WASM module loader
 │       └── routes/              # SvelteKit routes
-└── pkg/                 # Generated Wasm package
+└── frontend/src/lib/wasm/pkg/  # Generated Wasm package
 ```
 
 ## Setup

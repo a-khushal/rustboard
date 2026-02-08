@@ -4,8 +4,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build:wasm": "wasm-pack build frontend/wasm --target web --out-dir ../../pkg",
-		"build:wasm:dev": "wasm-pack build frontend/wasm --target web --out-dir ../../pkg --dev",
+		"build:wasm": "wasm-pack build frontend/wasm --target web --out-dir ../src/lib/wasm/pkg",
+		"build:wasm:dev": "wasm-pack build frontend/wasm --target web --out-dir ../src/lib/wasm/pkg --dev",
 		"build:frontend": "cd frontend && npm run build",
 		"build": "npm run build:wasm && npm run build:frontend",
 		"start": "npm run dev",
@@ -15,4 +15,3 @@
 		"test:wasm": "wasm-pack test --headless --firefox"
 	}
 }
-

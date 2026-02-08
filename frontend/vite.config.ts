@@ -39,8 +39,8 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			'rustboard-wasm': path.resolve(__dirname, '../pkg'),
-			'rustboard_wasm': path.resolve(__dirname, '../pkg')
+			'rustboard-wasm': path.resolve(__dirname, './src/lib/wasm/pkg'),
+			'rustboard_wasm': path.resolve(__dirname, './src/lib/wasm/pkg')
 		}
 	},
 	optimizeDeps: {
@@ -48,10 +48,7 @@ export default defineConfig({
 	},
 	server: {
 		fs: {
-			allow: [
-				path.resolve(__dirname, '../pkg'),
-				path.resolve(__dirname, '..')
-			]
+			allow: [path.resolve(__dirname, '.')]
 		}
 	}
 });

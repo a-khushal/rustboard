@@ -1,6 +1,6 @@
-import type { EditorApi } from '../../../pkg/rustboard_wasm';
+import type { EditorApi } from './wasm/pkg/rustboard_wasm';
 
-type RustboardWasmModule = typeof import('../../../pkg/rustboard_wasm');
+type RustboardWasmModule = typeof import('./wasm/pkg/rustboard_wasm');
 
 let wasmModule: RustboardWasmModule | null = null;
 let editorApi: EditorApi | null = null;
