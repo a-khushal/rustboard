@@ -56,11 +56,11 @@
 	$: displayStrokeColor = strokeColor;
 
 
-	const presetStrokeAccents = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#64748b'];
+	const presetStrokeAccents = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
 	$: strokeColors = $theme === 'dark' ? ['#ffffff', ...presetStrokeAccents] : ['#000000', ...presetStrokeAccents];
 
-	const fillColors = ['#bfdbfe', '#86efac', '#fde68a', '#fca5a5', '#cbd5e1'];
+	const fillColors = ['#bfdbfe', '#86efac', '#fde68a', '#fca5a5'];
 
 	let stylePanelRef: HTMLDivElement;
 
@@ -1309,7 +1309,7 @@
 										Custom
 									</button>
 								</div>
-								<div class="grid grid-cols-6 gap-1.5 w-full">
+								<div class="grid grid-cols-5 gap-1.5 w-full">
 									{#each strokeColors as color}
 										<button
 											type="button"
@@ -1382,7 +1382,7 @@
 										Custom
 									</button>
 								</div>
-								<div class="grid grid-cols-6 gap-1.5 w-full">
+								<div class="grid grid-cols-5 gap-1.5 w-full">
 									<button
 										type="button"
 										on:click={() => updateFillColor(null)}
