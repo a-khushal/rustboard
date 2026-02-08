@@ -34,7 +34,6 @@
 	let tokenActionInProgress = false;
 	let shortcutsPanelOpen = false;
 	let currentTimeMs = Date.now();
-	let mobileViewMenuOpen = false;
 
 	function parseTokenExpiryMs(token: string): number | null {
 		if (!token) return null;
@@ -88,9 +87,6 @@
 			const target = event.target as HTMLElement;
 			if (!target.closest('.collaboration-menu-container')) {
 				collaborationMenuOpen = false;
-			}
-			if (!target.closest('.mobile-view-menu-container')) {
-				mobileViewMenuOpen = false;
 			}
 		}
 
@@ -405,7 +401,7 @@
 	}
 </script>
 
-<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex gap-1 overflow-x-auto overscroll-x-contain rounded-sm p-1 shadow-sm touch-pan-x md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:overflow-visible ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
@@ -671,84 +667,57 @@
 
 	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
-	<div class="relative mobile-view-menu-container md:hidden">
+	<div class="flex items-center gap-1 md:hidden">
 		<button
-			on:click={(e) => {
-				e.stopPropagation();
-				mobileViewMenuOpen = !mobileViewMenuOpen;
-			}}
+			type="button"
+			on:click={undo}
+			disabled={$isCollaborating}
 			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
-				${mobileViewMenuOpen
-					? $theme === 'dark'
-						? 'bg-stone-700 border border-stone-500 text-stone-200'
-						: 'bg-stone-100 border border-stone-400 text-stone-700'
-					: $theme === 'dark'
-						? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
-						: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
-			title="View controls"
+				${$theme === 'dark'
+					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700 disabled:opacity-50 disabled:cursor-not-allowed'
+					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+			title={$isCollaborating ? 'Undo disabled in collaboration' : 'Undo'}
 		>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-				<circle cx="12" cy="5" r="1.5" />
-				<circle cx="12" cy="12" r="1.5" />
-				<circle cx="12" cy="19" r="1.5" />
+			<svg width="16" height="16" viewBox="0 0 8 8" fill="currentColor">
+				<path d="M4.5 1C2.57 1 1 2.57 1 4.5V5H0l2 2 2-2H3v-.5a2.5 2.5 0 0 1 5 0C8 2.57 6.43 1 4.5 1z"/>
 			</svg>
 		</button>
-
-		{#if mobileViewMenuOpen}
-			<div
-				on:click|stopPropagation
-				on:keydown|stopPropagation
-				role="menu"
-				aria-label="View controls"
-				tabindex="-1"
-				class={`absolute bottom-full right-0 mb-2 w-44 rounded-sm border p-2 shadow-lg ${$theme === 'dark' ? 'bg-stone-800 border-stone-700' : 'bg-white border-stone-200'}`}
-			>
-				<div class="grid grid-cols-2 gap-1.5">
-					<button
-						on:click={() => {
-							undo();
-							mobileViewMenuOpen = false;
-						}}
-						disabled={$isCollaborating}
-						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
-						title={$isCollaborating ? 'Undo disabled in collaboration' : 'Undo'}
-					>
-						Undo
-					</button>
-					<button
-						on:click={() => {
-							redo();
-							mobileViewMenuOpen = false;
-						}}
-						disabled={$isCollaborating}
-						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
-						title={$isCollaborating ? 'Redo disabled in collaboration' : 'Redo'}
-					>
-						Redo
-					</button>
-					<button
-						on:click={() => {
-							zoomIn();
-							mobileViewMenuOpen = false;
-						}}
-						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
-						title="Zoom in"
-					>
-						Zoom +
-					</button>
-					<button
-						on:click={() => {
-							zoomOut();
-							mobileViewMenuOpen = false;
-						}}
-						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
-						title="Zoom out"
-					>
-						Zoom -
-					</button>
-				</div>
-			</div>
-		{/if}
+		<button
+			type="button"
+			on:click={redo}
+			disabled={$isCollaborating}
+			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+				${$theme === 'dark'
+					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700 disabled:opacity-50 disabled:cursor-not-allowed'
+					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+			title={$isCollaborating ? 'Redo disabled in collaboration' : 'Redo'}
+		>
+			<svg width="16" height="16" viewBox="0 0 8 8" fill="currentColor">
+				<path d="M3.5 1C1.57 1 0 2.57 0 4.5a2.5 2.5 0 0 1 5 0V5H4l2 2 2-2H7v-.5C7 2.57 5.43 1 3.5 1z"/>
+			</svg>
+		</button>
+		<button
+			type="button"
+			on:click={zoomIn}
+			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+				${$theme === 'dark'
+					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+			title="Zoom in"
+		>
+			+
+		</button>
+		<button
+			type="button"
+			on:click={zoomOut}
+			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+				${$theme === 'dark'
+					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+			title="Zoom out"
+		>
+			-
+		</button>
 	</div>
 
 	<div class={`w-px md:hidden ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
