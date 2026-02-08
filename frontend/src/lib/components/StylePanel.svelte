@@ -1328,7 +1328,7 @@
 					{#if compactLinearStrokeRow}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="space-y-1.5">
-								<div class="flex items-center justify-between gap-2 min-h-[1.5rem]">
+								<div class="flex items-center justify-between gap-2 min-h-6">
 									<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
 									<span class="px-2 py-1 text-[10px] invisible">Custom</span>
 								</div>
