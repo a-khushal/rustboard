@@ -383,7 +383,7 @@
 	}
 </script>
 
-<div class={`absolute top-2 left-2 z-50 flex gap-1 shadow-sm rounded-sm p-1 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div class={`fixed bottom-2 left-1/2 z-50 flex max-w-[calc(100vw-0.75rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-sm p-1 shadow-sm md:absolute md:left-2 md:top-2 md:max-w-none md:translate-x-0 md:overflow-visible ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
@@ -501,7 +501,7 @@
 				role="dialog"
 				aria-label="Collaboration menu"
 				tabindex="-1"
-				class={`absolute top-full left-0 mt-1 w-80 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'} rounded-sm shadow-lg p-3 z-50`}
+				class={`absolute bottom-full left-1/2 mb-2 w-[min(22rem,calc(100vw-0.75rem))] -translate-x-1/2 md:bottom-auto md:left-0 md:top-full md:mt-1 md:mb-0 md:w-80 md:translate-x-0 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'} rounded-sm shadow-lg p-3 z-50`}
 			>
 				{#if $isCollaborating}
 					<div class="space-y-3">

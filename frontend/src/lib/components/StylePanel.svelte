@@ -372,14 +372,15 @@
 	function openStrokeColorPicker(event: MouseEvent) {
 		const button = event.currentTarget as HTMLButtonElement;
 		const buttonRect = button.getBoundingClientRect();
-		const panelRect = stylePanelRef.getBoundingClientRect();
+		const pickerLeft = Math.max(8, Math.min(window.innerWidth - 40, buttonRect.left - 24));
+		const pickerTop = Math.max(8, Math.min(window.innerHeight - 40, buttonRect.top));
 		
 		const input = document.createElement('input');
 		input.type = 'color';
 		input.value = displayStrokeColor;
 		input.style.position = 'fixed';
-		input.style.left = `${panelRect.left - 250}px`;
-		input.style.top = `${buttonRect.top}px`;
+		input.style.left = `${pickerLeft}px`;
+		input.style.top = `${pickerTop}px`;
 		input.style.width = '1px';
 		input.style.height = '1px';
 		input.style.opacity = '0.01';
@@ -413,14 +414,15 @@
 	function openFillColorPicker(event: MouseEvent) {
 		const button = event.currentTarget as HTMLButtonElement;
 		const buttonRect = button.getBoundingClientRect();
-		const panelRect = stylePanelRef.getBoundingClientRect();
+		const pickerLeft = Math.max(8, Math.min(window.innerWidth - 40, buttonRect.left - 24));
+		const pickerTop = Math.max(8, Math.min(window.innerHeight - 40, buttonRect.top));
 		
 		const input = document.createElement('input');
 		input.type = 'color';
 		input.value = fillColor || '#000000';
 		input.style.position = 'fixed';
-		input.style.left = `${panelRect.left - 250}px`;
-		input.style.top = `${buttonRect.top}px`;
+		input.style.left = `${pickerLeft}px`;
+		input.style.top = `${pickerTop}px`;
 		input.style.width = '1px';
 		input.style.height = '1px';
 		input.style.opacity = '0.01';
@@ -1266,7 +1268,7 @@
 	}</script>
 
 {#if hasSelection}
-	<div bind:this={stylePanelRef} class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[240px] min-w-[240px] min-h-[100px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
+	<div bind:this={stylePanelRef} class={`fixed bottom-2 left-1/2 z-50 max-h-[45vh] w-[min(22rem,calc(100vw-0.75rem))] -translate-x-1/2 overflow-y-auto overscroll-contain backdrop-blur-sm border rounded-lg p-3 md:absolute md:top-2 md:right-2 md:bottom-auto md:left-auto md:max-h-[calc(100vh-1rem)] md:w-[240px] md:min-w-[240px] md:translate-x-0 ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
 		<div class="space-y-2.5 min-w-0">
 			<div class="space-y-1.5">
 				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Arrange</div>
