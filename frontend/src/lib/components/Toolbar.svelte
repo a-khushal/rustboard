@@ -31,6 +31,39 @@
 	let viewerToken = '';
 	let tokenActionInProgress = false;
 	let shortcutsPanelOpen = false;
+	let currentTimeMs = Date.now();
+
+	function parseTokenExpiryMs(token: string): number | null {
+		if (!token) return null;
+		const parts = token.split('.');
+		if (parts.length !== 2) return null;
+		try {
+			const base64 = parts[0].replace(/-/g, '+').replace(/_/g, '/');
+			const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+			const payload = JSON.parse(atob(padded)) as { exp?: number };
+			if (typeof payload.exp !== 'number') return null;
+			return payload.exp * 1000;
+		} catch {
+			return null;
+		}
+	}
+
+	function formatExpiryCountdown(expiryMs: number): string {
+		const remaining = expiryMs - currentTimeMs;
+		if (remaining <= 0) return 'Expired';
+		const seconds = Math.floor(remaining / 1000);
+		const days = Math.floor(seconds / 86400);
+		const hours = Math.floor((seconds % 86400) / 3600);
+		const minutes = Math.floor((seconds % 3600) / 60);
+		if (days > 0) return `${days}d ${hours}h`;
+		if (hours > 0) return `${hours}h ${minutes}m`;
+		return `${minutes}m`;
+	}
+
+	$: viewerTokenExpiryMs = parseTokenExpiryMs(viewerToken);
+	$: viewerTokenExpiryLabel = viewerToken
+		? (viewerTokenExpiryMs ? formatExpiryCountdown(viewerTokenExpiryMs) : 'Unknown')
+		: 'No active viewer link';
 
 	onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
@@ -69,9 +102,13 @@
 
 		document.addEventListener('click', handleClickOutside);
 		window.addEventListener('keydown', handleKeyDown);
+		const timer = window.setInterval(() => {
+			currentTimeMs = Date.now();
+		}, 30000);
 		return () => {
 			document.removeEventListener('click', handleClickOutside);
 			window.removeEventListener('keydown', handleKeyDown);
+			window.clearInterval(timer);
 		};
 	});
 
@@ -548,6 +585,16 @@
 							{errorMessage}
 						</div>
 					{/if}
+
+					<div class={`rounded-sm border p-2 ${$theme === 'dark' ? 'border-stone-700 bg-stone-900/60' : 'border-stone-200 bg-stone-50'}`}>
+						<div class={`text-[11px] font-semibold ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Link Security</div>
+						<div class={`mt-1 text-[11px] ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-600'}`}>
+							Viewer link: {viewerToken ? 'Active' : 'Revoked'}
+						</div>
+						<div class={`text-[11px] ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-600'}`}>
+							Expires in: {viewerTokenExpiryLabel}
+						</div>
+					</div>
 
 						<div>
 							<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-2 block`}>Collaborators</div>
