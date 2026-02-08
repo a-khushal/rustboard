@@ -96,15 +96,17 @@ function operationHasId(operation: Operation): boolean {
 }
 
 function isAddOperation(operation: Operation): boolean {
-	return operation.op.startsWith('Add');
+	return operation.op.startsWith('Add') || operation.op === 'GroupElements';
 }
 
 function remapOperationId(operation: Operation, resolveId: (id: number) => number): Operation {
-	if (!operationHasId(operation)) {
-		return operation;
-	}
 	const mapped = cloneOperation(operation);
-	mapped.id = resolveId(mapped.id);
+	if (operationHasId(mapped)) {
+		mapped.id = resolveId(mapped.id);
+	}
+	if (mapped.op === 'GroupElements' && Array.isArray(mapped.element_ids)) {
+		mapped.element_ids = mapped.element_ids.map((id: number) => resolveId(id));
+	}
 	return mapped;
 }
 
@@ -707,6 +709,9 @@ async function applyOperation(operation: Operation, editorApi: EditorApi): Promi
 				if (operation.color !== undefined) {
 					editorApi.set_text_color(BigInt(operation.id), operation.color, false);
 				}
+				if (operation.opacity !== undefined) {
+					editorApi.set_text_opacity(BigInt(operation.id), operation.opacity, false);
+				}
 				if (operation.font_size !== undefined) {
 					editorApi.set_text_font_size(BigInt(operation.id), operation.font_size, false);
 				}
@@ -737,6 +742,12 @@ async function applyOperation(operation: Operation, editorApi: EditorApi): Promi
 				break;
 			case 'SetElementLock':
 				editorApi.set_element_locked(BigInt(operation.id), operation.locked, false);
+				break;
+			case 'GroupElements':
+				createdId = Number(editorApi.group_elements(operation.element_ids));
+				break;
+			case 'UngroupElements':
+				editorApi.ungroup_elements(BigInt(operation.id));
 				break;
 			case 'FullSync':
 				if (operation.data) {

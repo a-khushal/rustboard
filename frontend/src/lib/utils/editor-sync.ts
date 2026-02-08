@@ -9,6 +9,7 @@ import {
 	paths,
 	images,
 	texts,
+	groups,
 	selectedRectangles,
 	selectedEllipses,
 	selectedLines,
@@ -17,6 +18,7 @@ import {
 	selectedPaths,
 	selectedImages,
 	selectedTexts,
+	selectedGroups,
 	type Rectangle,
 	type Ellipse,
 	type Line,
@@ -25,6 +27,7 @@ import {
 	type Path,
 	type Image,
 	type Text as EditorText,
+	type Group,
 } from '$lib/stores/editor';
 
 export function updateStores() {
@@ -39,6 +42,7 @@ export function updateStores() {
 	const $selectedImages = get(selectedImages);
 	const $selectedPaths = get(selectedPaths);
 	const $selectedTexts = get(selectedTexts);
+	const $selectedGroups = get(selectedGroups);
 
 	const selectedRectIds = new Set($selectedRectangles.map(r => r.id));
 	const selectedEllipseIds = new Set($selectedEllipses.map(e => e.id));
@@ -48,6 +52,7 @@ export function updateStores() {
 	const selectedImageIds = new Set($selectedImages.map(i => i.id));
 	const selectedPathIds = new Set($selectedPaths.map(p => p.id));
 	const selectedTextIds = new Set($selectedTexts.map(t => t.id));
+	const selectedGroupIds = new Set($selectedGroups.map(g => g.id));
 
 	const allRectangles = api.get_rectangles() as Rectangle[];
 	const allEllipses = api.get_ellipses() as Ellipse[];
@@ -57,22 +62,7 @@ export function updateStores() {
 	const allImages = api.get_images() as Image[];
 	const allPaths = api.get_paths() as Path[];
 	const allTexts = api.get_texts() as EditorText[];
-
-	const $texts = get(texts);
-	const opacityMap = new Map<number, number>();
-	$texts.forEach((text) => {
-		if ((text as any).opacity !== undefined) {
-			opacityMap.set(text.id, (text as any).opacity);
-		}
-	});
-
-	const textsWithOpacity = allTexts.map((text) => {
-		const opacity = opacityMap.get(text.id);
-		if (opacity !== undefined) {
-			return { ...text, opacity };
-		}
-		return text;
-	});
+	const allGroups = api.get_groups() as Group[];
 
 	rectangles.set(allRectangles);
 	ellipses.set(allEllipses);
@@ -81,7 +71,8 @@ export function updateStores() {
 	diamonds.set(allDiamonds);
 	images.set(allImages);
 	paths.set(allPaths);
-	texts.set(textsWithOpacity);
+	texts.set(allTexts);
+	groups.set(allGroups);
 
 	selectedRectangles.set(allRectangles.filter(r => selectedRectIds.has(r.id)));
 	selectedEllipses.set(allEllipses.filter(e => selectedEllipseIds.has(e.id)));
@@ -91,5 +82,5 @@ export function updateStores() {
 	selectedImages.set(allImages.filter(i => selectedImageIds.has(i.id)));
 	selectedPaths.set(allPaths.filter(p => selectedPathIds.has(p.id)));
 	selectedTexts.set(allTexts.filter(t => selectedTextIds.has(t.id)));
+	selectedGroups.set(allGroups.filter(g => selectedGroupIds.has(g.id)));
 }
-

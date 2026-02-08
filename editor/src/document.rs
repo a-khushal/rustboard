@@ -1,4 +1,4 @@
-use crate::elements::{Arrow, Diamond, Ellipse, Group, Image, Line, Rectangle, Path, Text};
+use crate::elements::{Arrow, Diamond, Ellipse, Group, Image, Line, Path, Rectangle, Text};
 use crate::geometry::Point;
 use serde::{Deserialize, Serialize};
 
@@ -775,7 +775,15 @@ impl Document {
         }
     }
 
-    pub fn resize_path(&mut self, id: u64, new_x: f64, new_y: f64, new_width: f64, new_height: f64, save_history: bool) {
+    pub fn resize_path(
+        &mut self,
+        id: u64,
+        new_x: f64,
+        new_y: f64,
+        new_width: f64,
+        new_height: f64,
+        save_history: bool,
+    ) {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             if path.points.is_empty() {
                 return;
@@ -838,13 +846,25 @@ impl Document {
         }
     }
 
-    pub fn add_image(&mut self, position: Point, width: f64, height: f64, image_data: String) -> u64 {
+    pub fn add_image(
+        &mut self,
+        position: Point,
+        width: f64,
+        height: f64,
+        image_data: String,
+    ) -> u64 {
         let id = self.add_image_without_snapshot(position, width, height, image_data);
         self.save_snapshot();
         id
     }
 
-    pub fn add_image_without_snapshot(&mut self, position: Point, width: f64, height: f64, image_data: String) -> u64 {
+    pub fn add_image_without_snapshot(
+        &mut self,
+        position: Point,
+        width: f64,
+        height: f64,
+        image_data: String,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         let mut image = Image::new(id, position, width, height, image_data);
@@ -1031,6 +1051,18 @@ impl Document {
         }
     }
 
+    pub fn set_text_opacity(&mut self, id: u64, opacity: f64, save_history: bool) {
+        if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
+            let clamped = opacity.clamp(0.0, 1.0);
+            if (text.opacity - clamped).abs() > f64::EPSILON {
+                text.opacity = clamped;
+                if save_history {
+                    self.save_snapshot();
+                }
+            }
+        }
+    }
+
     pub fn set_text_rotation(&mut self, id: u64, angle: f64, save_history: bool) {
         if let Some(text) = self.texts.iter_mut().find(|t| t.id == id) {
             if (text.rotation_angle - angle).abs() > f64::EPSILON {
@@ -1116,11 +1148,11 @@ impl Document {
         }
         let current_z = current_z.unwrap();
         let max_z = self.get_max_z_index();
-        
+
         if current_z >= max_z {
             return;
         }
-        
+
         let mut next_z: Option<i32> = None;
         for rect in &self.rectangles {
             if rect.id != id && rect.z_index > current_z {
@@ -1164,7 +1196,7 @@ impl Document {
         }
 
         let new_z = next_z.unwrap_or(current_z + 1);
-        
+
         for rect in &mut self.rectangles {
             if rect.id != id && rect.z_index == new_z {
                 rect.z_index = current_z;
@@ -1213,7 +1245,7 @@ impl Document {
                 break;
             }
         }
-        
+
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             rect.z_index = new_z;
             self.save_snapshot();
@@ -1261,11 +1293,11 @@ impl Document {
             return;
         }
         let current_z = current_z.unwrap();
-        
+
         if current_z <= 0 {
             return;
         }
-        
+
         let mut prev_z: Option<i32> = None;
         for rect in &self.rectangles {
             if rect.id != id && rect.z_index < current_z {
@@ -1307,9 +1339,9 @@ impl Document {
                 prev_z = Some(prev_z.map_or(text.z_index, |z: i32| z.max(text.z_index)));
             }
         }
-        
+
         let new_z = prev_z.unwrap_or(current_z - 1);
-        
+
         for rect in &mut self.rectangles {
             if rect.id != id && rect.z_index == new_z {
                 rect.z_index = current_z;
@@ -1358,7 +1390,7 @@ impl Document {
                 break;
             }
         }
-        
+
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             rect.z_index = new_z;
             self.save_snapshot();
@@ -1402,12 +1434,12 @@ impl Document {
 
     pub fn send_shape_to_back(&mut self, id: u64) {
         let new_z = 0;
-        
+
         let current_z = self.get_shape_z_index(id);
         if current_z.is_none() || current_z.unwrap() == 0 {
             return;
         }
-        
+
         for rect in &mut self.rectangles {
             if rect.id != id && rect.z_index < current_z.unwrap() {
                 rect.z_index += 1;
@@ -1448,7 +1480,7 @@ impl Document {
                 text.z_index += 1;
             }
         }
-        
+
         if let Some(rect) = self.rectangles.iter_mut().find(|r| r.id == id) {
             rect.z_index = new_z;
             self.save_snapshot();
@@ -1549,7 +1581,7 @@ impl Document {
 
     fn normalize_z_indices(&mut self) {
         use std::collections::HashMap;
-        
+
         let mut shapes: Vec<(u64, i32)> = Vec::new();
 
         for rect in &self.rectangles {

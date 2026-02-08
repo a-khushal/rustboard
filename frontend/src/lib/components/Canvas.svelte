@@ -210,8 +210,8 @@
 
 
 
-    function groupSelectedShapes() {
-        if (!$editorApi) return;
+	    function groupSelectedShapes() {
+	        if (!$editorApi) return;
         const selectedIds: number[] = [];
         $selectedRectangles.forEach(r => selectedIds.push(r.id));
         $selectedEllipses.forEach(e => selectedIds.push(e.id));
@@ -224,23 +224,26 @@
 
         if (selectedIds.length < 2) return;
 
-        const groupId = $editorApi.group_elements(selectedIds);
-        const updatedGroups = Array.from($editorApi.get_groups() as Group[]);
-        groups.set(updatedGroups);
+	        const groupId = Number($editorApi.group_elements(selectedIds));
+	        sendOperation({ op: 'GroupElements', id: groupId, element_ids: selectedIds });
+	        const updatedGroups = Array.from($editorApi.get_groups() as Group[]);
+	        groups.set(updatedGroups);
 
         clearAllSelections();
-        const newGroup = updatedGroups.find(g => g.id === Number(groupId));
-        if (newGroup) {
-            selectGroup(newGroup, false);
-        }
-    }
+	        const newGroup = updatedGroups.find(g => g.id === groupId);
+	        if (newGroup) {
+	            selectGroup(newGroup, false);
+	        }
+	        scheduleRender();
+	    }
 
-    function ungroupSelectedGroups() {
-        if (!$editorApi || $selectedGroups.length === 0) return;
+	    function ungroupSelectedGroups() {
+	        if (!$editorApi || $selectedGroups.length === 0) return;
 
-        $selectedGroups.forEach(group => {
-            $editorApi!.ungroup_elements(BigInt(group.id));
-        });
+	        $selectedGroups.forEach(group => {
+	            sendOperation({ op: 'UngroupElements', id: group.id });
+	            $editorApi!.ungroup_elements(BigInt(group.id));
+	        });
 
         const updatedGroups = Array.from($editorApi.get_groups() as Group[]);
         groups.set(updatedGroups);
@@ -6207,14 +6210,15 @@ function resetRotationState() {
 		<StylePanel />
 	{/if}
 	<canvas
-		on:mousedown={handleMouseDown}
-		on:mousemove={handleMouseMove}
-		on:mouseup={handleMouseUp}
-		on:mouseleave={handleMouseLeave}
+		on:pointerdown={handleMouseDown}
+		on:pointermove={handleMouseMove}
+		on:pointerup={handleMouseUp}
+		on:pointerleave={handleMouseLeave}
+		on:pointercancel={handleMouseLeave}
 		on:dblclick={handleCanvasDoubleClick}
 			on:wheel={(e) => handleViewportScroll(e, canvas!)}
 		bind:this={canvas}
-			class="w-full h-full bg-stone-50 dark:bg-stone-900"
+			class="w-full h-full touch-none bg-stone-50 dark:bg-stone-900"
 		tabindex="0"
 	></canvas>
 </div>

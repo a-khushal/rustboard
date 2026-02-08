@@ -216,6 +216,7 @@ pub enum Operation {
     SetTextStyle {
         id: u64,
         color: Option<String>,
+        opacity: Option<f64>,
         font_size: Option<f64>,
         font_family: Option<String>,
         font_weight: Option<String>,
@@ -237,6 +238,13 @@ pub enum Operation {
     SetElementLock {
         id: u64,
         locked: bool,
+    },
+    GroupElements {
+        id: u64,
+        element_ids: Vec<u64>,
+    },
+    UngroupElements {
+        id: u64,
     },
     FullSync {
         data: String,
@@ -327,7 +335,9 @@ impl Operation {
             | Operation::BringForward { id, .. }
             | Operation::SendBackward { id, .. }
             | Operation::SendToBack { id, .. }
-            | Operation::SetElementLock { id, .. } => Some(*id),
+            | Operation::SetElementLock { id, .. }
+            | Operation::GroupElements { id, .. }
+            | Operation::UngroupElements { id, .. } => Some(*id),
             Operation::FullSync { .. } => None,
         }
     }
@@ -377,7 +387,9 @@ impl Operation {
             | Operation::BringForward { id, .. }
             | Operation::SendBackward { id, .. }
             | Operation::SendToBack { id, .. }
-            | Operation::SetElementLock { id, .. } => Some(id),
+            | Operation::SetElementLock { id, .. }
+            | Operation::GroupElements { id, .. }
+            | Operation::UngroupElements { id, .. } => Some(id),
             Operation::FullSync { .. } => None,
         }
     }
@@ -393,7 +405,19 @@ impl Operation {
                 | Operation::AddPath { .. }
                 | Operation::AddImage { .. }
                 | Operation::AddText { .. }
+                | Operation::GroupElements { .. }
         )
+    }
+}
+
+fn remap_operation_references<F>(operation: &mut Operation, mut resolve_id: F)
+where
+    F: FnMut(u64) -> u64,
+{
+    if let Operation::GroupElements { element_ids, .. } = operation {
+        for id in element_ids.iter_mut() {
+            *id = resolve_id(*id);
+        }
     }
 }
 
@@ -670,6 +694,9 @@ pub async fn handle_websocket(
                                     if let Some(local_id) = canonical_operation.id() {
                                         source_local_id = Some(local_id);
                                     }
+                                    remap_operation_references(&mut canonical_operation, |incoming_id| {
+                                        session_clone.resolve_client_id(&id, incoming_id)
+                                    });
                                     if let Some(canonical_id) =
                                         apply_operation(&canonical_operation, &session_clone)
                                     {
@@ -684,6 +711,9 @@ pub async fn handle_websocket(
                                     if let Some(op_id) = canonical_operation.id_mut() {
                                         *op_id = session_clone.resolve_client_id(&id, *op_id);
                                     }
+                                    remap_operation_references(&mut canonical_operation, |incoming_id| {
+                                        session_clone.resolve_client_id(&id, incoming_id)
+                                    });
                                     apply_operation(&canonical_operation, &session_clone);
                                 }
 
@@ -997,9 +1027,12 @@ fn apply_operation(operation: &Operation, session: &Session) -> Option<u64> {
                 doc.set_image_rotation(*id, *angle, false);
             }
         }
-        Operation::SetTextStyle { id, color, font_size, font_family, font_weight, text_align, rotation_angle } => {
+        Operation::SetTextStyle { id, color, opacity, font_size, font_family, font_weight, text_align, rotation_angle } => {
             if let Some(c) = color {
                 doc.set_text_color(*id, c.clone(), false);
+            }
+            if let Some(value) = opacity {
+                doc.set_text_opacity(*id, *value, false);
             }
             if let Some(size) = font_size {
                 doc.set_text_font_size(*id, *size, false);
@@ -1031,6 +1064,12 @@ fn apply_operation(operation: &Operation, session: &Session) -> Option<u64> {
         }
         Operation::SetElementLock { id, locked } => {
             doc.set_element_locked(*id, *locked, false);
+        }
+        Operation::GroupElements { element_ids, .. } => {
+            return Some(doc.group_elements(element_ids.clone()));
+        }
+        Operation::UngroupElements { id } => {
+            doc.ungroup_elements(*id);
         }
         Operation::FullSync { data } => {
             doc.deserialize(data);

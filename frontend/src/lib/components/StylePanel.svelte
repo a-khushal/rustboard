@@ -399,24 +399,16 @@
 	}
 
 	function updateTextOpacity(opacity: number) {
-		textOpacity = opacity;
+		textOpacity = Math.max(0, Math.min(1, opacity));
 		if (!$editorApi) return;
 
-		const updatedTexts = $texts.map((text) => {
-			if ($selectedTexts.some(st => st.id === text.id)) {
-				return { ...text, opacity };
-			}
-			return text;
+		$selectedTexts.forEach((text) => {
+			$editorApi.set_text_opacity(BigInt(text.id), textOpacity, false);
+			sendOperation({ op: 'SetTextStyle', id: text.id, opacity: textOpacity });
 		});
-		texts.set(updatedTexts);
-
-		const updatedSelectedTexts = $selectedTexts.map((text) => ({
-			...text,
-			opacity
-		}));
-		selectedTexts.set(updatedSelectedTexts);
 
 		$editorApi.save_snapshot();
+		updateStores();
 		saveStateToLocalStorage();
 	}
 
@@ -533,22 +525,6 @@
 		const allPaths = api.get_paths() as Path[];
 		const allTexts = api.get_texts() as Text[];
 		
-		const existingTexts = $texts;
-		const opacityMap = new Map<number, number>();
-		existingTexts.forEach((text) => {
-			if ((text as any).opacity !== undefined) {
-				opacityMap.set(text.id, (text as any).opacity);
-			}
-		});
-
-		const textsWithOpacity = allTexts.map((text) => {
-			const opacity = opacityMap.get(text.id);
-			if (opacity !== undefined) {
-				return { ...text, opacity };
-			}
-			return text;
-		});
-		
 		rectangles.set(allRectangles);
 		ellipses.set(allEllipses);
 		lines.set(allLines);
@@ -556,7 +532,7 @@
 		diamonds.set(allDiamonds);
 		images.set(allImages);
 		paths.set(allPaths);
-		texts.set(textsWithOpacity);
+		texts.set(allTexts);
 		
 		selectedRectangles.set(allRectangles.filter(r => selectedRectIds.has(r.id)));
 		selectedEllipses.set(allEllipses.filter(e => selectedEllipseIds.has(e.id)));
@@ -565,7 +541,7 @@
 		selectedDiamonds.set(allDiamonds.filter(d => selectedDiamondIds.has(d.id)));
 		selectedImages.set(allImages.filter(i => selectedImageIds.has(i.id)));
 		selectedPaths.set(allPaths.filter(p => selectedPathIds.has(p.id)));
-		selectedTexts.set(textsWithOpacity.filter(t => {
+		selectedTexts.set(allTexts.filter(t => {
 			const selectedIds = new Set($selectedTexts.map(st => st.id));
 			return selectedIds.has(t.id);
 		}));

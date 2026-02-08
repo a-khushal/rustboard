@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { initWasm } from '$lib/wasm';
-	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, zoom, viewportOffset, images, paths, texts } from '$lib/stores/editor';
+	import { wasmLoaded, editorApi, rectangles, ellipses, lines, arrows, diamonds, groups, zoom, viewportOffset, images, paths, texts } from '$lib/stores/editor';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage, loadZoomFromLocalStorage, saveZoomToLocalStorage, loadViewportOffsetFromLocalStorage, saveViewportOffsetToLocalStorage } from '$lib/utils/storage';
 	import { ensureDefaultBoard } from '$lib/utils/boards';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
@@ -16,6 +16,7 @@
 	let unsubscribeTexts: (() => void) | null = null;
 	let unsubscribeImages: (() => void) | null = null;
 	let unsubscribePaths: (() => void) | null = null;
+	let unsubscribeGroups: (() => void) | null = null;
 	let unsubscribeZoom: (() => void) | null = null;
 	let unsubscribeViewportOffset: (() => void) | null = null;
 
@@ -34,10 +35,12 @@
 			lines.set(api.get_lines());
 			arrows.set(api.get_arrows());
 			diamonds.set(api.get_diamonds());
+			groups.set(api.get_groups());
 			texts.set(api.get_texts());
 			images.set(api.get_images());
 			paths.set(api.get_paths());
 		} else {
+			groups.set(api.get_groups());
 			texts.set(api.get_texts());
 			images.set(api.get_images());
 			paths.set(api.get_paths());
@@ -62,6 +65,7 @@
 			unsubscribeTexts = texts.subscribe(saveState);
 			unsubscribeImages = images.subscribe(saveState);
 			unsubscribePaths = paths.subscribe(saveState);
+			unsubscribeGroups = groups.subscribe(saveState);
 
 		unsubscribeZoom = zoom.subscribe(() => {
 			saveZoomToLocalStorage();
@@ -85,6 +89,7 @@
 		if (unsubscribeTexts) unsubscribeTexts();
 		if (unsubscribeImages) unsubscribeImages();
 		if (unsubscribePaths) unsubscribePaths();
+		if (unsubscribeGroups) unsubscribeGroups();
 		if (unsubscribeZoom) unsubscribeZoom();
 		if (unsubscribeViewportOffset) unsubscribeViewportOffset();
 	});

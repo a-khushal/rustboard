@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { editorApi, rectangles, ellipses, lines, arrows, diamonds, texts, paths, images, zoom, viewportOffset, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Text, type Path, type Image } from '$lib/stores/editor';
+import { editorApi, rectangles, ellipses, lines, arrows, diamonds, groups, texts, paths, images, zoom, viewportOffset, type Rectangle, type Ellipse, type Line, type Arrow, type Diamond, type Group, type Text, type Path, type Image } from '$lib/stores/editor';
 import { getCurrentBoardId, loadBoardSnapshot, saveBoardSnapshot } from './boards';
 
 const ZOOM_STORAGE_KEY = 'rustboard-zoom';
@@ -36,6 +36,7 @@ export function loadStateFromLocalStorage(): boolean {
             const updatedLines = api.get_lines() as Line[];
             const updatedArrows = api.get_arrows() as Arrow[];
             const updatedDiamonds = api.get_diamonds() as Diamond[];
+            const updatedGroups = api.get_groups() as Group[];
             const updatedTexts = api.get_texts() as Text[];
             const updatedPaths = api.get_paths() as Path[];
             const updatedImages = api.get_images() as Image[];
@@ -44,6 +45,7 @@ export function loadStateFromLocalStorage(): boolean {
             lines.set(updatedLines);
             arrows.set(updatedArrows);
             diamonds.set(updatedDiamonds);
+            groups.set(updatedGroups);
             texts.set(updatedTexts);
             paths.set(updatedPaths);
             images.set(updatedImages);

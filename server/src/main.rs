@@ -26,6 +26,11 @@ struct AppState {
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(3001);
+
     let state = AppState {
         sessions: Arc::new(RwLock::new(SessionManager::new())),
     };
@@ -37,8 +42,9 @@ async fn main() {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001").await.unwrap();
-    tracing::info!("Server running on http://0.0.0.0:3001");
+    let bind_address = format!("0.0.0.0:{port}");
+    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
+    tracing::info!("Server running on http://{bind_address}");
     axum::serve(listener, app).await.unwrap();
 }
 

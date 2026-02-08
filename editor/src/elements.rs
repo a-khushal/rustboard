@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::geometry::Point;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rectangle {
@@ -68,10 +68,10 @@ pub struct Ellipse {
 
 impl Ellipse {
     pub fn new(id: u64, position: Point, radius_x: f64, radius_y: f64) -> Self {
-        Self { 
-            id, 
-            position, 
-            radius_x, 
+        Self {
+            id,
+            position,
+            radius_x,
             radius_y,
             stroke_color: default_stroke_color(),
             fill_color: default_fill_color(),
@@ -105,9 +105,9 @@ pub struct Line {
 
 impl Line {
     pub fn new(id: u64, start: Point, end: Point) -> Self {
-        Self { 
-            id, 
-            start, 
+        Self {
+            id,
+            start,
             end,
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
@@ -140,9 +140,9 @@ pub struct Arrow {
 
 impl Arrow {
     pub fn new(id: u64, start: Point, end: Point) -> Self {
-        Self { 
-            id, 
-            start, 
+        Self {
+            id,
+            start,
             end,
             stroke_color: default_stroke_color(),
             line_width: default_line_width(),
@@ -309,6 +309,8 @@ pub struct Text {
     pub text_align: String,
     #[serde(default = "default_stroke_color")]
     pub color: String,
+    #[serde(default = "default_text_opacity")]
+    pub opacity: f64,
     #[serde(default = "default_rotation")]
     pub rotation_angle: f64,
     #[serde(default = "default_z_index")]
@@ -330,6 +332,7 @@ impl Text {
             font_weight: default_font_weight(),
             text_align: default_text_align(),
             color: default_stroke_color(),
+            opacity: default_text_opacity(),
             rotation_angle: default_rotation(),
             z_index: default_z_index(),
             locked: default_locked(),
@@ -351,6 +354,10 @@ fn default_font_weight() -> String {
 
 fn default_text_align() -> String {
     "left".to_string()
+}
+
+fn default_text_opacity() -> f64 {
+    1.0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
