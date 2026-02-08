@@ -7,6 +7,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { collaborationState, isCollaborating, collaboratorCount } from '$lib/stores/collaboration';
 	import { gridEnabled, gridSize } from '$lib/stores/grid';
+	import { zoomIn, zoomOut } from '$lib/utils/zoom';
+	import { updateAllStoresAfterUndoRedo } from '$lib/utils/undo-redo';
 	import {
 		createSession,
 		connectToSession,
@@ -32,6 +34,7 @@
 	let tokenActionInProgress = false;
 	let shortcutsPanelOpen = false;
 	let currentTimeMs = Date.now();
+	let mobileViewMenuOpen = false;
 
 	function parseTokenExpiryMs(token: string): number | null {
 		if (!token) return null;
@@ -65,7 +68,7 @@
 		? (viewerTokenExpiryMs ? formatExpiryCountdown(viewerTokenExpiryMs) : 'Unknown')
 		: 'No active viewer link';
 
-	onMount(() => {
+		onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionId = urlParams.get('session');
 		const token = urlParams.get('token');
@@ -85,6 +88,9 @@
 			const target = event.target as HTMLElement;
 			if (!target.closest('.collaboration-menu-container')) {
 				collaborationMenuOpen = false;
+			}
+			if (!target.closest('.mobile-view-menu-container')) {
+				mobileViewMenuOpen = false;
 			}
 		}
 
@@ -381,9 +387,25 @@
 	function toggleGridSnap() {
 		gridEnabled.update((enabled) => !enabled);
 	}
+
+	function undo() {
+		if ($isCollaborating || !$editorApi) return;
+		const success = $editorApi.undo();
+		if (success) {
+			updateAllStoresAfterUndoRedo();
+		}
+	}
+
+	function redo() {
+		if ($isCollaborating || !$editorApi) return;
+		const success = $editorApi.redo();
+		if (success) {
+			updateAllStoresAfterUndoRedo();
+		}
+	}
 </script>
 
-<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex gap-1 overflow-x-auto overscroll-x-contain rounded-sm p-1 shadow-sm touch-pan-x md:absolute md:top-2 md:right-auto md:left-2 md:overflow-visible ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex gap-1 overflow-x-auto overscroll-x-contain rounded-sm p-1 shadow-sm touch-pan-x md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:overflow-visible ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
@@ -648,6 +670,88 @@
 	</div>
 
 	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
+
+	<div class="relative mobile-view-menu-container md:hidden">
+		<button
+			on:click={(e) => {
+				e.stopPropagation();
+				mobileViewMenuOpen = !mobileViewMenuOpen;
+			}}
+			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+				${mobileViewMenuOpen
+					? $theme === 'dark'
+						? 'bg-stone-700 border border-stone-500 text-stone-200'
+						: 'bg-stone-100 border border-stone-400 text-stone-700'
+					: $theme === 'dark'
+						? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
+						: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+			title="View controls"
+		>
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="5" r="1.5" />
+				<circle cx="12" cy="12" r="1.5" />
+				<circle cx="12" cy="19" r="1.5" />
+			</svg>
+		</button>
+
+		{#if mobileViewMenuOpen}
+			<div
+				on:click|stopPropagation
+				on:keydown|stopPropagation
+				role="menu"
+				aria-label="View controls"
+				tabindex="-1"
+				class={`absolute bottom-full right-0 mb-2 w-44 rounded-sm border p-2 shadow-lg ${$theme === 'dark' ? 'bg-stone-800 border-stone-700' : 'bg-white border-stone-200'}`}
+			>
+				<div class="grid grid-cols-2 gap-1.5">
+					<button
+						on:click={() => {
+							undo();
+							mobileViewMenuOpen = false;
+						}}
+						disabled={$isCollaborating}
+						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+						title={$isCollaborating ? 'Undo disabled in collaboration' : 'Undo'}
+					>
+						Undo
+					</button>
+					<button
+						on:click={() => {
+							redo();
+							mobileViewMenuOpen = false;
+						}}
+						disabled={$isCollaborating}
+						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+						title={$isCollaborating ? 'Redo disabled in collaboration' : 'Redo'}
+					>
+						Redo
+					</button>
+					<button
+						on:click={() => {
+							zoomIn();
+							mobileViewMenuOpen = false;
+						}}
+						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+						title="Zoom in"
+					>
+						Zoom +
+					</button>
+					<button
+						on:click={() => {
+							zoomOut();
+							mobileViewMenuOpen = false;
+						}}
+						class={`flex items-center justify-center rounded-sm border px-2 py-1.5 text-xs ${$theme === 'dark' ? 'border-stone-700 text-stone-200 hover:bg-stone-700' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+						title="Zoom out"
+					>
+						Zoom -
+					</button>
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	<div class={`w-px md:hidden ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<button
 		on:click={toggleTheme}

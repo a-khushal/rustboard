@@ -3,7 +3,7 @@
 	import { zoomIn, zoomOut } from '$lib/utils/zoom';
 </script>
 
-<div class={`absolute bottom-4 right-4 z-50 flex flex-row gap-1 shadow-sm rounded-sm p-1 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div class={`absolute right-4 bottom-4 z-50 hidden flex-row gap-1 rounded-sm p-1 shadow-sm md:flex ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	<button
 		on:click={zoomIn}
 		class={`flex items-center justify-center w-8 h-8 text-sm font-sans transition-colors duration-150 rounded-sm
