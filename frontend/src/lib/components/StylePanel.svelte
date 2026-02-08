@@ -56,20 +56,12 @@
 	$: displayStrokeColor = strokeColor;
 
 
-	$: strokeColors = $theme === 'dark' 
-		? ['#ffffff', '#60a5fa', '#34d399', '#fb7185', '#d97706']
-		: ['#000000', '#60a5fa', '#34d399', '#fb7185', '#d97706'];
+	const presetStrokeAccents = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#64748b'];
 
-	const fillColors = [
-		'#374151',
-		'#1e3a8a',
-		'#166534',
-		'#991b1b',
-		'#78350f'
-	];
+	$: strokeColors = $theme === 'dark' ? ['#ffffff', ...presetStrokeAccents] : ['#000000', ...presetStrokeAccents];
 
-	let strokeColorPickerButton: HTMLButtonElement;
-	let fillColorPickerButton: HTMLButtonElement;
+	const fillColors = ['#bfdbfe', '#86efac', '#fde68a', '#fca5a5', '#cbd5e1'];
+
 	let stylePanelRef: HTMLDivElement;
 
 	type AlignableShape = {
@@ -1305,22 +1297,23 @@
 					{#if showStrokeColors}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="flex flex-col gap-1.5 w-full min-w-0">
-								<legend class={`text-xs font-medium mb-0.5 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke</legend>
-								<div class="flex flex-wrap items-center gap-1 md:gap-1.5 w-full">
+								<div class="flex items-center justify-between gap-2">
+									<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke</legend>
 									<button
 										type="button"
-										bind:this={strokeColorPickerButton}
 										on:click={openStrokeColorPicker}
-										class={`h-7 w-7 rounded-full border-2 transition-all hover:scale-105 md:h-8 md:w-8 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-										style="background-color: {displayStrokeColor};"
-										title="Current color - click to change"
+										class={`px-2 py-1 text-[10px] rounded border transition-colors ${$theme === 'dark' ? 'border-stone-600 text-stone-300 hover:bg-stone-700' : 'border-stone-300 text-stone-600 hover:bg-stone-100'}`}
+										title="Fine tune custom stroke color"
 									>
+										Custom
 									</button>
+								</div>
+								<div class="grid grid-cols-6 gap-1 md:gap-1.5 w-full">
 									{#each strokeColors as color}
 										<button
 											type="button"
-											on:click={() => updateStrokeColor(displayStrokeColor === color ? getDefaultStrokeColor() : color)}
-											class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'h-7 w-7 md:h-8 md:w-8' : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+											on:click={() => updateStrokeColor(color)}
+											class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'h-7 w-7 md:h-8 md:w-8 ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 											style="background-color: {color};"
 											title={color}
 										>
@@ -1374,34 +1367,31 @@
 					{#if hasFillableShapes}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="flex flex-col gap-1.5 w-full min-w-0">
-								<legend class={`text-xs font-medium mb-0.5 ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Background</legend>
-								<div class="flex flex-wrap items-center gap-1 md:gap-1.5 w-full">
-									{#if fillColor === null}
-										<button
-											type="button"
-											bind:this={fillColorPickerButton}
-											on:click={openFillColorPicker}
-											class={`h-7 w-7 rounded-full border-2 transition-all hover:scale-105 relative md:h-8 md:w-8 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-											title="No fill - click to change"
-										>
-											<div class={`w-full h-full rounded-full absolute inset-0 ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'}`} style="background-image: repeating-conic-gradient(${$theme === 'dark' ? '#374151' : '#e5e7eb'} 0% 25%, transparent 0% 50%); background-size: 50% 50%;"></div>
-										</button>
-									{:else}
-										<button
-											type="button"
-											bind:this={fillColorPickerButton}
-											on:click={openFillColorPicker}
-											class={`h-7 w-7 rounded-full border-2 transition-all hover:scale-105 md:h-8 md:w-8 ${$theme === 'dark' ? 'border-stone-500' : 'border-stone-400'}`}
-											style="background-color: {fillColor};"
-											title="Current color - click to change"
-										>
-										</button>
-									{/if}
+								<div class="flex items-center justify-between gap-2">
+									<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Background</legend>
+									<button
+										type="button"
+										on:click={openFillColorPicker}
+										class={`px-2 py-1 text-[10px] rounded border transition-colors ${$theme === 'dark' ? 'border-stone-600 text-stone-300 hover:bg-stone-700' : 'border-stone-300 text-stone-600 hover:bg-stone-100'}`}
+										title="Fine tune custom fill color"
+									>
+										Custom
+									</button>
+								</div>
+								<div class="grid grid-cols-6 gap-1 md:gap-1.5 w-full">
+									<button
+										type="button"
+										on:click={() => updateFillColor(null)}
+										class={`h-6 w-6 md:h-7 md:w-7 rounded-full border transition-all hover:scale-105 relative ${fillColor === null ? 'ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : ''} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+										title="No fill"
+									>
+										<div class={`w-full h-full rounded-full absolute inset-0 ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'}`} style="background-image: repeating-conic-gradient(${$theme === 'dark' ? '#374151' : '#e5e7eb'} 0% 25%, transparent 0% 50%); background-size: 50% 50%;"></div>
+									</button>
 									{#each fillColors as color}
 										<button
 											type="button"
-											on:click={() => updateFillColor(fillColor === color ? null : color)}
-											class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'h-7 w-7 md:h-8 md:w-8' : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+											on:click={() => updateFillColor(color)}
+											class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'h-7 w-7 md:h-8 md:w-8 ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 											style="background-color: {color};"
 											title={color}
 										>

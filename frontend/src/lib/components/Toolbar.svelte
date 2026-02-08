@@ -487,8 +487,6 @@
 		</svg>
 	</button>
 	
-	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
-
 	<div class="relative collaboration-menu-container">
 		<button
 			on:click={(e) => {
@@ -668,8 +666,6 @@
 		{/if}
 	</div>
 
-	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
-
 	<div class="flex items-center gap-1 md:hidden">
 		<button
 			type="button"
@@ -723,8 +719,6 @@
 		</button>
 	</div>
 
-	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
-
 	<button
 		on:click={toggleTheme}
 	class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
@@ -751,8 +745,6 @@
 			</svg>
 		{/if}
 	</button>
-
-	<div class={`hidden w-px md:block ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 
 	<button
 		on:click={() => shortcutsPanelOpen = true}
