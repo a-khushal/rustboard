@@ -175,6 +175,13 @@ export function connectToSession(
 			ws.close();
 		}
 		resetRealtimeSyncState();
+		collaborationState.update((state) => ({
+			...state,
+			isConnected: false,
+			connectionStatus: state.sessionId ? 'reconnecting' : 'connecting',
+			isResyncing: false,
+			lastError: null,
+		}));
 
 		const wsUrl = `${WS_URL}/ws/${sessionId}?token=${encodeURIComponent(token)}&role=${encodeURIComponent(role)}`;
 		ws = new WebSocket(wsUrl);
@@ -200,10 +207,17 @@ export function connectToSession(
 				sessionId: state.sessionId || sessionId,
 				presenceByClient: {},
 				role,
+				connectionStatus: 'connecting',
+				lastError: null,
 			}));
 			
 			connectionTimeout = setTimeout(() => {
 				if (!joined) {
+					collaborationState.update((state) => ({
+						...state,
+						connectionStatus: 'error',
+						lastError: 'Connection timeout',
+					}));
 					reject(new Error('WebSocket connection timeout - did not receive Joined message'));
 					ws?.close();
 				}
@@ -237,6 +251,11 @@ export function connectToSession(
 				connectionTimeout = null;
 			}
 			reconnectAttempts++;
+			collaborationState.update((state) => ({
+				...state,
+				connectionStatus: reconnectAttempts < MAX_RECONNECT_ATTEMPTS ? 'reconnecting' : 'error',
+				lastError: reconnectAttempts < MAX_RECONNECT_ATTEMPTS ? null : 'Unable to connect to collaboration server',
+			}));
 			if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
 				reconnectTimeout = setTimeout(() => {
 					connectToSession(sessionId, clientId, name, color, editorApi, token, role, onUpdate)
@@ -257,6 +276,7 @@ export function connectToSession(
 			collaborationState.update(state => ({
 				...state,
 				isConnected: false,
+				connectionStatus: state.sessionId ? 'reconnecting' : 'disconnected',
 				presenceByClient: {},
 			}));
 
@@ -340,6 +360,9 @@ async function handleServerMessage(
 				collaborationState.update(state => ({
 					...state,
 					isConnected: true,
+					connectionStatus: 'connected',
+					isResyncing: false,
+					lastError: null,
 					clientId: state.clientId || message.client_id!,
 					collaborators: message.clients!,
 					presenceByClient: {},
@@ -395,9 +418,18 @@ async function handleServerMessage(
 				if (message.seq <= lastAppliedSeq) break;
 
 				if (message.operation.op === 'FullSync') {
+					collaborationState.update((state) => ({
+						...state,
+						isResyncing: true,
+					}));
 					await applyOperation(message.operation, editorApi);
 					pendingUpdates.clear();
 					lastAppliedSeq = message.seq;
+					collaborationState.update((state) => ({
+						...state,
+						isResyncing: false,
+						connectionStatus: 'connected',
+					}));
 					break;
 				}
 
@@ -434,6 +466,11 @@ async function handleServerMessage(
 
 		case 'Error':
 			console.error('Server error:', message.message);
+			collaborationState.update((state) => ({
+				...state,
+				connectionStatus: 'error',
+				lastError: message.message ?? 'Collaboration error',
+			}));
 			break;
 
 		case 'Pong':
@@ -881,6 +918,9 @@ export function disconnect() {
 	resetRealtimeSyncState();
 	collaborationState.set({
 		isConnected: false,
+		connectionStatus: 'disconnected',
+		isResyncing: false,
+		lastError: null,
 		sessionId: null,
 		clientId: null,
 		collaborators: [],

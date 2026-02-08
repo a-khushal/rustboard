@@ -44,6 +44,7 @@
 	let sidebarRef: Sidebar;
 	import { activeTool, type Tool } from '$lib/stores/tools';
 	import { theme } from '$lib/stores/theme';
+	import { gridEnabled, gridSize } from '$lib/stores/grid';
 	import { defaultStrokeColor } from '$lib/stores/stroke-color';
 	import { dashPattern } from '$lib/stores/dash-pattern';
 	import { get as getStore } from 'svelte/store';
@@ -75,6 +76,20 @@
 			return $theme === 'dark' ? '#ffffff' : '#000000';
 		}
 		return color;
+	}
+
+	function snapValue(value: number): number {
+		if (!$gridEnabled) return value;
+		const size = Math.max(4, Number($gridSize) || 16);
+		return Math.round(value / size) * size;
+	}
+
+	function snapPoint(point: { x: number; y: number }) {
+		if (!$gridEnabled) return point;
+		return {
+			x: snapValue(point.x),
+			y: snapValue(point.y),
+		};
 	}
 
 	type BoundingBox = { x: number; y: number; width: number; height: number; rawWidth?: number; rawHeight?: number; scaleX?: number; scaleY?: number };
@@ -2392,7 +2407,8 @@ function resetRotationState() {
 			return;
 		}
 
-		const { x, y } = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+		const world = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+		const { x, y } = snapPoint(world);
 
 		const isShiftPressed = event.shiftKey;
 		if (isViewer) {
@@ -3138,7 +3154,7 @@ function resetRotationState() {
 		const worldPos = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
 		lastMouseWorldPos = { x: worldPos.x, y: worldPos.y };
 
-		const { x, y } = worldPos;
+		let { x, y } = worldPos;
 		sendPresence({ x, y }, getLocalSelectionIds());
 
 		if ($activeTool === 'freehand' && isDrawingFreehand) {
@@ -3242,8 +3258,10 @@ function resetRotationState() {
 				return;
 			}
 			canvas.style.cursor = 'move';
-			const deltaX = x - dragStartPos.x;
-			const deltaY = y - dragStartPos.y;
+			const rawDeltaX = x - dragStartPos.x;
+			const rawDeltaY = y - dragStartPos.y;
+			const deltaX = $gridEnabled ? snapValue(rawDeltaX) : rawDeltaX;
+			const deltaY = $gridEnabled ? snapValue(rawDeltaY) : rawDeltaY;
 			
 			dragOffset = { x: deltaX, y: deltaY };
 			if (ctx && canvas) {
@@ -3741,19 +3759,20 @@ function resetRotationState() {
 			canvas.style.cursor = 'crosshair';
 			if (isCreatingShape) {
 				isShiftPressedDuringCreation = event.shiftKey;
-				createCurrentPos = { x, y };
+				const snapped = snapPoint({ x, y });
+				createCurrentPos = snapped;
 				scheduleRender();
 			}
 		} else if ($activeTool === 'line') {
 			canvas.style.cursor = 'crosshair';
 			if (isCreatingShape && lineStart) {
-				lineEnd = { x, y };
+				lineEnd = snapPoint({ x, y });
 				scheduleRender();
 			}
 		} else if ($activeTool === 'arrow') {
 			canvas.style.cursor = 'crosshair';
 			if (isCreatingShape && arrowStart) {
-				arrowEnd = { x, y };
+				arrowEnd = snapPoint({ x, y });
 				scheduleRender();
 			}
 		} else if ($activeTool === 'freehand') {
@@ -5185,6 +5204,29 @@ function resetRotationState() {
 			renderCtx.save();
 			renderCtx.translate($viewportOffset.x, $viewportOffset.y);
 			renderCtx.scale($zoom, $zoom);
+
+			if ($gridEnabled) {
+				const size = Math.max(4, Number($gridSize) || 16);
+				const left = -$viewportOffset.x / $zoom;
+				const top = -$viewportOffset.y / $zoom;
+				const right = left + canvas.width / $zoom;
+				const bottom = top + canvas.height / $zoom;
+				const startX = Math.floor(left / size) * size;
+				const startY = Math.floor(top / size) * size;
+
+				renderCtx.beginPath();
+				for (let gx = startX; gx <= right; gx += size) {
+					renderCtx.moveTo(gx, top);
+					renderCtx.lineTo(gx, bottom);
+				}
+				for (let gy = startY; gy <= bottom; gy += size) {
+					renderCtx.moveTo(left, gy);
+					renderCtx.lineTo(right, gy);
+				}
+				renderCtx.lineWidth = 1 / $zoom;
+				renderCtx.strokeStyle = $theme === 'dark' ? 'rgba(120,120,120,0.18)' : 'rgba(100,100,100,0.12)';
+				renderCtx.stroke();
+			}
 			
 			visibleShapes.forEach(item => {
 			if (item.type === 'rectangle') {

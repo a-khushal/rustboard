@@ -14,6 +14,9 @@ export interface CollaboratorPresence {
 
 export interface CollaborationState {
 	isConnected: boolean;
+	connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+	isResyncing: boolean;
+	lastError: string | null;
 	sessionId: string | null;
 	clientId: string | null;
 	collaborators: Collaborator[];
@@ -24,6 +27,9 @@ export interface CollaborationState {
 
 const initialState: CollaborationState = {
 	isConnected: false,
+	connectionStatus: 'disconnected',
+	isResyncing: false,
+	lastError: null,
 	sessionId: null,
 	clientId: null,
 	collaborators: [],

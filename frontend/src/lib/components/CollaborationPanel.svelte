@@ -122,6 +122,10 @@
 		disconnect();
 		collaborationState.update(state => ({
 			...state,
+			isConnected: false,
+			connectionStatus: 'disconnected',
+			isResyncing: false,
+			lastError: null,
 			sessionId: null,
 			clientId: null,
 			isHost: false,

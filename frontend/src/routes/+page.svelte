@@ -6,6 +6,7 @@
 	import { ensureDefaultBoard } from '$lib/utils/boards';
 	import { centerViewportOnShapes } from '$lib/utils/center-viewport';
 	import { initSelectionHistory, resetSelectionHistory, disposeSelectionHistory } from '$lib/utils/selection-history';
+	import { collaborationState } from '$lib/stores/collaboration';
 	import Canvas from '$lib/components/Canvas.svelte';
 
 	let unsubscribeRectangles: (() => void) | null = null;
@@ -19,6 +20,7 @@
 	let unsubscribeGroups: (() => void) | null = null;
 	let unsubscribeZoom: (() => void) | null = null;
 	let unsubscribeViewportOffset: (() => void) | null = null;
+	let saveStateTimer: ReturnType<typeof setTimeout> | null = null;
 
 	onMount(async () => {
 		try {
@@ -56,7 +58,15 @@
 			}, 0);
 		}
 
-			const saveState = () => saveStateToLocalStorage();
+			const saveState = () => {
+				if (saveStateTimer) {
+					clearTimeout(saveStateTimer);
+				}
+				saveStateTimer = setTimeout(() => {
+					saveStateToLocalStorage();
+					saveStateTimer = null;
+				}, 200);
+			};
 			unsubscribeRectangles = rectangles.subscribe(saveState);
 			unsubscribeEllipses = ellipses.subscribe(saveState);
 			unsubscribeLines = lines.subscribe(saveState);
@@ -90,12 +100,27 @@
 		if (unsubscribeImages) unsubscribeImages();
 		if (unsubscribePaths) unsubscribePaths();
 		if (unsubscribeGroups) unsubscribeGroups();
+		if (saveStateTimer) {
+			clearTimeout(saveStateTimer);
+			saveStateTimer = null;
+		}
 		if (unsubscribeZoom) unsubscribeZoom();
 		if (unsubscribeViewportOffset) unsubscribeViewportOffset();
 	});
 </script>
 
 <div class="fixed inset-0 bg-stone-50">
+	{#if $collaborationState.connectionStatus === 'reconnecting' || $collaborationState.isResyncing || $collaborationState.connectionStatus === 'error'}
+		<div class="absolute top-14 left-1/2 z-50 -translate-x-1/2 rounded-md border border-stone-300 bg-white/95 px-3 py-1.5 text-xs text-stone-700 shadow-sm">
+			{#if $collaborationState.connectionStatus === 'error'}
+				Collaboration issue: {$collaborationState.lastError ?? 'Connection interrupted'}
+			{:else if $collaborationState.isResyncing}
+				Resyncing board state...
+			{:else}
+				Reconnecting to collaboration session...
+			{/if}
+		</div>
+	{/if}
 	{#if $wasmLoaded}	
 		<Canvas />
 	{:else}

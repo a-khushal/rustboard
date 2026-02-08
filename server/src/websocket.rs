@@ -635,6 +635,7 @@ pub async fn handle_websocket(
                         }) => {
                             *client_id.lock().unwrap() = Some(id.clone());
                             session_clone.add_client(id.clone(), name.clone(), color.clone(), access_role.clone());
+                            session_clone.touch();
 
                             let document_json = {
                                 let doc = session_clone.document.read().unwrap();
@@ -716,6 +717,7 @@ pub async fn handle_websocket(
                                     });
                                     apply_operation(&canonical_operation, &session_clone);
                                 }
+                                session_clone.touch();
 
                                 let update_msg = ServerMessage::Update {
                                     operation: canonical_operation.clone(),
@@ -758,6 +760,7 @@ pub async fn handle_websocket(
                                     cursor,
                                     selected_ids,
                                 };
+                                session_clone.touch();
                                 if let Err(e) = tx_clone.send(presence_msg) {
                                     warn!("Failed to broadcast Presence from client {}: {}", id, e);
                                 }

@@ -7,7 +7,9 @@ use axum::{
 };
 use rustboard_editor::Document;
 use serde::Serialize;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
@@ -31,9 +33,37 @@ async fn main() {
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(3001);
 
+    let session_ttl_secs = std::env::var("SESSION_TTL_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(60 * 60 * 24);
+    let session_store_path = std::env::var("SESSION_STORE_PATH")
+        .ok()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("server_data/sessions.json"));
+
     let state = AppState {
-        sessions: Arc::new(RwLock::new(SessionManager::new())),
+        sessions: Arc::new(RwLock::new(SessionManager::new_with_persistence(
+            session_store_path,
+            session_ttl_secs,
+        ))),
     };
+
+    let sessions_for_maintenance = state.sessions.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            let mut sessions = sessions_for_maintenance.write().unwrap();
+            let removed = sessions.cleanup_expired_sessions();
+            if removed > 0 {
+                tracing::info!("Cleaned up {removed} expired sessions");
+            }
+            if let Err(err) = sessions.persist_all() {
+                tracing::warn!("Failed to persist sessions: {err}");
+            }
+        }
+    });
 
     let app = Router::new()
         .route("/ws/:session_id", get(websocket_handler))
@@ -65,6 +95,7 @@ async fn websocket_handler(
 
     let session = {
         let sessions = state.sessions.read().unwrap();
+        sessions.mark_session_active(&session_id);
         sessions.get_session(&session_id)
     };
     let Some(session) = session else {
@@ -137,6 +168,7 @@ async fn get_session(
     State(state): State<AppState>,
 ) -> axum::Json<GetSessionResponse> {
     let sessions = state.sessions.read().unwrap();
+    sessions.mark_session_active(&session_id);
     let session = sessions.get_session(&session_id);
     let exists = session.is_some();
     let token_valid = match (session, query.token) {

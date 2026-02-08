@@ -1,11 +1,19 @@
 use rustboard_editor::Document;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
 use crate::websocket::ServerMessage;
+
+fn now_unix_ts() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 #[derive(Clone)]
 pub struct Session {
@@ -18,7 +26,8 @@ pub struct Session {
     pub broadcast_tx: Arc<broadcast::Sender<ServerMessage>>,
     pub editor_token: String,
     pub viewer_token: String,
-    pub _created_at: u64,
+    pub created_at: Arc<AtomicU64>,
+    pub last_active_at: Arc<AtomicU64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -36,8 +45,35 @@ pub struct ClientInfo {
     pub role: ClientRole,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedSession {
+    id: String,
+    editor_token: String,
+    viewer_token: String,
+    document: String,
+    created_at: u64,
+    last_active_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedSessionStore {
+    sessions: Vec<PersistedSession>,
+}
+
 impl Session {
     pub fn new(id: String, document: Document, editor_token: String, viewer_token: String) -> Self {
+        let now = now_unix_ts();
+        Self::new_with_timestamps(id, document, editor_token, viewer_token, now, now)
+    }
+
+    pub fn new_with_timestamps(
+        id: String,
+        document: Document,
+        editor_token: String,
+        viewer_token: String,
+        created_at: u64,
+        last_active_at: u64,
+    ) -> Self {
         let (tx, _) = broadcast::channel::<ServerMessage>(10000);
         Self {
             id,
@@ -49,11 +85,13 @@ impl Session {
             broadcast_tx: Arc::new(tx),
             editor_token,
             viewer_token,
-            _created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            created_at: Arc::new(AtomicU64::new(created_at)),
+            last_active_at: Arc::new(AtomicU64::new(last_active_at)),
         }
+    }
+
+    pub fn touch(&self) {
+        self.last_active_at.store(now_unix_ts(), Ordering::SeqCst);
     }
 
     pub fn add_client(&self, client_id: String, name: String, color: String, role: ClientRole) {
@@ -72,6 +110,7 @@ impl Session {
         roles.insert(id.clone(), role);
         let mut maps = self.client_id_maps.write().unwrap();
         maps.entry(id).or_default();
+        self.touch();
     }
 
     pub fn remove_client(&self, client_id: &str) {
@@ -81,6 +120,7 @@ impl Session {
         roles.remove(client_id);
         let mut maps = self.client_id_maps.write().unwrap();
         maps.remove(client_id);
+        self.touch();
     }
 
     pub fn get_clients(&self) -> Vec<ClientInfo> {
@@ -96,6 +136,7 @@ impl Session {
         let mut maps = self.client_id_maps.write().unwrap();
         let entry = maps.entry(client_id.to_string()).or_default();
         entry.insert(local_id, canonical_id);
+        self.touch();
     }
 
     pub fn resolve_client_id(&self, client_id: &str, incoming_id: u64) -> u64 {
@@ -120,29 +161,121 @@ impl Session {
         let roles = self.client_roles.read().unwrap();
         matches!(roles.get(client_id), Some(ClientRole::Editor))
     }
+
+    fn to_persisted(&self) -> PersistedSession {
+        let document = {
+            let doc = self.document.read().unwrap();
+            doc.serialize()
+        };
+        PersistedSession {
+            id: self.id.clone(),
+            editor_token: self.editor_token.clone(),
+            viewer_token: self.viewer_token.clone(),
+            document,
+            created_at: self.created_at.load(Ordering::SeqCst),
+            last_active_at: self.last_active_at.load(Ordering::SeqCst),
+        }
+    }
+
+    fn from_persisted(snapshot: PersistedSession) -> Self {
+        let mut document = Document::new();
+        let _ = document.deserialize(&snapshot.document);
+        Session::new_with_timestamps(
+            snapshot.id,
+            document,
+            snapshot.editor_token,
+            snapshot.viewer_token,
+            snapshot.created_at,
+            snapshot.last_active_at,
+        )
+    }
 }
 
 pub struct SessionManager {
     sessions: HashMap<String, Session>,
+    store_path: PathBuf,
+    ttl_secs: u64,
 }
 
 impl SessionManager {
-    pub fn new() -> Self {
-        Self {
+    pub fn new_with_persistence(store_path: PathBuf, ttl_secs: u64) -> Self {
+        let mut manager = Self {
             sessions: HashMap::new(),
-        }
+            store_path,
+            ttl_secs,
+        };
+        manager.load_from_disk();
+        manager
     }
 
     pub fn create_session(&mut self, session: Session) {
         self.sessions.insert(session.id.clone(), session);
+        let _ = self.persist_all();
     }
 
     pub fn get_session(&self, session_id: &str) -> Option<Session> {
         self.sessions.get(session_id).cloned()
     }
 
+    pub fn mark_session_active(&self, session_id: &str) {
+        if let Some(session) = self.sessions.get(session_id) {
+            session.touch();
+        }
+    }
+
+    pub fn persist_all(&self) -> Result<(), String> {
+        let parent_dir = self
+            .store_path
+            .parent()
+            .ok_or_else(|| "Invalid session store path".to_string())?;
+
+        std::fs::create_dir_all(parent_dir)
+            .map_err(|e| format!("Failed to create session store directory: {e}"))?;
+
+        let snapshots: Vec<PersistedSession> =
+            self.sessions.values().map(Session::to_persisted).collect();
+
+        let payload = PersistedSessionStore {
+            sessions: snapshots,
+        };
+        let json = serde_json::to_string_pretty(&payload)
+            .map_err(|e| format!("Failed to serialize session store: {e}"))?;
+
+        std::fs::write(&self.store_path, json)
+            .map_err(|e| format!("Failed to write session store: {e}"))
+    }
+
+    pub fn cleanup_expired_sessions(&mut self) -> usize {
+        let now = now_unix_ts();
+        let before = self.sessions.len();
+        self.sessions.retain(|_, session| {
+            let has_clients = !session.clients.read().unwrap().is_empty();
+            let last_active_at = session.last_active_at.load(Ordering::SeqCst);
+            has_clients || now.saturating_sub(last_active_at) < self.ttl_secs
+        });
+        before.saturating_sub(self.sessions.len())
+    }
+
+    fn load_from_disk(&mut self) {
+        let raw = match std::fs::read_to_string(&self.store_path) {
+            Ok(data) => data,
+            Err(_) => return,
+        };
+
+        let parsed = match serde_json::from_str::<PersistedSessionStore>(&raw) {
+            Ok(value) => value,
+            Err(_) => return,
+        };
+
+        for snapshot in parsed.sessions {
+            let session = Session::from_persisted(snapshot);
+            self.sessions.insert(session.id.clone(), session);
+        }
+    }
+
     #[allow(dead_code)]
     pub fn remove_session(&mut self, session_id: &str) {
         self.sessions.remove(session_id);
+        let _ = self.persist_all();
     }
 }

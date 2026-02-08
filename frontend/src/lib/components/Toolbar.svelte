@@ -6,6 +6,7 @@
 	import { screenToWorld } from '$lib/utils/viewport';
 	import { onMount, onDestroy } from 'svelte';
 	import { collaborationState, isCollaborating, collaboratorCount } from '$lib/stores/collaboration';
+	import { gridEnabled, gridSize } from '$lib/stores/grid';
 	import {
 		createSession,
 		connectToSession,
@@ -166,6 +167,10 @@
 		}
 		collaborationState.update(state => ({
 			...state,
+			isConnected: false,
+			connectionStatus: 'disconnected',
+			isResyncing: false,
+			lastError: null,
 			sessionId: null,
 			clientId: null,
 			isHost: false,
@@ -254,6 +259,10 @@
 		theme.update(t => t === 'light' ? 'dark' : 'light');
 		console.log('theme', $theme);
 	}
+
+	function toggleGridSnap() {
+		gridEnabled.update((enabled) => !enabled);
+	}
 </script>
 
 <div class={`absolute top-2 left-2 z-50 flex gap-1 shadow-sm rounded-sm p-1 ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
@@ -320,6 +329,24 @@
 			{/if}
 		</button>
 	{/each}
+
+	<button
+		on:click={toggleGridSnap}
+		class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+			${$gridEnabled
+				? $theme === 'dark'
+					? 'text-stone-100 bg-stone-700 border border-stone-500'
+					: 'text-stone-800 bg-stone-100 border border-stone-400'
+				: $theme === 'dark'
+					? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-500'
+					: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
+		title={`Snap to grid (${$gridSize}px)`}
+	>
+		<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25">
+			<path d="M1 1h14v14H1z" />
+			<path d="M1 5.5h14M1 10.5h14M5.5 1v14M10.5 1v14" />
+		</svg>
+	</button>
 	
 	<div class={`w-px ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'} mx-1`}></div>
 

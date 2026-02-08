@@ -71,6 +71,114 @@
 	let fillColorPickerButton: HTMLButtonElement;
 	let stylePanelRef: HTMLDivElement;
 
+	type AlignableShape = {
+		kind: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text';
+		id: number;
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	};
+
+	function getAlignableSelection(): AlignableShape[] {
+		const selected: AlignableShape[] = [];
+		$selectedRectangles.forEach((shape) => {
+			selected.push({ kind: 'rectangle', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+		});
+		$selectedEllipses.forEach((shape) => {
+			selected.push({ kind: 'ellipse', id: shape.id, x: shape.position.x - shape.radius_x, y: shape.position.y - shape.radius_y, width: shape.radius_x * 2, height: shape.radius_y * 2 });
+		});
+		$selectedDiamonds.forEach((shape) => {
+			selected.push({ kind: 'diamond', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+		});
+		$selectedImages.forEach((shape) => {
+			selected.push({ kind: 'image', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+		});
+		$selectedTexts.forEach((shape) => {
+			selected.push({ kind: 'text', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+		});
+		return selected;
+	}
+
+	function moveAlignableShape(shape: AlignableShape, x: number, y: number) {
+		if (!$editorApi) return;
+		switch (shape.kind) {
+			case 'rectangle':
+				$editorApi.move_rectangle(BigInt(shape.id), x, y, false);
+				sendOperation({ op: 'MoveRectangle', id: shape.id, position: { x, y } });
+				break;
+			case 'ellipse':
+				$editorApi.move_ellipse(BigInt(shape.id), x + shape.width / 2, y + shape.height / 2, false);
+				sendOperation({ op: 'MoveEllipse', id: shape.id, position: { x: x + shape.width / 2, y: y + shape.height / 2 } });
+				break;
+			case 'diamond':
+				$editorApi.move_diamond(BigInt(shape.id), x, y, false);
+				sendOperation({ op: 'MoveDiamond', id: shape.id, position: { x, y } });
+				break;
+			case 'image':
+				$editorApi.move_image(BigInt(shape.id), x, y, false);
+				sendOperation({ op: 'MoveImage', id: shape.id, position: { x, y } });
+				break;
+			case 'text':
+				$editorApi.move_text(BigInt(shape.id), x, y, false);
+				sendOperation({ op: 'MoveText', id: shape.id, position: { x, y } });
+				break;
+		}
+	}
+
+	function alignSelection(mode: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') {
+		if (!$editorApi) return;
+		const selected = getAlignableSelection();
+		if (selected.length < 2) return;
+
+		const minX = Math.min(...selected.map((shape) => shape.x));
+		const maxX = Math.max(...selected.map((shape) => shape.x + shape.width));
+		const minY = Math.min(...selected.map((shape) => shape.y));
+		const maxY = Math.max(...selected.map((shape) => shape.y + shape.height));
+		const centerX = (minX + maxX) / 2;
+		const centerY = (minY + maxY) / 2;
+
+		selected.forEach((shape) => {
+			let x = shape.x;
+			let y = shape.y;
+			if (mode === 'left') x = minX;
+			if (mode === 'center') x = centerX - shape.width / 2;
+			if (mode === 'right') x = maxX - shape.width;
+			if (mode === 'top') y = minY;
+			if (mode === 'middle') y = centerY - shape.height / 2;
+			if (mode === 'bottom') y = maxY - shape.height;
+			moveAlignableShape(shape, x, y);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
+	function distributeSelection(axis: 'horizontal' | 'vertical') {
+		if (!$editorApi) return;
+		const selected = getAlignableSelection();
+		if (selected.length < 3) return;
+
+		const sorted = [...selected].sort((a, b) => (axis === 'horizontal' ? a.x - b.x : a.y - b.y));
+		const first = sorted[0];
+		const last = sorted[sorted.length - 1];
+		const span = axis === 'horizontal' ? last.x - first.x : last.y - first.y;
+		if (span <= 0) return;
+		const step = span / (sorted.length - 1);
+
+		sorted.forEach((shape, index) => {
+			if (shape.id === first.id || shape.id === last.id) return;
+			const x = axis === 'horizontal' ? first.x + step * index : shape.x;
+			const y = axis === 'vertical' ? first.y + step * index : shape.y;
+			moveAlignableShape(shape, x, y);
+		});
+
+		$editorApi.save_snapshot();
+		updateStores();
+		saveStateToLocalStorage();
+	}
+
 	function openStrokeColorPicker(event: MouseEvent) {
 		const button = event.currentTarget as HTMLButtonElement;
 		const buttonRect = button.getBoundingClientRect();
@@ -965,6 +1073,22 @@
 {#if hasSelection}
 	<div bind:this={stylePanelRef} class={`absolute top-2 right-2 z-50 backdrop-blur-sm border rounded-lg p-3 w-[240px] min-w-[240px] min-h-[100px] overflow-hidden ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
 		<div class="space-y-2.5 min-w-0">
+			<div class="space-y-1.5">
+				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Arrange</div>
+				<div class="grid grid-cols-3 gap-1">
+					<button type="button" on:click={() => alignSelection('left')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Left</button>
+					<button type="button" on:click={() => alignSelection('center')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Center</button>
+					<button type="button" on:click={() => alignSelection('right')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Right</button>
+					<button type="button" on:click={() => alignSelection('top')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Top</button>
+					<button type="button" on:click={() => alignSelection('middle')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Middle</button>
+					<button type="button" on:click={() => alignSelection('bottom')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Bottom</button>
+				</div>
+				<div class="grid grid-cols-2 gap-1">
+					<button type="button" on:click={() => distributeSelection('horizontal')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Distribute H</button>
+					<button type="button" on:click={() => distributeSelection('vertical')} class={`px-2 py-1 text-[11px] rounded border ${$theme === 'dark' ? 'border-stone-600 text-stone-200 hover:bg-stone-700' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>Distribute V</button>
+				</div>
+			</div>
+
 			{#if !hasImagesOnly}
 				{#if hasShapes}
 					<div class="space-y-1.5">
