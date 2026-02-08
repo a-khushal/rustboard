@@ -92,6 +92,16 @@
 		};
 	}
 
+	function isTypingTarget(target: EventTarget | null): boolean {
+		if (!(target instanceof HTMLElement)) return false;
+		if (target.isContentEditable) return true;
+		if (target.closest('[contenteditable="true"]')) return true;
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+			return true;
+		}
+		return false;
+	}
+
 	type BoundingBox = { x: number; y: number; width: number; height: number; rawWidth?: number; rawHeight?: number; scaleX?: number; scaleY?: number };
 	let canvas: HTMLCanvasElement | undefined;
 	let ctx: CanvasRenderingContext2D | null = null;
@@ -215,12 +225,40 @@
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
+	let lastAppliedToolCursor: Tool | null = null;
 	type BindableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text';
 	type BoundEndpoint = { shapeType: BindableShapeType; shapeId: number; relX: number; relY: number };
 	type ArrowBinding = {
 		start?: BoundEndpoint;
 		end?: BoundEndpoint;
 	};
+
+	function applyToolCursorImmediately() {
+		if (!canvas) return;
+		if (isPanning || isDragging || isResizing || isGroupResizing || isRotating || isGroupRotating) return;
+
+		if (isSpacePressed) {
+			canvas.style.cursor = 'grab';
+			return;
+		}
+
+		if ($activeTool === 'rectangle' || $activeTool === 'ellipse' || $activeTool === 'diamond' || $activeTool === 'line' || $activeTool === 'arrow' || $activeTool === 'freehand') {
+			canvas.style.cursor = 'crosshair';
+			return;
+		}
+
+		if ($activeTool === 'eraser') {
+			canvas.style.cursor = 'none';
+			return;
+		}
+
+		canvas.style.cursor = 'default';
+	}
+
+	$: if (canvas && $activeTool !== lastAppliedToolCursor) {
+		lastAppliedToolCursor = $activeTool;
+		applyToolCursorImmediately();
+	}
 	const arrowBindings = new Map<number, ArrowBinding>();
 
 
@@ -485,12 +523,60 @@
 
 	function handleKeyDown(event: KeyboardEvent) {
 		const isViewer = $collaborationState.isConnected && $collaborationState.role === 'viewer';
+		if (isTypingTarget(event.target)) {
+			return;
+		}
 
 		if (event.key === 'Escape' && isRotating) {
 			event.preventDefault();
 			resetRotationState();
 			scheduleRender();
 			return;
+		}
+
+		if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+			const codeToTool: Record<string, Tool> = {
+				Digit1: 'select',
+				Digit2: 'rectangle',
+				Digit3: 'diamond',
+				Digit4: 'ellipse',
+				Digit5: 'arrow',
+				Digit6: 'line',
+				Digit7: 'freehand',
+				Digit8: 'text',
+				Digit9: 'image',
+				Digit0: 'eraser',
+				Numpad1: 'select',
+				Numpad2: 'rectangle',
+				Numpad3: 'diamond',
+				Numpad4: 'ellipse',
+				Numpad5: 'arrow',
+				Numpad6: 'line',
+				Numpad7: 'freehand',
+				Numpad8: 'text',
+				Numpad9: 'image',
+				Numpad0: 'eraser'
+			};
+
+			const keyToTool: Record<string, Tool> = {
+				'1': 'select',
+				'2': 'rectangle',
+				'3': 'diamond',
+				'4': 'ellipse',
+				'5': 'arrow',
+				'6': 'line',
+				'7': 'freehand',
+				'8': 'text',
+				'9': 'image',
+				'0': 'eraser'
+			};
+
+			const mappedTool = codeToTool[event.code] ?? keyToTool[event.key];
+			if (mappedTool) {
+				activeTool.set(mappedTool);
+				event.preventDefault();
+				return;
+			}
 		}
 
 		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
@@ -677,6 +763,11 @@
 			selectedLines.set([...$lines]);
 			selectedArrows.set([...$arrows]);
 			selectedDiamonds.set([...$diamonds]);
+			selectedImages.set([...$images]);
+			selectedTexts.set([...$texts]);
+			selectedPaths.set([...$paths]);
+			selectedGroups.set([]);
+			scheduleRender();
 			return;
 		}
 
@@ -712,58 +803,81 @@
 			return;
 		}
 
-		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'c') {
-			if ($activeTool === 'select' && $selectedImages.length > 0) {
-				event.preventDefault();
-				console.log('Image crop - feature to be implemented');
-			}
-			return;
-		}
-
-		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'f') {
-			if ($activeTool === 'select' && $selectedImages.length > 0) {
-				event.preventDefault();
-				console.log('Image filter - feature to be implemented');
-			}
-			return;
-		}
-
-		if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'o') {
-			if ($activeTool === 'select' && $selectedImages.length > 0) {
-				event.preventDefault();
-				console.log('Image opacity - feature to be implemented');
-			}
-			return;
-		}
+		const isDeleteKey = event.key === 'Delete' || event.key === 'Backspace';
+		if (!$editorApi || !isDeleteKey) return;
+		event.preventDefault();
 
 		if (isViewer) return;
-		if (!$editorApi || event.key !== 'Delete') return;
 
 		if (isTextEditing) return;
 
-		const hasSelectedRectangles = $selectedRectangles.length > 0;
-		const hasSelectedEllipses = $selectedEllipses.length > 0;
-		const hasSelectedDiamonds = $selectedDiamonds.length > 0;
-		const hasSelectedLines = $selectedLines.length > 0;
-		const hasSelectedArrows = $selectedArrows.length > 0;
-		const hasSelectedPaths = $selectedPaths.length > 0;
-		const hasSelectedImages = $selectedImages.length > 0;
-		const hasSelectedTexts = $selectedTexts.length > 0;
+		const groupedElementIds = new Set<number>();
+		$selectedGroups.forEach((group) => {
+			for (const id of getAllShapeIdsInGroup(group)) {
+				groupedElementIds.add(id);
+			}
+		});
 
-		if (!hasSelectedRectangles && !hasSelectedEllipses && !hasSelectedDiamonds && !hasSelectedLines && !hasSelectedArrows && !hasSelectedPaths && !hasSelectedImages && !hasSelectedTexts) return;
+		const rectangleIdsSet = new Set<number>([
+			...$selectedRectangles.map((rect) => rect.id),
+			...$rectangles.filter((rect) => groupedElementIds.has(rect.id)).map((rect) => rect.id)
+		]);
+		const ellipseIdsSet = new Set<number>([
+			...$selectedEllipses.map((ellipse) => ellipse.id),
+			...$ellipses.filter((ellipse) => groupedElementIds.has(ellipse.id)).map((ellipse) => ellipse.id)
+		]);
+		const diamondIdsSet = new Set<number>([
+			...$selectedDiamonds.map((diamond) => diamond.id),
+			...$diamonds.filter((diamond) => groupedElementIds.has(diamond.id)).map((diamond) => diamond.id)
+		]);
+		const lineIdsSet = new Set<number>([
+			...$selectedLines.map((line) => line.id),
+			...$lines.filter((line) => groupedElementIds.has(line.id)).map((line) => line.id)
+		]);
+		const arrowIdsSet = new Set<number>([
+			...$selectedArrows.map((arrow) => arrow.id),
+			...$arrows.filter((arrow) => groupedElementIds.has(arrow.id)).map((arrow) => arrow.id)
+		]);
+		const pathIdsSet = new Set<number>([
+			...$selectedPaths.map((path) => path.id),
+			...$paths.filter((path) => groupedElementIds.has(path.id)).map((path) => path.id)
+		]);
+		const imageIdsSet = new Set<number>([
+			...$selectedImages.map((image) => image.id),
+			...$images.filter((image) => groupedElementIds.has(image.id)).map((image) => image.id)
+		]);
+		const textIdsSet = new Set<number>([
+			...$selectedTexts.map((text) => text.id),
+			...$texts.filter((text) => groupedElementIds.has(text.id)).map((text) => text.id)
+		]);
 
-		if (hasLockedSelectedElements()) return;
+		const allSelectedIds = new Set<number>([
+			...rectangleIdsSet,
+			...ellipseIdsSet,
+			...diamondIdsSet,
+			...lineIdsSet,
+			...arrowIdsSet,
+			...pathIdsSet,
+			...imageIdsSet,
+			...textIdsSet
+		]);
 
-		event.preventDefault();
-		
-		const rectangleIds = hasSelectedRectangles ? $selectedRectangles.map(rect => rect.id) : [];
-		const ellipseIds = hasSelectedEllipses ? $selectedEllipses.map(ellipse => ellipse.id) : [];
-		const diamondIds = hasSelectedDiamonds ? $selectedDiamonds.map(diamond => diamond.id) : [];
-		const lineIds = hasSelectedLines ? $selectedLines.map(line => line.id) : [];
-		const arrowIds = hasSelectedArrows ? $selectedArrows.map(arrow => arrow.id) : [];
-		const pathIds = hasSelectedPaths ? $selectedPaths.map(path => path.id) : [];
-		const imageIds = hasSelectedImages ? $selectedImages.map(image => image.id) : [];
-		const textIds = hasSelectedTexts ? $selectedTexts.map(text => text.id) : [];
+		if (allSelectedIds.size === 0) return;
+
+		for (const id of allSelectedIds) {
+			if ($editorApi.is_element_locked(BigInt(id))) {
+				return;
+			}
+		}
+
+		const rectangleIds = Array.from(rectangleIdsSet);
+		const ellipseIds = Array.from(ellipseIdsSet);
+		const diamondIds = Array.from(diamondIdsSet);
+		const lineIds = Array.from(lineIdsSet);
+		const arrowIds = Array.from(arrowIdsSet);
+		const pathIds = Array.from(pathIdsSet);
+		const imageIds = Array.from(imageIdsSet);
+		const textIds = Array.from(textIdsSet);
 
 		deleteShapes(rectangleIds, ellipseIds, lineIds, arrowIds, diamondIds, textIds, pathIds, imageIds);
 	}

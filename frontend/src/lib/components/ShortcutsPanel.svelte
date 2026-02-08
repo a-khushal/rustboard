@@ -77,7 +77,24 @@
 				{ keys: ['Ctrl', 'C'], description: 'Copy' },
 				{ keys: ['Ctrl', 'V'], description: 'Paste' },
 				{ keys: ['Ctrl', 'D'], description: 'Duplicate' },
+				{ keys: ['Ctrl', 'A'], description: 'Select all' },
 				{ keys: ['Delete'], description: 'Delete selected' },
+				{ keys: ['Backspace'], description: 'Delete selected' },
+			]
+		},
+		{
+			category: 'Tools',
+			items: [
+				{ keys: ['1'], description: 'Select tool' },
+				{ keys: ['2'], description: 'Rectangle tool' },
+				{ keys: ['3'], description: 'Diamond tool' },
+				{ keys: ['4'], description: 'Ellipse tool' },
+				{ keys: ['5'], description: 'Arrow tool' },
+				{ keys: ['6'], description: 'Line tool' },
+				{ keys: ['7'], description: 'Freehand tool' },
+				{ keys: ['8'], description: 'Text tool' },
+				{ keys: ['9'], description: 'Image tool' },
+				{ keys: ['0'], description: 'Eraser tool' },
 			]
 		},
 		{
@@ -106,14 +123,6 @@
 			]
 		},
 		{
-			category: 'Image',
-			items: [
-				{ keys: ['C'], description: 'Crop image (when image selected)' },
-				{ keys: ['F'], description: 'Apply filter to image' },
-				{ keys: ['O'], description: 'Adjust image opacity' },
-			]
-		},
-		{
 			category: 'View',
 			items: [
 				{ keys: ['Ctrl', '+'], description: 'Zoom in' },
@@ -132,6 +141,7 @@
 			'Alt': 'Alt',
 			'Meta': '⌘',
 			'Delete': 'Del',
+			'Backspace': 'Backspace',
 			'Escape': 'Esc',
 			'Space': 'Space',
 			'Wheel': 'Scroll',
@@ -258,4 +268,3 @@
 		</div>
 	</div>
 {/if}
-

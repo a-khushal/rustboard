@@ -67,7 +67,17 @@
 		? (viewerTokenExpiryMs ? formatExpiryCountdown(viewerTokenExpiryMs) : 'Unknown')
 		: 'No active viewer link';
 
-		onMount(() => {
+	onMount(() => {
+		function isTypingTarget(target: EventTarget | null): boolean {
+			if (!(target instanceof HTMLElement)) return false;
+			if (target.isContentEditable) return true;
+			if (target.closest('[contenteditable="true"]')) return true;
+			if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+				return true;
+			}
+			return false;
+		}
+
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionId = urlParams.get('session');
 		const token = urlParams.get('token');
@@ -91,6 +101,53 @@
 		}
 
 		function handleKeyDown(event: KeyboardEvent) {
+			if (isTypingTarget(event.target)) return;
+
+			if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+				const codeToTool: Record<string, Tool> = {
+					Digit1: 'select',
+					Digit2: 'rectangle',
+					Digit3: 'diamond',
+					Digit4: 'ellipse',
+					Digit5: 'arrow',
+					Digit6: 'line',
+					Digit7: 'freehand',
+					Digit8: 'text',
+					Digit9: 'image',
+					Digit0: 'eraser',
+					Numpad1: 'select',
+					Numpad2: 'rectangle',
+					Numpad3: 'diamond',
+					Numpad4: 'ellipse',
+					Numpad5: 'arrow',
+					Numpad6: 'line',
+					Numpad7: 'freehand',
+					Numpad8: 'text',
+					Numpad9: 'image',
+					Numpad0: 'eraser'
+				};
+
+				const keyToTool: Record<string, Tool> = {
+					'1': 'select',
+					'2': 'rectangle',
+					'3': 'diamond',
+					'4': 'ellipse',
+					'5': 'arrow',
+					'6': 'line',
+					'7': 'freehand',
+					'8': 'text',
+					'9': 'image',
+					'0': 'eraser'
+				};
+
+				const mappedTool = codeToTool[event.code] ?? keyToTool[event.key];
+				if (mappedTool) {
+					event.preventDefault();
+					setTool(mappedTool);
+					return;
+				}
+			}
+
 			const isSlashKey = event.code === 'Slash' || event.key === '/' || event.key === '?';
 			if ((event.ctrlKey || event.metaKey) && isSlashKey) {
 				event.preventDefault();
@@ -362,17 +419,17 @@
 		}
 	}
 
-	const tools: Array<{ id: Tool; label: string; icon: string }> = [
-		{ id: 'select' as Tool, label: 'Select', icon: 'cursor' },
-		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect' },
-		{ id: 'diamond' as Tool, label: 'Diamond', icon: 'diamond' },
-		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle' },
-		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow' },
-		{ id: 'line' as Tool, label: 'Line', icon: 'line' },
-		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand' },
-		{ id: 'text' as Tool, label: 'Text', icon: 'text' },
-		{ id: 'image' as Tool, label: 'Image', icon: 'image' },
-		{ id: 'eraser' as Tool, label: 'Eraser', icon: 'eraser' }
+	const tools: Array<{ id: Tool; label: string; icon: string; shortcut: string }> = [
+		{ id: 'select' as Tool, label: 'Select', icon: 'cursor', shortcut: '1' },
+		{ id: 'rectangle' as Tool, label: 'Rectangle', icon: 'rect', shortcut: '2' },
+		{ id: 'diamond' as Tool, label: 'Diamond', icon: 'diamond', shortcut: '3' },
+		{ id: 'ellipse' as Tool, label: 'Ellipse', icon: 'circle', shortcut: '4' },
+		{ id: 'arrow' as Tool, label: 'Arrow', icon: 'arrow', shortcut: '5' },
+		{ id: 'line' as Tool, label: 'Line', icon: 'line', shortcut: '6' },
+		{ id: 'freehand' as Tool, label: 'Freehand', icon: 'freehand', shortcut: '7' },
+		{ id: 'text' as Tool, label: 'Text', icon: 'text', shortcut: '8' },
+		{ id: 'image' as Tool, label: 'Image', icon: 'image', shortcut: '9' },
+		{ id: 'eraser' as Tool, label: 'Eraser', icon: 'eraser', shortcut: '0' }
 	];
 
 	function toggleTheme() {
@@ -405,7 +462,7 @@
 	{#each tools as tool, index (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
-			class={`flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans md:h-auto md:w-auto md:px-2 ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
+			class={`relative flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans md:h-auto md:w-auto md:px-2 ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
 				transition-colors duration-150 rounded-sm
 				${$activeTool === tool.id
 					? $theme === 'dark'
@@ -414,8 +471,14 @@
 					: $theme === 'dark'
 						? 'bg-stone-800 hover:bg-stone-700 border border-stone-500'
 						: 'bg-white hover:bg-stone-50 border border-stone-200'}`}
-			title={tool.label}
+			title={`${tool.label} (${tool.shortcut})`}
 		>
+			<span
+				class={`absolute bottom-0.5 right-0.5 hidden text-[9px] font-medium leading-none md:block ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}
+				aria-hidden="true"
+			>
+				{tool.shortcut}
+			</span>
 			{#if tool.icon === 'cursor'}
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
 					<path fill="none" d="M3.67 2.14V13.87c0 .3.36.45.57.23l3.24-3.24a.33.33 0 0 1 .23-.1h4.58a.33.33 0 0 0 .23-.57L4.23 1.9a.33.33 0 0 0-.57.23Z"/>
