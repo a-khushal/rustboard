@@ -112,6 +112,10 @@
 	let isPanning = false;
 	let panStartPos = { x: 0, y: 0 };
 	let panStartOffset = { x: 0, y: 0 };
+	let isTouchPanning = false;
+	let touchPanStartCenter = { x: 0, y: 0 };
+	let touchPanStartOffset = { x: 0, y: 0 };
+	const activeTouchPoints = new Map<number, { x: number; y: number }>();
 	let isCreatingShape = false;
 	let createStartPos = { x: 0, y: 0 };
 	let createCurrentPos = { x: 0, y: 0 };
@@ -238,7 +242,7 @@
 
 	function applyToolCursorImmediately() {
 		if (!canvas) return;
-		if (isPanning || isDragging || isResizing || isGroupResizing || isRotating || isGroupRotating) return;
+		if (isPanning || isTouchPanning || isDragging || isResizing || isGroupResizing || isRotating || isGroupRotating) return;
 
 		if (isSpacePressed) {
 			canvas.style.cursor = 'grab';
@@ -280,6 +284,44 @@
 		if (eraserTrail.length > ERASER_TRAIL_MAX_POINTS) {
 			eraserTrail = eraserTrail.slice(eraserTrail.length - ERASER_TRAIL_MAX_POINTS);
 		}
+	}
+
+	function getTouchCenter(): { x: number; y: number } | null {
+		if (activeTouchPoints.size === 0) return null;
+		let sumX = 0;
+		let sumY = 0;
+		activeTouchPoints.forEach((point) => {
+			sumX += point.x;
+			sumY += point.y;
+		});
+		return { x: sumX / activeTouchPoints.size, y: sumY / activeTouchPoints.size };
+	}
+
+	function beginTouchPan() {
+		const center = getTouchCenter();
+		if (!center) return;
+		isTouchPanning = true;
+		isPanning = false;
+		isDragging = false;
+		draggedShape = null;
+		isResizing = false;
+		resizePreview = null;
+		isGroupResizing = false;
+		groupResizeCurrentBox = null;
+		if (isDrawingFreehand) {
+			finishFreehandDrawing();
+		}
+		isCreatingShape = false;
+		isSelectingBox = false;
+		selectionBoxStart = null;
+		selectionBoxEnd = null;
+		isErasing = false;
+		touchPanStartCenter = center;
+		touchPanStartOffset = { ...$viewportOffset };
+		if (canvas) {
+			canvas.style.cursor = 'grabbing';
+		}
+		scheduleRender();
 	}
 
 	$: if (canvas && $activeTool !== lastAppliedToolCursor) {
@@ -2530,9 +2572,18 @@ function resetRotationState() {
 		}
 	}
 	
-	function handleMouseDown(event: MouseEvent) {
+	function handleMouseDown(event: PointerEvent) {
 		if (!canvas) return;
 		const isViewer = $collaborationState.isConnected && $collaborationState.role === 'viewer';
+
+		if (event.pointerType === 'touch') {
+			activeTouchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+			if (activeTouchPoints.size >= 2) {
+				beginTouchPan();
+				event.preventDefault();
+				return;
+			}
+		}
 
 		event.preventDefault();
 		canvas.focus({ preventScroll: true });
@@ -3295,8 +3346,30 @@ function resetRotationState() {
 		});
 	}
 
-	function handleMouseMove(event: MouseEvent) {
+	function handleMouseMove(event: PointerEvent) {
 		if (!canvas) return;
+
+		if (event.pointerType === 'touch') {
+			activeTouchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+			if (activeTouchPoints.size >= 2) {
+				if (!isTouchPanning) {
+					beginTouchPan();
+				}
+				const center = getTouchCenter();
+				if (center) {
+					viewportOffset.set({
+						x: touchPanStartOffset.x + (center.x - touchPanStartCenter.x),
+						y: touchPanStartOffset.y + (center.y - touchPanStartCenter.y)
+					});
+				}
+				event.preventDefault();
+				return;
+			}
+		}
+
+		if (isTouchPanning) {
+			return;
+		}
 
 		const rect = canvas.getBoundingClientRect();
 		const screenX = event.clientX - rect.left;
@@ -4200,7 +4273,26 @@ function resetRotationState() {
 		}
 	}
 	
-	function handleMouseUp() {
+	function handleMouseUp(event: PointerEvent) {
+		if (event.pointerType === 'touch') {
+			activeTouchPoints.delete(event.pointerId);
+			if (isTouchPanning) {
+				if (activeTouchPoints.size >= 2) {
+					const center = getTouchCenter();
+					if (center) {
+						touchPanStartCenter = center;
+						touchPanStartOffset = { ...$viewportOffset };
+					}
+				} else {
+					isTouchPanning = false;
+					if (canvas) {
+						canvas.style.cursor = 'default';
+					}
+				}
+				return;
+			}
+		}
+
 		if (isPanning) {
 			isPanning = false;
 		}
@@ -4619,7 +4711,13 @@ function resetRotationState() {
 		canvas?.focus();
 	}
 	
-	function handleMouseLeave() {
+	function handleMouseLeave(event: PointerEvent) {
+		if (event.pointerType === 'touch') {
+			activeTouchPoints.delete(event.pointerId);
+		}
+		if (activeTouchPoints.size < 2) {
+			isTouchPanning = false;
+		}
 		finishFreehandDrawing();
 		if (isPanning) {
 			isPanning = false;
