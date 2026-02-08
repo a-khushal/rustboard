@@ -909,10 +909,11 @@
 		!hasImagesOnly &&
 		(hasShapes || $activeTool === 'freehand' || $activeTool === 'line' || $activeTool === 'arrow');
 
-	$: compactFreehandStrokeRow =
+	$: compactLinearStrokeRow =
 		hasStrokeWidthControls &&
-		($activeTool === 'freehand' || $activeTool === 'line' || $activeTool === 'arrow') &&
+		($activeTool === 'freehand' || $activeTool === 'line' || $activeTool === 'arrow' || $selectedLines.length > 0 || $selectedArrows.length > 0 || $selectedPaths.length > 0) &&
 		!hasFillableShapes &&
+		!hasEditableEdges &&
 		showStrokeColors;
 
 	$: isSingleSelection =
@@ -1293,7 +1294,7 @@
 			</div>
 
 			{#if showStrokeColors || hasFillableShapes}
-				<div class={`grid gap-2 ${((showStrokeColors && hasFillableShapes) || compactFreehandStrokeRow) ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-1'}`}>
+				<div class={`grid gap-2 ${((showStrokeColors && hasFillableShapes) || compactLinearStrokeRow) ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-1'}`}>
 					{#if showStrokeColors}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="flex flex-col gap-1.5 w-full min-w-0">
@@ -1308,12 +1309,12 @@
 										Custom
 									</button>
 								</div>
-								<div class="grid grid-cols-6 gap-1 md:gap-1.5 w-full">
+								<div class="grid grid-cols-6 gap-1.5 w-full">
 									{#each strokeColors as color}
 										<button
 											type="button"
 											on:click={() => updateStrokeColor(color)}
-											class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'h-7 w-7 md:h-8 md:w-8 ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+											class={`h-6 w-6 md:h-7 md:w-7 rounded-full border transition-all md:hover:scale-105 ${displayStrokeColor === color ? 'ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : ''} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 											style="background-color: {color};"
 											title={color}
 										>
@@ -1324,10 +1325,13 @@
 						</div>
 					{/if}
 
-					{#if compactFreehandStrokeRow}
+					{#if compactLinearStrokeRow}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="space-y-1.5">
-								<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
+								<div class="flex items-center justify-between gap-2 min-h-[1.5rem]">
+									<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
+									<span class="px-2 py-1 text-[10px] invisible">Custom</span>
+								</div>
 								<div class="flex items-center gap-1">
 									<button
 										on:click={() => updateStrokeWidthType(1)}
@@ -1378,11 +1382,11 @@
 										Custom
 									</button>
 								</div>
-								<div class="grid grid-cols-6 gap-1 md:gap-1.5 w-full">
+								<div class="grid grid-cols-6 gap-1.5 w-full">
 									<button
 										type="button"
 										on:click={() => updateFillColor(null)}
-										class={`h-6 w-6 md:h-7 md:w-7 rounded-full border transition-all hover:scale-105 relative ${fillColor === null ? 'ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : ''} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+										class={`h-6 w-6 md:h-7 md:w-7 rounded-full border transition-all md:hover:scale-105 relative ${fillColor === null ? 'ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : ''} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 										title="No fill"
 									>
 										<div class={`w-full h-full rounded-full absolute inset-0 ${$theme === 'dark' ? 'bg-stone-700' : 'bg-stone-200'}`} style="background-image: repeating-conic-gradient(${$theme === 'dark' ? '#374151' : '#e5e7eb'} 0% 25%, transparent 0% 50%); background-size: 50% 50%;"></div>
@@ -1391,7 +1395,7 @@
 										<button
 											type="button"
 											on:click={() => updateFillColor(color)}
-											class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'h-7 w-7 md:h-8 md:w-8 ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : 'h-6 w-6 md:h-7 md:w-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
+											class={`h-6 w-6 md:h-7 md:w-7 rounded-full border transition-all md:hover:scale-105 ${fillColor === color ? 'ring-2 ring-offset-1 ' + ($theme === 'dark' ? 'ring-stone-300 ring-offset-stone-800' : 'ring-stone-500 ring-offset-white') : ''} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 											style="background-color: {color};"
 											title={color}
 										>
@@ -1430,8 +1434,8 @@
 				</div>
 			{/if}
 
-			{#if hasEditableEdges || (hasStrokeWidthControls && !compactFreehandStrokeRow)}
-				<div class={`grid gap-2 ${hasEditableEdges && (hasStrokeWidthControls && !compactFreehandStrokeRow) ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-1'}`}>
+			{#if hasEditableEdges || (hasStrokeWidthControls && !compactLinearStrokeRow)}
+				<div class={`grid gap-2 ${hasEditableEdges && (hasStrokeWidthControls && !compactLinearStrokeRow) ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-1'}`}>
 					{#if hasEditableEdges}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="space-y-1.5">
@@ -1463,7 +1467,7 @@
 						</div>
 					{/if}
 
-					{#if hasStrokeWidthControls && !compactFreehandStrokeRow}
+					{#if hasStrokeWidthControls && !compactLinearStrokeRow}
 						<div class="space-y-1.5 min-w-0">
 							<fieldset class="space-y-1.5">
 								<legend class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Stroke width</legend>
