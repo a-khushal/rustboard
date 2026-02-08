@@ -1303,7 +1303,7 @@
 									<button
 										type="button"
 										on:click={openStrokeColorPicker}
-										class={`px-2 py-1 text-[10px] rounded border transition-colors ${$theme === 'dark' ? 'border-stone-600 text-stone-300 hover:bg-stone-700' : 'border-stone-300 text-stone-600 hover:bg-stone-100'}`}
+										class={`px-2 py-0.5 text-[10px] rounded border transition-colors ${$theme === 'dark' ? 'border-stone-600 text-stone-300 hover:bg-stone-700' : 'border-stone-300 text-stone-600 hover:bg-stone-100'}`}
 										title="Fine tune custom stroke color"
 									>
 										Custom
@@ -1376,7 +1376,7 @@
 									<button
 										type="button"
 										on:click={openFillColorPicker}
-										class={`px-2 py-1 text-[10px] rounded border transition-colors ${$theme === 'dark' ? 'border-stone-600 text-stone-300 hover:bg-stone-700' : 'border-stone-300 text-stone-600 hover:bg-stone-100'}`}
+										class={`px-2 py-0.5 text-[10px] rounded border transition-colors ${$theme === 'dark' ? 'border-stone-600 text-stone-300 hover:bg-stone-700' : 'border-stone-300 text-stone-600 hover:bg-stone-100'}`}
 										title="Fine tune custom fill color"
 									>
 										Custom
