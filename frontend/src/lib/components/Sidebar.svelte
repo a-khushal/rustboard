@@ -17,7 +17,6 @@
 		serializeCurrentBoard
 	} from '$lib/utils/boards';
 	import { loadStateFromLocalStorage, saveStateToLocalStorage } from '$lib/utils/storage';
-	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 	import { deleteShapes } from '$lib/utils/delete-shapes';
 	import { clearAllSelections } from '$lib/utils/selection';
 	import { collaborationState } from '$lib/stores/collaboration';
@@ -147,11 +146,13 @@
 
 	async function handleExportPNG() {
 		if (!canvas) return;
+		const { exportToPNG } = await import('$lib/utils/export');
 		await exportToPNG(canvas, 'rustboard.png');
 	}
 
-	function handleExportSVG() {
+	async function handleExportSVG() {
 		if (!ctx) return;
+		const { exportToSVG } = await import('$lib/utils/export');
 		exportToSVG(
 			$rectangles,
 			$ellipses,
@@ -168,6 +169,7 @@
 
 	async function handleExportPDF() {
 		if (!canvas) return;
+		const { exportToPDF } = await import('$lib/utils/export');
 		await exportToPDF(canvas, 'rustboard.pdf');
 	}
 

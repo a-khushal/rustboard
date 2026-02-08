@@ -3,18 +3,19 @@
 	import { 
 		rectangles, ellipses, diamonds, lines, arrows, paths, images, texts
 	} from '$lib/stores/editor';
-	import { exportToPNG, exportToSVG, exportToPDF } from '$lib/utils/export';
 
 	export let canvas: HTMLCanvasElement | undefined = undefined;
 	export let ctx: CanvasRenderingContext2D | null = null;
 
 	async function handleExportPNG() {
 		if (!canvas) return;
+		const { exportToPNG } = await import('$lib/utils/export');
 		await exportToPNG(canvas, 'rustboard.png');
 	}
 
-	function handleExportSVG() {
+	async function handleExportSVG() {
 		if (!ctx) return;
+		const { exportToSVG } = await import('$lib/utils/export');
 		exportToSVG(
 			$rectangles,
 			$ellipses,
@@ -31,6 +32,7 @@
 
 	async function handleExportPDF() {
 		if (!canvas) return;
+		const { exportToPDF } = await import('$lib/utils/export');
 		await exportToPDF(canvas, 'rustboard.pdf');
 	}
 </script>

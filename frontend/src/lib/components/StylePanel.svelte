@@ -10,6 +10,7 @@
 		selectedTexts,
 		selectedPaths,
 		selectedGroups,
+		groups,
 		editorApi,
 		rectangles,
 		ellipses,
@@ -72,7 +73,7 @@
 	let stylePanelRef: HTMLDivElement;
 
 	type AlignableShape = {
-		kind: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text';
+		kind: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text' | 'line' | 'arrow' | 'path';
 		id: number;
 		x: number;
 		y: number;
@@ -80,29 +81,144 @@
 		height: number;
 	};
 
+	function getPathBounds(points: Array<{ x: number; y: number }>) {
+		const xs = points.map((p) => p.x);
+		const ys = points.map((p) => p.y);
+		const minX = Math.min(...xs);
+		const maxX = Math.max(...xs);
+		const minY = Math.min(...ys);
+		const maxY = Math.max(...ys);
+		return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+	}
+
+	function collectGroupElementIds(groupId: number, into: Set<number>) {
+		const group = $groups.find((g) => g.id === groupId);
+		if (!group) return;
+		group.element_ids.forEach((id) => {
+			const nested = $groups.find((g) => g.id === id);
+			if (nested) {
+				collectGroupElementIds(nested.id, into);
+			} else {
+				into.add(id);
+			}
+		});
+	}
+
 	function getAlignableSelection(): AlignableShape[] {
 		const selected: AlignableShape[] = [];
+		const seen = new Set<string>();
+		const pushUnique = (shape: AlignableShape) => {
+			const key = `${shape.kind}:${shape.id}`;
+			if (seen.has(key)) return;
+			seen.add(key);
+			selected.push(shape);
+		};
+
 		$selectedRectangles.forEach((shape) => {
-			selected.push({ kind: 'rectangle', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			pushUnique({ kind: 'rectangle', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
 		});
 		$selectedEllipses.forEach((shape) => {
-			selected.push({ kind: 'ellipse', id: shape.id, x: shape.position.x - shape.radius_x, y: shape.position.y - shape.radius_y, width: shape.radius_x * 2, height: shape.radius_y * 2 });
+			pushUnique({ kind: 'ellipse', id: shape.id, x: shape.position.x - shape.radius_x, y: shape.position.y - shape.radius_y, width: shape.radius_x * 2, height: shape.radius_y * 2 });
 		});
 		$selectedDiamonds.forEach((shape) => {
-			selected.push({ kind: 'diamond', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			pushUnique({ kind: 'diamond', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+		});
+		$selectedLines.forEach((shape) => {
+			const x = Math.min(shape.start.x, shape.end.x);
+			const y = Math.min(shape.start.y, shape.end.y);
+			pushUnique({ kind: 'line', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+		});
+		$selectedArrows.forEach((shape) => {
+			const x = Math.min(shape.start.x, shape.end.x);
+			const y = Math.min(shape.start.y, shape.end.y);
+			pushUnique({ kind: 'arrow', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+		});
+		$selectedPaths.forEach((shape) => {
+			if (shape.points.length === 0) return;
+			const bounds = getPathBounds(shape.points);
+			pushUnique({ kind: 'path', id: shape.id, ...bounds });
 		});
 		$selectedImages.forEach((shape) => {
-			selected.push({ kind: 'image', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			pushUnique({ kind: 'image', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
 		});
 		$selectedTexts.forEach((shape) => {
-			selected.push({ kind: 'text', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			pushUnique({ kind: 'text', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
 		});
+
+		if ($selectedGroups.length > 0) {
+			const groupElementIds = new Set<number>();
+			$selectedGroups.forEach((group) => collectGroupElementIds(group.id, groupElementIds));
+
+			$rectangles.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				pushUnique({ kind: 'rectangle', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			});
+			$ellipses.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				pushUnique({ kind: 'ellipse', id: shape.id, x: shape.position.x - shape.radius_x, y: shape.position.y - shape.radius_y, width: shape.radius_x * 2, height: shape.radius_y * 2 });
+			});
+			$diamonds.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				pushUnique({ kind: 'diamond', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			});
+			$lines.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				const x = Math.min(shape.start.x, shape.end.x);
+				const y = Math.min(shape.start.y, shape.end.y);
+				pushUnique({ kind: 'line', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+			});
+			$arrows.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				const x = Math.min(shape.start.x, shape.end.x);
+				const y = Math.min(shape.start.y, shape.end.y);
+				pushUnique({ kind: 'arrow', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+			});
+			$paths.forEach((shape) => {
+				if (!groupElementIds.has(shape.id) || shape.points.length === 0) return;
+				const bounds = getPathBounds(shape.points);
+				pushUnique({ kind: 'path', id: shape.id, ...bounds });
+			});
+			$images.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				pushUnique({ kind: 'image', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			});
+			$texts.forEach((shape) => {
+				if (!groupElementIds.has(shape.id)) return;
+				pushUnique({ kind: 'text', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			});
+		}
 		return selected;
+	}
+
+	function getFillableTargets() {
+		const rectangleIds = new Set<number>($selectedRectangles.map((shape) => shape.id));
+		const ellipseIds = new Set<number>($selectedEllipses.map((shape) => shape.id));
+		const diamondIds = new Set<number>($selectedDiamonds.map((shape) => shape.id));
+
+		if ($selectedGroups.length > 0) {
+			const groupElementIds = new Set<number>();
+			$selectedGroups.forEach((group) => collectGroupElementIds(group.id, groupElementIds));
+			$rectangles.forEach((shape) => {
+				if (groupElementIds.has(shape.id)) rectangleIds.add(shape.id);
+			});
+			$ellipses.forEach((shape) => {
+				if (groupElementIds.has(shape.id)) ellipseIds.add(shape.id);
+			});
+			$diamonds.forEach((shape) => {
+				if (groupElementIds.has(shape.id)) diamondIds.add(shape.id);
+			});
+		}
+
+		return {
+			rectangles: Array.from(rectangleIds),
+			ellipses: Array.from(ellipseIds),
+			diamonds: Array.from(diamondIds)
+		};
 	}
 
 	function moveAlignableShape(shape: AlignableShape, x: number, y: number) {
 		if (!$editorApi) return;
-		switch (shape.kind) {
+			switch (shape.kind) {
 			case 'rectangle':
 				$editorApi.move_rectangle(BigInt(shape.id), x, y, false);
 				sendOperation({ op: 'MoveRectangle', id: shape.id, position: { x, y } });
@@ -115,6 +231,35 @@
 				$editorApi.move_diamond(BigInt(shape.id), x, y, false);
 				sendOperation({ op: 'MoveDiamond', id: shape.id, position: { x, y } });
 				break;
+			case 'line': {
+				const current = $lines.find((line) => line.id === shape.id);
+				if (!current) break;
+				const deltaX = x - shape.x;
+				const deltaY = y - shape.y;
+				const start = { x: current.start.x + deltaX, y: current.start.y + deltaY };
+				const end = { x: current.end.x + deltaX, y: current.end.y + deltaY };
+				$editorApi.move_line(BigInt(shape.id), start.x, start.y, end.x, end.y, false);
+				sendOperation({ op: 'MoveLine', id: shape.id, start, end });
+				break;
+			}
+			case 'arrow': {
+				const current = $arrows.find((arrow) => arrow.id === shape.id);
+				if (!current) break;
+				const deltaX = x - shape.x;
+				const deltaY = y - shape.y;
+				const start = { x: current.start.x + deltaX, y: current.start.y + deltaY };
+				const end = { x: current.end.x + deltaX, y: current.end.y + deltaY };
+				$editorApi.move_arrow(BigInt(shape.id), start.x, start.y, end.x, end.y, false);
+				sendOperation({ op: 'MoveArrow', id: shape.id, start, end });
+				break;
+			}
+			case 'path': {
+				const deltaX = x - shape.x;
+				const deltaY = y - shape.y;
+				$editorApi.move_path(BigInt(shape.id), deltaX, deltaY, false);
+				sendOperation({ op: 'MovePath', id: shape.id, offset_x: deltaX, offset_y: deltaY });
+				break;
+			}
 			case 'image':
 				$editorApi.move_image(BigInt(shape.id), x, y, false);
 				sendOperation({ op: 'MoveImage', id: shape.id, position: { x, y } });
@@ -410,18 +555,19 @@
 		}
 
 		const colorValue = color || null;
+		const fillTargets = getFillableTargets();
 
-		$selectedRectangles.forEach((rect) => {
-			$editorApi.set_rectangle_fill_color(BigInt(rect.id), colorValue, false);
-			sendOperation({ op: 'SetRectangleStyle', id: rect.id, fill_color: colorValue });
+		fillTargets.rectangles.forEach((id) => {
+			$editorApi.set_rectangle_fill_color(BigInt(id), colorValue, false);
+			sendOperation({ op: 'SetRectangleStyle', id, fill_color: colorValue });
 		});
-		$selectedEllipses.forEach((ellipse) => {
-			$editorApi.set_ellipse_fill_color(BigInt(ellipse.id), colorValue, false);
-			sendOperation({ op: 'SetEllipseStyle', id: ellipse.id, fill_color: colorValue });
+		fillTargets.ellipses.forEach((id) => {
+			$editorApi.set_ellipse_fill_color(BigInt(id), colorValue, false);
+			sendOperation({ op: 'SetEllipseStyle', id, fill_color: colorValue });
 		});
-		$selectedDiamonds.forEach((diamond) => {
-			$editorApi.set_diamond_fill_color(BigInt(diamond.id), colorValue, false);
-			sendOperation({ op: 'SetDiamondStyle', id: diamond.id, fill_color: colorValue });
+		fillTargets.diamonds.forEach((id) => {
+			$editorApi.set_diamond_fill_color(BigInt(id), colorValue, false);
+			sendOperation({ op: 'SetDiamondStyle', id, fill_color: colorValue });
 		});
 
 		$editorApi.save_snapshot();
@@ -668,7 +814,10 @@
 	$: hasFillableShapes =
 		$selectedRectangles.length > 0 ||
 		$selectedEllipses.length > 0 ||
-		$selectedDiamonds.length > 0;
+		$selectedDiamonds.length > 0 ||
+		getFillableTargets().rectangles.length > 0 ||
+		getFillableTargets().ellipses.length > 0 ||
+		getFillableTargets().diamonds.length > 0;
 
 	$: hasEditableEdges =
 		$selectedRectangles.length > 0 ||
@@ -1107,7 +1256,7 @@
 								{#each strokeColors as color}
 									<button
 										type="button"
-										on:click={() => updateStrokeColor(color)}
+										on:click={() => updateStrokeColor(displayStrokeColor === color ? getDefaultStrokeColor() : color)}
 										class={`rounded-full border transition-all hover:scale-105 ${displayStrokeColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 										style="background-color: {color};"
 										title={color}
@@ -1175,7 +1324,7 @@
 							{#each fillColors as color}
 								<button
 									type="button"
-									on:click={() => updateFillColor(color)}
+									on:click={() => updateFillColor(fillColor === color ? null : color)}
 									class={`rounded-full border transition-all hover:scale-105 ${fillColor === color ? 'w-8 h-8' : 'w-7 h-7'} ${$theme === 'dark' ? 'border-stone-600' : 'border-stone-300'}`}
 									style="background-color: {color};"
 									title={color}
