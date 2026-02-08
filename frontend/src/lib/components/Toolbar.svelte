@@ -500,7 +500,7 @@
 			title={`${tool.label} (${tool.shortcut})`}
 		>
 			<span
-				class={`absolute bottom-0.5 right-0.5 hidden text-[9px] font-medium leading-none lg:block ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}
+				class={`shortcut-hint absolute bottom-0.5 right-0.5 text-[9px] font-medium leading-none ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}
 				aria-hidden="true"
 			>
 				{tool.shortcut}
@@ -837,7 +837,7 @@
 
 	<button
 		on:click={() => shortcutsPanelOpen = true}
-	class={`pointer-events-auto flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
+	class={`pointer-events-auto hidden lg:flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 px-0 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm md:h-auto md:w-auto md:px-2
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
@@ -852,3 +852,15 @@
 </div>
 
 <ShortcutsPanel bind:isOpen={shortcutsPanelOpen} />
+
+<style>
+	.shortcut-hint {
+		display: none;
+	}
+
+	@media (min-width: 1280px) and (hover: hover) and (pointer: fine) {
+		.shortcut-hint {
+			display: block;
+		}
+	}
+</style>
