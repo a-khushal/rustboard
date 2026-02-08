@@ -7,6 +7,13 @@ export type BoardMeta = {
 const BOARDS_META_KEY = 'rustboard-boards-meta';
 const CURRENT_BOARD_ID_KEY = 'rustboard-current-board-id';
 const DEFAULT_BOARD_ID = 'default-board';
+const BOARD_SNAPSHOT_SCHEMA_VERSION = 1;
+
+type BoardSnapshotEnvelope = {
+	version: number;
+	serialized: string;
+	updatedAt: number;
+};
 
 function boardStateKey(boardId: string): string {
 	return `rustboard-state-${boardId}`;
@@ -68,7 +75,12 @@ export function setCurrentBoardId(boardId: string): void {
 
 export function saveBoardSnapshot(boardId: string, serialized: string): void {
 	if (typeof window === 'undefined') return;
-	localStorage.setItem(boardStateKey(boardId), serialized);
+	const envelope: BoardSnapshotEnvelope = {
+		version: BOARD_SNAPSHOT_SCHEMA_VERSION,
+		serialized,
+		updatedAt: nowTs(),
+	};
+	localStorage.setItem(boardStateKey(boardId), JSON.stringify(envelope));
 	const boards = readBoards();
 	const index = boards.findIndex((board) => board.id === boardId);
 	if (index >= 0) {
@@ -79,7 +91,20 @@ export function saveBoardSnapshot(boardId: string, serialized: string): void {
 
 export function loadBoardSnapshot(boardId: string): string | null {
 	if (typeof window === 'undefined') return null;
-	return localStorage.getItem(boardStateKey(boardId));
+	const raw = localStorage.getItem(boardStateKey(boardId));
+	if (!raw) return null;
+
+	try {
+		const parsed = JSON.parse(raw) as Partial<BoardSnapshotEnvelope>;
+		if (typeof parsed?.serialized === 'string') {
+			return parsed.serialized;
+		}
+	} catch {
+		// legacy format: raw serialized document string
+	}
+
+	saveBoardSnapshot(boardId, raw);
+	return raw;
 }
 
 export function createBoard(name: string, sourceSerialized: string = ''): BoardMeta {
@@ -90,7 +115,7 @@ export function createBoard(name: string, sourceSerialized: string = ''): BoardM
 		updatedAt: nowTs(),
 	};
 	writeBoards([board, ...boards]);
-	localStorage.setItem(boardStateKey(board.id), sourceSerialized);
+	saveBoardSnapshot(board.id, sourceSerialized);
 	setCurrentBoardId(board.id);
 	return board;
 }

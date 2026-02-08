@@ -49,6 +49,20 @@ export interface SessionInfo {
 	viewer_url: string;
 }
 
+export interface RotateTokenResponse {
+	rotated: boolean;
+	token?: string;
+}
+
+export interface RevokeTokenResponse {
+	revoked: boolean;
+}
+
+export interface InviteTokenResponse {
+	issued: boolean;
+	token?: string;
+}
+
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
@@ -161,6 +175,77 @@ export async function checkSessionExists(sessionId: string, token: string): Prom
 	}
 }
 
+export async function rotateSessionToken(
+	sessionId: string,
+	editorToken: string,
+	role: 'editor' | 'viewer'
+): Promise<RotateTokenResponse> {
+	const response = await fetch(`${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/rotate`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			editor_token: editorToken,
+			role,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error('Failed to rotate session token');
+	}
+
+	return (await response.json()) as RotateTokenResponse;
+}
+
+export async function revokeSessionToken(
+	sessionId: string,
+	editorToken: string,
+	tokenToRevoke: string
+): Promise<RevokeTokenResponse> {
+	const response = await fetch(`${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/revoke`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			editor_token: editorToken,
+			token_to_revoke: tokenToRevoke,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error('Failed to revoke session token');
+	}
+
+	return (await response.json()) as RevokeTokenResponse;
+}
+
+export async function issueInviteToken(
+	sessionId: string,
+	editorToken: string,
+	role: 'editor' | 'viewer',
+	ttlSecs?: number
+): Promise<InviteTokenResponse> {
+	const response = await fetch(`${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/invite`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			editor_token: editorToken,
+			role,
+			ttl_secs: ttlSecs,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error('Failed to issue invite token');
+	}
+
+	return (await response.json()) as InviteTokenResponse;
+}
+
 export function connectToSession(
 	sessionId: string,
 	clientId: string,
@@ -191,7 +276,6 @@ export function connectToSession(
 		let connectionTimeout: NodeJS.Timeout | null = null;
 
 		ws.onopen = () => {
-	console.log('WebSocket connected, readyState:', ws?.readyState);
 			reconnectAttempts = 0;
 
 			const joinMessage: ClientMessage = {

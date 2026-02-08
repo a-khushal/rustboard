@@ -15,6 +15,9 @@
 		generateClientColor,
 		generateClientName,
 		checkSessionExists,
+		revokeSessionToken,
+		rotateSessionToken,
+		issueInviteToken,
 	} from '$lib/utils/collaboration';
 	import { get } from 'svelte/store';
 	import ShortcutsPanel from './ShortcutsPanel.svelte';
@@ -24,6 +27,9 @@
 	let viewerUrl = '';
 	let isCreatingSession = false;
 	let errorMessage = '';
+	let editorToken = '';
+	let viewerToken = '';
+	let tokenActionInProgress = false;
 	let shortcutsPanelOpen = false;
 
 	onMount(() => {
@@ -33,6 +39,11 @@
 		const roleParam = urlParams.get('role');
 		const role: 'editor' | 'viewer' = roleParam === 'viewer' ? 'viewer' : 'editor';
 		if (sessionId && token) {
+			if (role === 'editor') {
+				editorToken = token;
+			} else {
+				viewerToken = token;
+			}
 			const wasHost = localStorage.getItem(`session_host_${sessionId}`) === 'true';
 			joinSession(sessionId, token, wasHost, role);
 		}
@@ -88,6 +99,8 @@
 
 			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=editor&token=${sessionInfo.editor_token}`;
 			viewerUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=viewer&token=${sessionInfo.viewer_token}`;
+			editorToken = sessionInfo.editor_token;
+			viewerToken = sessionInfo.viewer_token;
 			window.history.replaceState({}, '', `?session=${sessionId}&role=editor&token=${sessionInfo.editor_token}`);
 			localStorage.setItem(`session_host_${sessionId}`, 'true');
 
@@ -129,6 +142,11 @@
 
 			shareUrl = `${window.location.origin}${window.location.pathname}?session=${sessionId}&role=${role}&token=${token}`;
 			viewerUrl = role === 'viewer' ? shareUrl : '';
+			if (role === 'editor') {
+				editorToken = token;
+			} else {
+				viewerToken = token;
+			}
 			window.history.replaceState({}, '', `?session=${sessionId}&role=${role}&token=${token}`);
 
 			collaborationState.update(state => ({
@@ -180,8 +198,71 @@
 		}));
 		shareUrl = '';
 		viewerUrl = '';
+		editorToken = '';
+		viewerToken = '';
+		tokenActionInProgress = false;
 		collaborationMenuOpen = false;
 		window.history.replaceState({}, '', window.location.pathname);
+	}
+
+	async function rotateViewerLink() {
+		const state = get(collaborationState);
+		if (!state.sessionId || !editorToken) return;
+		tokenActionInProgress = true;
+		errorMessage = '';
+		try {
+			const result = await rotateSessionToken(state.sessionId, editorToken, 'viewer');
+			if (!result.rotated || !result.token) {
+				throw new Error('Viewer token rotation failed');
+			}
+			viewerToken = result.token;
+			viewerUrl = `${window.location.origin}${window.location.pathname}?session=${state.sessionId}&role=viewer&token=${result.token}`;
+		} catch (error) {
+			console.error('Failed to rotate viewer link:', error);
+			errorMessage = 'Failed to rotate viewer link';
+		} finally {
+			tokenActionInProgress = false;
+		}
+	}
+
+	async function revokeViewerLink() {
+		const state = get(collaborationState);
+		if (!state.sessionId || !editorToken || !viewerToken) return;
+		tokenActionInProgress = true;
+		errorMessage = '';
+		try {
+			const result = await revokeSessionToken(state.sessionId, editorToken, viewerToken);
+			if (!result.revoked) {
+				throw new Error('Viewer token revocation failed');
+			}
+			viewerToken = '';
+			viewerUrl = '';
+		} catch (error) {
+			console.error('Failed to revoke viewer link:', error);
+			errorMessage = 'Failed to revoke viewer link';
+		} finally {
+			tokenActionInProgress = false;
+		}
+	}
+
+	async function generateShortLivedViewerLink() {
+		const state = get(collaborationState);
+		if (!state.sessionId || !editorToken) return;
+		tokenActionInProgress = true;
+		errorMessage = '';
+		try {
+			const result = await issueInviteToken(state.sessionId, editorToken, 'viewer', 60 * 60);
+			if (!result.issued || !result.token) {
+				throw new Error('Failed to issue short-lived invite');
+			}
+			viewerToken = result.token;
+			viewerUrl = `${window.location.origin}${window.location.pathname}?session=${state.sessionId}&role=viewer&token=${result.token}`;
+		} catch (error) {
+			console.error('Failed to issue short-lived viewer link:', error);
+			errorMessage = 'Failed to generate short-lived viewer link';
+		} finally {
+			tokenActionInProgress = false;
+		}
 	}
 
 	function setTool(tool: Tool) {
@@ -416,9 +497,9 @@
 									</button>
 								</div>
 							</div>
-							<div>
-								<label for="viewer-link-input" class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-1 block`}>Viewer Link</label>
-								<div class="flex gap-2">
+					<div>
+						<label for="viewer-link-input" class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-1 block`}>Viewer Link</label>
+						<div class="flex gap-2">
 									<input
 										id="viewer-link-input"
 										type="text"
@@ -426,16 +507,47 @@
 										value={viewerUrl}
 										class={`flex-1 px-2 py-1.5 text-xs ${$theme === 'dark' ? 'bg-stone-900 border-stone-700 text-stone-200' : 'bg-stone-50 border-stone-300 text-stone-700'} border rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
 									/>
-									<button
-										id="copy-viewer-button"
-										on:click={() => copyShareLink(viewerUrl, 'copy-viewer-button')}
-										disabled={!viewerUrl}
-										class={`px-3 py-1.5 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600' : 'bg-stone-500 hover:bg-stone-600'} text-white`}
-									>
-										Copy
-									</button>
-								</div>
+							<button
+								id="copy-viewer-button"
+								on:click={() => copyShareLink(viewerUrl, 'copy-viewer-button')}
+								disabled={!viewerUrl}
+								class={`px-3 py-1.5 text-xs rounded-sm transition-colors ${$theme === 'dark' ? 'bg-stone-700 hover:bg-stone-600' : 'bg-stone-500 hover:bg-stone-600'} text-white`}
+							>
+								Copy
+							</button>
+						</div>
+						{#if $collaborationState.role === 'editor'}
+							<div class="mt-2 flex gap-2">
+								<button
+									on:click={generateShortLivedViewerLink}
+									disabled={tokenActionInProgress || !editorToken}
+									class={`px-2 py-1 text-[11px] rounded-sm transition-colors disabled:opacity-50 ${$theme === 'dark' ? 'bg-blue-700 hover:bg-blue-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+								>
+									1h Viewer Link
+								</button>
+								<button
+									on:click={rotateViewerLink}
+									disabled={tokenActionInProgress || !editorToken}
+									class={`px-2 py-1 text-[11px] rounded-sm transition-colors disabled:opacity-50 ${$theme === 'dark' ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'}`}
+								>
+									Rotate Viewer Link
+								</button>
+								<button
+									on:click={revokeViewerLink}
+									disabled={tokenActionInProgress || !viewerToken || !editorToken}
+									class={`px-2 py-1 text-[11px] rounded-sm transition-colors disabled:opacity-50 ${$theme === 'dark' ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}
+								>
+									Revoke Viewer Link
+								</button>
 							</div>
+						{/if}
+					</div>
+
+					{#if errorMessage}
+						<div class={`p-2 rounded-sm text-xs ${$theme === 'dark' ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700'} border`}>
+							{errorMessage}
+						</div>
+					{/if}
 
 						<div>
 							<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'} mb-2 block`}>Collaborators</div>

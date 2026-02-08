@@ -73,6 +73,7 @@
 	let stylePanelRef: HTMLDivElement;
 
 	type AlignableShape = {
+		key: string;
 		kind: 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text' | 'line' | 'arrow' | 'path';
 		id: number;
 		x: number;
@@ -80,6 +81,40 @@
 		width: number;
 		height: number;
 	};
+
+	function getRotatedRectBounds(
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		rotationAngle: number | undefined,
+		origin: 'center' | 'top-left' = 'top-left'
+	) {
+		const angle = (rotationAngle ?? 0) * Math.PI / 180;
+		if (Math.abs(angle) < 1e-9) {
+			return { x, y, width, height };
+		}
+
+		const cx = origin === 'center' ? x : x + width / 2;
+		const cy = origin === 'center' ? y : y + height / 2;
+		const halfW = width / 2;
+		const halfH = height / 2;
+		const corners = [
+			{ x: -halfW, y: -halfH },
+			{ x: halfW, y: -halfH },
+			{ x: halfW, y: halfH },
+			{ x: -halfW, y: halfH },
+		].map((p) => ({
+			x: cx + p.x * Math.cos(angle) - p.y * Math.sin(angle),
+			y: cy + p.x * Math.sin(angle) + p.y * Math.cos(angle),
+		}));
+
+		const minX = Math.min(...corners.map((p) => p.x));
+		const maxX = Math.max(...corners.map((p) => p.x));
+		const minY = Math.min(...corners.map((p) => p.y));
+		const maxY = Math.max(...corners.map((p) => p.y));
+		return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+	}
 
 	function getPathBounds(points: Array<{ x: number; y: number }>) {
 		const xs = points.map((p) => p.x);
@@ -115,34 +150,39 @@
 		};
 
 		$selectedRectangles.forEach((shape) => {
-			pushUnique({ kind: 'rectangle', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+			pushUnique({ key: `rectangle:${shape.id}`, kind: 'rectangle', id: shape.id, ...bounds });
 		});
 		$selectedEllipses.forEach((shape) => {
-			pushUnique({ kind: 'ellipse', id: shape.id, x: shape.position.x - shape.radius_x, y: shape.position.y - shape.radius_y, width: shape.radius_x * 2, height: shape.radius_y * 2 });
+			const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.radius_x * 2, shape.radius_y * 2, shape.rotation_angle, 'center');
+			pushUnique({ key: `ellipse:${shape.id}`, kind: 'ellipse', id: shape.id, ...bounds });
 		});
 		$selectedDiamonds.forEach((shape) => {
-			pushUnique({ kind: 'diamond', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+			pushUnique({ key: `diamond:${shape.id}`, kind: 'diamond', id: shape.id, ...bounds });
 		});
 		$selectedLines.forEach((shape) => {
 			const x = Math.min(shape.start.x, shape.end.x);
 			const y = Math.min(shape.start.y, shape.end.y);
-			pushUnique({ kind: 'line', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+			pushUnique({ key: `line:${shape.id}`, kind: 'line', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
 		});
 		$selectedArrows.forEach((shape) => {
 			const x = Math.min(shape.start.x, shape.end.x);
 			const y = Math.min(shape.start.y, shape.end.y);
-			pushUnique({ kind: 'arrow', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+			pushUnique({ key: `arrow:${shape.id}`, kind: 'arrow', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
 		});
 		$selectedPaths.forEach((shape) => {
 			if (shape.points.length === 0) return;
 			const bounds = getPathBounds(shape.points);
-			pushUnique({ kind: 'path', id: shape.id, ...bounds });
+			pushUnique({ key: `path:${shape.id}`, kind: 'path', id: shape.id, ...bounds });
 		});
 		$selectedImages.forEach((shape) => {
-			pushUnique({ kind: 'image', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+			pushUnique({ key: `image:${shape.id}`, kind: 'image', id: shape.id, ...bounds });
 		});
 		$selectedTexts.forEach((shape) => {
-			pushUnique({ kind: 'text', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+			const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+			pushUnique({ key: `text:${shape.id}`, kind: 'text', id: shape.id, ...bounds });
 		});
 
 		if ($selectedGroups.length > 0) {
@@ -151,40 +191,45 @@
 
 			$rectangles.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
-				pushUnique({ kind: 'rectangle', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+				const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+				pushUnique({ key: `rectangle:${shape.id}`, kind: 'rectangle', id: shape.id, ...bounds });
 			});
 			$ellipses.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
-				pushUnique({ kind: 'ellipse', id: shape.id, x: shape.position.x - shape.radius_x, y: shape.position.y - shape.radius_y, width: shape.radius_x * 2, height: shape.radius_y * 2 });
+				const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.radius_x * 2, shape.radius_y * 2, shape.rotation_angle, 'center');
+				pushUnique({ key: `ellipse:${shape.id}`, kind: 'ellipse', id: shape.id, ...bounds });
 			});
 			$diamonds.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
-				pushUnique({ kind: 'diamond', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+				const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+				pushUnique({ key: `diamond:${shape.id}`, kind: 'diamond', id: shape.id, ...bounds });
 			});
 			$lines.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
 				const x = Math.min(shape.start.x, shape.end.x);
 				const y = Math.min(shape.start.y, shape.end.y);
-				pushUnique({ kind: 'line', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+				pushUnique({ key: `line:${shape.id}`, kind: 'line', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
 			});
 			$arrows.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
 				const x = Math.min(shape.start.x, shape.end.x);
 				const y = Math.min(shape.start.y, shape.end.y);
-				pushUnique({ kind: 'arrow', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
+				pushUnique({ key: `arrow:${shape.id}`, kind: 'arrow', id: shape.id, x, y, width: Math.abs(shape.end.x - shape.start.x), height: Math.abs(shape.end.y - shape.start.y) });
 			});
 			$paths.forEach((shape) => {
 				if (!groupElementIds.has(shape.id) || shape.points.length === 0) return;
 				const bounds = getPathBounds(shape.points);
-				pushUnique({ kind: 'path', id: shape.id, ...bounds });
+				pushUnique({ key: `path:${shape.id}`, kind: 'path', id: shape.id, ...bounds });
 			});
 			$images.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
-				pushUnique({ kind: 'image', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+				const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+				pushUnique({ key: `image:${shape.id}`, kind: 'image', id: shape.id, ...bounds });
 			});
 			$texts.forEach((shape) => {
 				if (!groupElementIds.has(shape.id)) return;
-				pushUnique({ kind: 'text', id: shape.id, x: shape.position.x, y: shape.position.y, width: shape.width, height: shape.height });
+				const bounds = getRotatedRectBounds(shape.position.x, shape.position.y, shape.width, shape.height, shape.rotation_angle, 'top-left');
+				pushUnique({ key: `text:${shape.id}`, kind: 'text', id: shape.id, ...bounds });
 			});
 		}
 		return selected;
@@ -313,7 +358,7 @@
 		const step = span / (sorted.length - 1);
 
 		sorted.forEach((shape, index) => {
-			if (shape.id === first.id || shape.id === last.id) return;
+			if (shape.key === first.key || shape.key === last.key) return;
 			const x = axis === 'horizontal' ? first.x + step * index : shape.x;
 			const y = axis === 'vertical' ? first.y + step * index : shape.y;
 			moveAlignableShape(shape, x, y);
