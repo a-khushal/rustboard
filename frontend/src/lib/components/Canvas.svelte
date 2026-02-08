@@ -6335,6 +6335,8 @@ function resetRotationState() {
 	$: if (ctx && canvas) {
 		$viewportOffset;
 		$zoom;
+		$gridEnabled;
+		$gridSize;
 		$rectangles;
 		$selectedRectangles;
 		$ellipses;

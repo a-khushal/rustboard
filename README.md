@@ -51,3 +51,9 @@ rustboard/
 - On phone-sized screens, the toolbar is docked at the bottom and becomes horizontally scrollable to avoid overflow.
 - The style panel is shown as a bottom sheet with a limited height and internal scroll, so it does not block most of the canvas.
 - Desktop layout remains unchanged.
+
+## Keyboard Shortcuts
+
+- `1` Select, `2` Rectangle, `3` Diamond, `4` Ellipse, `5` Arrow, `6` Line, `7` Freehand, `8` Text, `9` Image, `0` Eraser
+- `Delete` / `Backspace` delete selected elements
+- `Ctrl/Cmd + /` or `F1` opens the shortcuts panel
