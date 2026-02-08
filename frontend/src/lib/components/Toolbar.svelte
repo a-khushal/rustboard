@@ -500,7 +500,7 @@
 			title={`${tool.label} (${tool.shortcut})`}
 		>
 			<span
-				class={`absolute bottom-0.5 right-0.5 hidden text-[9px] font-medium leading-none md:block ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}
+				class={`absolute bottom-0.5 right-0.5 hidden text-[9px] font-medium leading-none lg:block ${$theme === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}
 				aria-hidden="true"
 			>
 				{tool.shortcut}
