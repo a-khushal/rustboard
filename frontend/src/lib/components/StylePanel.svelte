@@ -1268,7 +1268,7 @@
 	}</script>
 
 {#if hasSelection}
-	<div bind:this={stylePanelRef} class={`fixed bottom-2 left-1/2 z-50 max-h-[45vh] w-[min(22rem,calc(100vw-0.75rem))] -translate-x-1/2 overflow-y-auto overscroll-contain backdrop-blur-sm border rounded-lg p-3 md:absolute md:top-2 md:right-2 md:bottom-auto md:left-auto md:max-h-[calc(100vh-1rem)] md:w-[240px] md:min-w-[240px] md:translate-x-0 ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
+	<div bind:this={stylePanelRef} class={`fixed right-1.5 bottom-16 left-1.5 z-50 max-h-[45vh] overflow-y-auto overscroll-contain backdrop-blur-sm border rounded-lg p-3 md:absolute md:top-2 md:right-2 md:bottom-auto md:left-auto md:max-h-[calc(100vh-1rem)] md:w-[240px] md:min-w-[240px] ${$theme === 'dark' ? 'bg-stone-800/95 border-stone-700/50' : 'bg-white/95 border-stone-200/50'} shadow-lg`}>
 		<div class="space-y-2.5 min-w-0">
 			<div class="space-y-1.5">
 				<div class={`text-xs font-medium ${$theme === 'dark' ? 'text-stone-300' : 'text-stone-700'}`}>Arrange</div>

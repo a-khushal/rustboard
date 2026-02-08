@@ -45,3 +45,9 @@ rustboard/
    ```bash
    npm start
    ```
+
+## Mobile UI Notes
+
+- On phone-sized screens, the toolbar is docked at the bottom and becomes horizontally scrollable to avoid overflow.
+- The style panel is shown as a bottom sheet with a limited height and internal scroll, so it does not block most of the canvas.
+- Desktop layout remains unchanged.

@@ -383,11 +383,11 @@
 	}
 </script>
 
-<div class={`fixed bottom-2 left-1/2 z-50 flex max-w-[calc(100vw-0.75rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-sm p-1 shadow-sm md:absolute md:left-2 md:top-2 md:max-w-none md:translate-x-0 md:overflow-visible ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex gap-1 overflow-x-auto overscroll-x-contain rounded-sm p-1 shadow-sm touch-pan-x md:absolute md:top-2 md:right-auto md:left-2 md:overflow-visible ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
-			class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
+			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans ${$theme === 'dark' ? 'text-stone-200' : 'text-stone-700'}
 				transition-colors duration-150 rounded-sm
 				${$activeTool === tool.id
 					? $theme === 'dark'
@@ -450,7 +450,7 @@
 
 	<button
 		on:click={toggleGridSnap}
-		class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+		class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 			${$gridEnabled
 				? $theme === 'dark'
 					? 'text-stone-100 bg-stone-700 border border-stone-500'
@@ -474,7 +474,7 @@
 				e.stopPropagation();
 				collaborationMenuOpen = !collaborationMenuOpen;
 			}}
-			class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm relative
+			class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm relative
 				${collaborationMenuOpen
 					? $theme === 'dark'
 						? 'bg-stone-700 border border-stone-500'
@@ -651,7 +651,7 @@
 
 	<button
 		on:click={toggleTheme}
-		class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+	class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
@@ -680,7 +680,7 @@
 
 	<button
 		on:click={() => shortcutsPanelOpen = true}
-		class={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
+	class={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs font-sans transition-colors duration-150 rounded-sm
 			${$theme === 'dark'
 				? 'text-stone-200 bg-stone-800 hover:bg-stone-700 border border-stone-700'
 				: 'text-stone-700 bg-white hover:bg-stone-50 border border-stone-200'}`}
