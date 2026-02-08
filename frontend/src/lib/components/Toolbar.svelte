@@ -34,6 +34,16 @@
 	let tokenActionInProgress = false;
 	let shortcutsPanelOpen = false;
 	let currentTimeMs = Date.now();
+	let toolbarRef: HTMLDivElement;
+	let toolbarResizeObserver: ResizeObserver | null = null;
+
+	function updateToolbarOffsetVar() {
+		if (!toolbarRef) return;
+		const rect = toolbarRef.getBoundingClientRect();
+		const bottomGap = Math.max(0, window.innerHeight - rect.bottom);
+		const panelOffset = Math.ceil(rect.height + bottomGap + 8);
+		document.documentElement.style.setProperty('--rb-toolbar-offset', `${panelOffset}px`);
+	}
 
 	function parseTokenExpiryMs(token: string): number | null {
 		if (!token) return null;
@@ -161,17 +171,33 @@
 
 		document.addEventListener('click', handleClickOutside);
 		window.addEventListener('keydown', handleKeyDown);
+		window.addEventListener('resize', updateToolbarOffsetVar);
+		window.addEventListener('orientationchange', updateToolbarOffsetVar);
+		updateToolbarOffsetVar();
+		toolbarResizeObserver = new ResizeObserver(() => {
+			updateToolbarOffsetVar();
+		});
+		if (toolbarRef) {
+			toolbarResizeObserver.observe(toolbarRef);
+		}
 		const timer = window.setInterval(() => {
 			currentTimeMs = Date.now();
 		}, 30000);
 		return () => {
 			document.removeEventListener('click', handleClickOutside);
 			window.removeEventListener('keydown', handleKeyDown);
+			window.removeEventListener('resize', updateToolbarOffsetVar);
+			window.removeEventListener('orientationchange', updateToolbarOffsetVar);
+			if (toolbarResizeObserver) {
+				toolbarResizeObserver.disconnect();
+				toolbarResizeObserver = null;
+			}
 			window.clearInterval(timer);
 		};
 	});
 
 	onDestroy(() => {
+		document.documentElement.style.removeProperty('--rb-toolbar-offset');
 		disconnect();
 	});
 
@@ -458,7 +484,7 @@
 	}
 </script>
 
-<div class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap items-center justify-center gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap md:justify-start ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
+<div bind:this={toolbarRef} class={`fixed right-1.5 bottom-2 left-1.5 z-50 flex flex-wrap items-center justify-center gap-1 overflow-visible rounded-sm p-1 shadow-sm md:absolute md:top-2 md:right-auto md:bottom-auto md:left-2 md:flex-nowrap md:justify-start ${$theme === 'dark' ? 'bg-stone-800 border border-stone-700' : 'bg-white border border-stone-200'}`}>
 	{#each tools as tool, index (tool.id)}
 		<button
 			on:click={() => setTool(tool.id)}
