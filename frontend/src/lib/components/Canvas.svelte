@@ -236,6 +236,7 @@
 	const TOUCH_TEXT_DOUBLE_TAP_MS = 350;
 	let touchTextTapCandidate: { id: number; x: number; y: number } | null = null;
 	let lastTouchTextTap: { id: number; x: number; y: number; time: number } | null = null;
+	let suppressPointerDownUntil = 0;
 	let lastAppliedToolCursor: Tool | null = null;
 	type BindableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text';
 	type BoundEndpoint = { shapeType: BindableShapeType; shapeId: number; relX: number; relY: number };
@@ -2589,6 +2590,10 @@ function resetRotationState() {
 	
 	function handleMouseDown(event: PointerEvent) {
 		if (!canvas) return;
+		if (Date.now() < suppressPointerDownUntil) {
+			event.preventDefault();
+			return;
+		}
 		const isViewer = $collaborationState.isConnected && $collaborationState.role === 'viewer';
 
 		if (event.pointerType === 'touch') {
@@ -4620,6 +4625,7 @@ function resetRotationState() {
 					if (text && !isTextEditing) {
 						enterTextEditingMode(text);
 						openedTextEditorFromTouchTap = true;
+						suppressPointerDownUntil = Date.now() + 500;
 					}
 					lastTouchTextTap = null;
 				} else {
