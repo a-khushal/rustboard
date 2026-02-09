@@ -232,6 +232,10 @@
 	let isRotating = false;
 	let rotationState: { type: RotatableShapeType; id: number; center: { x: number; y: number }; startAngle: number; mouseStartAngle: number } | null = null;
 	let rotationPreview: { type: RotatableShapeType; id: number; angle: number } | null = null;
+	const TOUCH_TEXT_TAP_MAX_DISTANCE = 8;
+	const TOUCH_TEXT_DOUBLE_TAP_MS = 350;
+	let touchTextTapCandidate: { id: number; x: number; y: number } | null = null;
+	let lastTouchTextTap: { id: number; x: number; y: number; time: number } | null = null;
 	let lastAppliedToolCursor: Tool | null = null;
 	type BindableShapeType = 'rectangle' | 'ellipse' | 'diamond' | 'image' | 'text';
 	type BoundEndpoint = { shapeType: BindableShapeType; shapeId: number; relX: number; relY: number };
@@ -1963,8 +1967,13 @@ function resetRotationState() {
 		shapeType: 'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'path' | 'image',
 		isShiftPressed: boolean,
 		x: number,
-		y: number
+		y: number,
+		pointerType: PointerEvent['pointerType']
 	) {
+		if (shapeType !== 'text') {
+			touchTextTapCandidate = null;
+		}
+
 		const group = findGroupForShape(shape.id);
 		if (group) {
 			selectGroup(group, isShiftPressed);
@@ -2117,6 +2126,12 @@ function resetRotationState() {
 			const clickedText = shape as EditorText;
 			const index = $selectedTexts.findIndex(t => t.id === clickedText.id);
 			const isAlreadySelected = index >= 0;
+
+			if (pointerType === 'touch' && !isShiftPressed) {
+				touchTextTapCandidate = { id: clickedText.id, x, y };
+			} else {
+				touchTextTapCandidate = null;
+			}
 
 			if (isShiftPressed) {
 				selectedTexts.set(
@@ -2912,35 +2927,35 @@ function resetRotationState() {
 
 		for (let i = $rectangles.length - 1; i >= 0; i--) {
 			if (isPointInRectangle(x, y, $rectangles[i])) {
-					handleShapeClick($rectangles[i], 'rectangle', isShiftPressed, x, y);
+					handleShapeClick($rectangles[i], 'rectangle', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
 
 			for (let i = $ellipses.length - 1; i >= 0; i--) {
 				if (isPointInEllipse(x, y, $ellipses[i])) {
-					handleShapeClick($ellipses[i], 'ellipse', isShiftPressed, x, y);
+					handleShapeClick($ellipses[i], 'ellipse', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
 
 			for (let i = $diamonds.length - 1; i >= 0; i--) {
 				if (isPointInDiamond(x, y, $diamonds[i])) {
-					handleShapeClick($diamonds[i], 'diamond', isShiftPressed, x, y);
+					handleShapeClick($diamonds[i], 'diamond', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
 
 			for (let i = $lines.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $lines[i], 5 / $zoom)) {
-					handleShapeClick($lines[i], 'line', isShiftPressed, x, y);
+					handleShapeClick($lines[i], 'line', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
 
 			for (let i = $arrows.length - 1; i >= 0; i--) {
 				if (isPointOnLine(x, y, $arrows[i], 5 / $zoom)) {
-					handleShapeClick($arrows[i], 'arrow', isShiftPressed, x, y);
+					handleShapeClick($arrows[i], 'arrow', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
@@ -2949,7 +2964,7 @@ function resetRotationState() {
 				const path = $paths[i];
 				const pathBounds = getPathBoundingBox(path);
 				if (pathBounds && x >= pathBounds.x && x <= pathBounds.x + pathBounds.width && y >= pathBounds.y && y <= pathBounds.y + pathBounds.height) {
-					handleShapeClick(path, 'path', isShiftPressed, x, y);
+					handleShapeClick(path, 'path', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
@@ -2959,14 +2974,14 @@ function resetRotationState() {
 			const padding = 10 / $zoom;
 			if (x >= text.position.x - padding && x <= text.position.x + text.width + padding &&
 				y >= text.position.y - padding && y <= text.position.y + text.height + padding) {
-				handleShapeClick(text, 'text', isShiftPressed, x, y);
+				handleShapeClick(text, 'text', isShiftPressed, x, y, event.pointerType);
 				return;
 			}
 		}
 
 			for (let i = $images.length - 1; i >= 0; i--) {
 				if (isPointInImage(x, y, $images[i])) {
-					handleShapeClick($images[i], 'image', isShiftPressed, x, y);
+					handleShapeClick($images[i], 'image', isShiftPressed, x, y, event.pointerType);
 					return;
 				}
 			}
@@ -3352,6 +3367,7 @@ function resetRotationState() {
 		if (event.pointerType === 'touch') {
 			activeTouchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
 			if (activeTouchPoints.size >= 2) {
+				touchTextTapCandidate = null;
 				if (!isTouchPanning) {
 					beginTouchPan();
 				}
@@ -3378,6 +3394,13 @@ function resetRotationState() {
 		lastMouseWorldPos = { x: worldPos.x, y: worldPos.y };
 
 		let { x, y } = worldPos;
+		if (event.pointerType === 'touch' && touchTextTapCandidate) {
+			const deltaX = x - touchTextTapCandidate.x;
+			const deltaY = y - touchTextTapCandidate.y;
+			if (Math.hypot(deltaX, deltaY) > TOUCH_TEXT_TAP_MAX_DISTANCE / $zoom) {
+				touchTextTapCandidate = null;
+			}
+		}
 		sendPresence({ x, y }, getLocalSelectionIds());
 
 		if ($activeTool === 'freehand' && isDrawingFreehand) {
@@ -4274,9 +4297,22 @@ function resetRotationState() {
 	}
 	
 	function handleMouseUp(event: PointerEvent) {
+		let worldX: number | null = null;
+		let worldY: number | null = null;
+		if (canvas) {
+			const rect = canvas.getBoundingClientRect();
+			const screenX = event.clientX - rect.left;
+			const screenY = event.clientY - rect.top;
+			const world = screenToWorld(screenX, screenY, $viewportOffset, $zoom);
+			worldX = world.x;
+			worldY = world.y;
+		}
+		let openedTextEditorFromTouchTap = false;
+
 		if (event.pointerType === 'touch') {
 			activeTouchPoints.delete(event.pointerId);
 			if (isTouchPanning) {
+				touchTextTapCandidate = null;
 				if (activeTouchPoints.size >= 2) {
 					const center = getTouchCenter();
 					if (center) {
@@ -4563,6 +4599,40 @@ function resetRotationState() {
 			$editorApi.save_snapshot();
 			scheduleRender();
 		}
+
+		if (
+			event.pointerType === 'touch' &&
+			touchTextTapCandidate &&
+			worldX !== null &&
+			worldY !== null
+		) {
+			const tapDeltaX = worldX - touchTextTapCandidate.x;
+			const tapDeltaY = worldY - touchTextTapCandidate.y;
+			const isTap = Math.hypot(tapDeltaX, tapDeltaY) <= TOUCH_TEXT_TAP_MAX_DISTANCE / $zoom;
+			if (isTap) {
+				const now = Date.now();
+				if (
+					lastTouchTextTap &&
+					lastTouchTextTap.id === touchTextTapCandidate.id &&
+					now - lastTouchTextTap.time <= TOUCH_TEXT_DOUBLE_TAP_MS
+				) {
+					const text = $texts.find((item) => item.id === touchTextTapCandidate!.id);
+					if (text && !isTextEditing) {
+						enterTextEditingMode(text);
+						openedTextEditorFromTouchTap = true;
+					}
+					lastTouchTextTap = null;
+				} else {
+					lastTouchTextTap = {
+						id: touchTextTapCandidate.id,
+						x: touchTextTapCandidate.x,
+						y: touchTextTapCandidate.y,
+						time: now,
+					};
+				}
+			}
+		}
+		touchTextTapCandidate = null;
 		
 		if (isCreatingShape) {
 			const threshold = $activeTool === 'ellipse' ? 10 : 5;
@@ -4708,7 +4778,9 @@ function resetRotationState() {
 		isDragging = false;
 		draggedShape = null;
 		dragOffset = { x: 0, y: 0 };
-		canvas?.focus();
+		if (!openedTextEditorFromTouchTap) {
+			canvas?.focus();
+		}
 	}
 	
 	function handleMouseLeave(event: PointerEvent) {
